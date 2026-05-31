@@ -19,7 +19,7 @@ import fs from 'fs'
 import path from 'path'
 
 // クライアントのビルドファイル（dist）を静的配信
-app.use(express.static(path.join(__dirname, '../../client/dist')))
+app.use(express.static(path.join(process.cwd(), 'client/dist')))
 
 
 // 勤怠記録取得API（?date=YYYY-MM-DD、省略時は今日）
@@ -82,7 +82,7 @@ app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api') || req.path.startsWith('/colyseus')) {
     return next()
   }
-  res.sendFile(path.join(__dirname, '../../client/dist/index.html'))
+  res.sendFile(path.join(process.cwd(), 'client/dist/index.html'))
 })
 
 gameServer.listen(port)
