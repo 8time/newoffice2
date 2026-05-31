@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  skyoffice-server:
+    build:
+      context: .
+      dockerfile: ./server/Dockerfile
+    ports:
+      - "2567:2567"
+    environment:
+      - NODE_ENV=production
+
+  skyoffice-client:
+    build:
+      context: .
+      dockerfile: ./client/Dockerfile
+    ports:
+      - "3000:3000"
+    stdin_open: true
+    tty: true
+    depends_on:
+      - skyoffice-server

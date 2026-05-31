@@ -15,28 +15,47 @@ export default class Item extends Phaser.Physics.Arcade.Sprite {
   }
 
   // add texts into dialog box container
-  setDialogBox(text: string) {
+  setDialogBox(text: string, fontSize: number = 13) {
+    // 初めてダイアログが表示された瞬間のみ、決定通知用の効果音を再生します
+    if (this.dialogBox.length === 0) {
+      try {
+        this.scene.sound.play('ping', { volume: 0.35 })
+      } catch (err) {
+        console.error('Play ping sound error:', err)
+      }
+    }
+
+    // 表示文字に「Press R」や「Press E」などがある場合、キー表示を見やすくハイライト
+    let displayHtml = text
+    if (displayHtml.includes('Press R')) {
+      displayHtml = displayHtml.replace('Press R', '⌨️ [ R ]')
+    } else if (displayHtml.includes('Press E')) {
+      displayHtml = displayHtml.replace('Press E', '⌨️ [ E ]')
+    }
+
     const innerText = this.scene.add
-      .text(0, 0, text)
-      .setFontFamily('Arial')
-      .setFontSize(12)
-      .setColor('#000000')
+      .text(0, 0, displayHtml)
+      .setFontFamily('Inter, Arial, sans-serif')
+      .setFontSize(fontSize)
+      .setFontStyle('bold')
+      .setColor('#00ffaa') // 美しいネオングリーンで視認性を劇的に向上
+      .setStroke('#000000', 3) // くっきりした黒いフチ取り
 
     // set dialogBox slightly larger than the text in it
-    const dialogBoxWidth = innerText.width + 4
-    const dialogBoxHeight = innerText.height + 2
+    const dialogBoxWidth = innerText.width + 12
+    const dialogBoxHeight = innerText.height + 8
     const dialogBoxX = this.x - dialogBoxWidth * 0.5
-    const dialogBoxY = this.y + this.height * 0.5
+    const dialogBoxY = this.y + this.height * 0.5 + 4
 
     this.dialogBox.add(
       this.scene.add
         .graphics()
-        .fillStyle(0xffffff, 1)
-        .fillRoundedRect(dialogBoxX, dialogBoxY, dialogBoxWidth, dialogBoxHeight, 3)
-        .lineStyle(1.5, 0x000000, 1)
-        .strokeRoundedRect(dialogBoxX, dialogBoxY, dialogBoxWidth, dialogBoxHeight, 3)
+        .fillStyle(0x0a121e, 0.9) // 高級感のある半透明ダークネイビー背景
+        .fillRoundedRect(dialogBoxX, dialogBoxY, dialogBoxWidth, dialogBoxHeight, 6)
+        .lineStyle(2, 0x00b4ff, 1.0) // 鮮やかなネオンブルーの枠線で浮かび上がらせる
+        .strokeRoundedRect(dialogBoxX, dialogBoxY, dialogBoxWidth, dialogBoxHeight, 6)
     )
-    this.dialogBox.add(innerText.setPosition(dialogBoxX + 2, dialogBoxY))
+    this.dialogBox.add(innerText.setPosition(dialogBoxX + 6, dialogBoxY + 4))
   }
 
   // remove everything in the dialog box container

@@ -58,21 +58,21 @@ export const CreateRoomForm = () => {
   return (
     <CreateRoomFormWrapper onSubmit={handleSubmit}>
       <TextField
-        label="Name"
+        label="ルーム名"
         variant="outlined"
         color="secondary"
         autoFocus
         error={nameFieldEmpty}
-        helperText={nameFieldEmpty && 'Name is required'}
+        helperText={nameFieldEmpty && 'ルーム名を入力してください'}
         onChange={handleChange('name')}
       />
 
       <TextField
-        label="Description"
+        label="説明"
         variant="outlined"
         color="secondary"
         error={descriptionFieldEmpty}
-        helperText={descriptionFieldEmpty && 'Description is required'}
+        helperText={descriptionFieldEmpty && '説明を入力してください'}
         multiline
         rows={4}
         onChange={handleChange('description')}
@@ -80,7 +80,7 @@ export const CreateRoomForm = () => {
 
       <TextField
         type={showPassword ? 'text' : 'password'}
-        label="Password (optional)"
+        label="パスワード (任意)"
         onChange={handleChange('password')}
         color="secondary"
         InputProps={{
@@ -98,7 +98,7 @@ export const CreateRoomForm = () => {
         }}
       />
       <Button variant="contained" color="secondary" type="submit">
-        Create
+        作成
       </Button>
     </CreateRoomFormWrapper>
   )

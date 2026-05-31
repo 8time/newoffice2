@@ -1,22 +1,33 @@
 import React, { useRef, useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import styled from 'styled-components'
 import Box from '@mui/material/Box'
 import Fab from '@mui/material/Fab'
-import Tooltip from '@mui/material/Tooltip'
 import IconButton from '@mui/material/IconButton'
 import InputBase from '@mui/material/InputBase'
 import InsertEmoticonIcon from '@mui/icons-material/InsertEmoticon'
+import AttachFileIcon from '@mui/icons-material/AttachFile'
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline'
 import CloseIcon from '@mui/icons-material/Close'
 import 'emoji-mart/css/emoji-mart.css'
 import { Picker } from 'emoji-mart'
+import * as XLSX from 'xlsx'
 
 import phaserGame from '../PhaserGame'
 import Game from '../scenes/Game'
 
-import { getColorByString } from '../util'
 import { useAppDispatch, useAppSelector } from '../hooks'
-import { MessageType, setFocused, setShowChat } from '../stores/ChatStore'
+import { MessageType, FileAttachment, setFocused, setShowChat, pushFileMessage } from '../stores/ChatStore'
+
+// ─── 吹き出し色パレット（3色ループ） ─────────────────────────────────────────
+// 話者が現れた順に割り当て、4人目から①に戻る
+const BUBBLE_PALETTE: { bg: string; text: string }[] = [
+  { bg: '#ffffff', text: '#111111' }, // ① 白
+  { bg: '#c8f7c5', text: '#111111' }, // ② うすい緑
+  { bg: '#fff9c4', text: '#111111' }, // ③ うすい黄
+]
+
+// ─── Layout ───────────────────────────────────────────────────────────────────
 
 const Backdrop = styled.div`
   position: fixed;
@@ -42,74 +53,236 @@ const FabWrapper = styled.div`
 
 const ChatHeader = styled.div`
   position: relative;
-  height: 35px;
-  background: #000000a7;
-  border-radius: 10px 10px 0px 0px;
+  height: 48px;
+  background: #1a6b2a;
+  border-radius: 10px 10px 0 0;
 
   h3 {
     color: #fff;
-    margin: 7px;
-    font-size: 17px;
+    margin: 0;
+    padding: 10px 0;
+    font-size: 20px;
+    font-weight: 700;
     text-align: center;
   }
 
   .close {
     position: absolute;
-    top: 0;
+    top: 6px;
     right: 0;
+    color: #fff;
   }
 `
 
-const ChatBox = styled(Box)`
+const ChatBox = styled(Box)<{ isDragging?: boolean }>`
   height: 100%;
   width: 100%;
-  overflow: auto;
-  background: #2c2c2c;
-  border: 1px solid #00000029;
+  overflow-y: auto;
+  background: #1a1a2e;
+  border: 2px solid ${({ isDragging }) => (isDragging ? '#42eacb' : '#00000029')};
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+  transition: border-color 0.15s;
 `
 
-const MessageWrapper = styled.div`
+const DropOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  background: rgba(66, 234, 203, 0.15);
   display: flex;
-  flex-wrap: wrap;
-  padding: 0px 2px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  z-index: 10;
+  pointer-events: none;
+  border-radius: 4px;
 
-  p {
-    margin: 3px;
-    text-shadow: 0.3px 0.3px black;
-    font-size: 15px;
+  .drop-icon { font-size: 52px; }
+  .drop-text {
+    font-size: 20px;
+    font-weight: 700;
+    color: #42eacb;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+  }
+`
+
+// ─── 通知（入退室） ────────────────────────────────────────────────────────────
+
+const NotificationRow = styled.div`
+  text-align: center;
+  font-size: 13px;
+  color: #888;
+  padding: 2px 0;
+`
+
+// ─── 吹き出し行 ──────────────────────────────────────────────────────────────
+
+// isMine=true → 自分：左寄せ（row）  isMine=false → 他者：右寄せ（row-reverse）
+const BubbleRow = styled.div<{ isMine: boolean }>`
+  display: flex;
+  flex-direction: ${({ isMine }) => (isMine ? 'row' : 'row-reverse')};
+  align-items: flex-start;
+  gap: 10px;
+`
+
+// アバター円（名前の先頭文字）
+const Avatar = styled.div<{ bg: string }>`
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: ${({ bg }) => bg};
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: #111;
+  margin-top: 4px;
+`
+
+// 名前と吹き出しをまとめるカラム
+const BubbleGroup = styled.div<{ isMine: boolean }>`
+  display: flex;
+  flex-direction: column;
+  align-items: ${({ isMine }) => (isMine ? 'flex-start' : 'flex-end')};
+  max-width: calc(100% - 60px);
+`
+
+const AuthorName = styled.span<{ color: string }>`
+  font-size: 15px;
+  color: ${({ color }) => color};
+  margin-bottom: 4px;
+  padding: 0 4px;
+`
+
+// 吹き出しとメタ情報（既読・時刻）を並べる
+const MessageBody = styled.div<{ isMine: boolean }>`
+  display: flex;
+  flex-direction: ${({ isMine }) => (isMine ? 'row' : 'row-reverse')};
+  align-items: flex-end;
+  gap: 4px;
+`
+
+// 吹き出し本体
+const Bubble = styled.div<{ isMine: boolean }>`
+  position: relative;
+  background: ${({ isMine }) => (isMine ? '#85e249' : '#ffffff')};
+  color: #111111;
+  border-radius: 14px;
+  padding: 10px 14px;
+  font-size: 18px;
+  line-height: 1.4;
+  word-break: break-word;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  max-width: 100%;
+
+  /* しっぽ */
+  &::before {
+    content: '';
+    position: absolute;
+    top: 10px;
+    left: ${({ isMine }) => (isMine ? '-6px' : 'auto')};
+    right: ${({ isMine }) => (isMine ? 'auto' : '-6px')};
+    border: 6px solid transparent;
+    border-top-color: ${({ isMine }) => (isMine ? '#85e249' : '#ffffff')};
+    border-bottom: 0;
+    border-right: ${({ isMine }) => (isMine ? '6px solid transparent' : '0')};
+    border-left: ${({ isMine }) => (isMine ? '0' : '6px solid transparent')};
+    margin-top: -2px;
+  }
+`
+
+const MetaContainer = styled.div<{ isMine: boolean }>`
+  display: flex;
+  flex-direction: column;
+  align-items: ${({ isMine }) => (isMine ? 'flex-start' : 'flex-end')};
+  justify-content: flex-end;
+  min-width: 32px;
+  margin-bottom: 2px;
+`
+
+const ReadLabel = styled.span`
+  font-size: 12px;
+  color: #888;
+`
+
+const TimeLabel = styled.span`
+  font-size: 12px;
+  color: #888;
+`
+
+// ─── ファイルプレビュー ────────────────────────────────────────────────────────
+
+const FilePreviewWrapper = styled.div`
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  padding: 8px 10px;
+  max-width: 260px;
+
+  .file-name {
+    font-size: 13px;
     font-weight: bold;
-    line-height: 1.4;
-    overflow-wrap: anywhere;
+    margin-bottom: 6px;
+    word-break: break-all;
   }
 
-  span {
-    color: white;
-    font-weight: normal;
+  img { max-width: 240px; max-height: 180px; border-radius: 6px; display: block; }
+  video { max-width: 240px; max-height: 160px; border-radius: 6px; display: block; }
+  audio { width: 220px; margin-top: 4px; }
+
+  .csv-table {
+    overflow: auto; max-height: 140px; font-size: 12px;
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #bbb; padding: 2px 5px; white-space: nowrap; }
+    th { background: #e0e0e0; }
   }
 
-  .notification {
-    color: grey;
-    font-weight: normal;
+  .excel-badge {
+    display: inline-block; background: #1e7e34; color: #fff;
+    padding: 4px 10px; border-radius: 4px; font-size: 13px; margin-top: 4px;
   }
+`
 
-  :hover {
-    background: #3a3a3a;
+const FullScreenViewer = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  cursor: zoom-out;
+
+  img, video {
+    max-width: 90vw;
+    max-height: 90vh;
+    object-fit: contain;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    cursor: default;
   }
 `
 
 const InputWrapper = styled.form`
   box-shadow: 10px 10px 10px #00000018;
   border: 1px solid #42eacb;
-  border-radius: 0px 0px 10px 10px;
+  border-radius: 0 0 10px 10px;
   display: flex;
   flex-direction: row;
   background: linear-gradient(180deg, #000000c1, #242424c0);
 `
 
 const InputTextField = styled(InputBase)`
-  border-radius: 0px 0px 10px 10px;
+  font-size: 16px;
   input {
-    padding: 5px;
+    padding: 8px;
+    font-size: 16px;
+    color: #e0e0e0;
   }
 `
 
@@ -119,66 +292,239 @@ const EmojiPickerWrapper = styled.div`
   right: 16px;
 `
 
-const dateFormatter = new Intl.DateTimeFormat('en', {
-  timeStyle: 'short',
-  dateStyle: 'short',
-})
+// ─── 定数 ─────────────────────────────────────────────────────────────────────
 
-const Message = ({ chatMessage, messageType }) => {
-  const [tooltipOpen, setTooltipOpen] = useState(false)
+const ACCEPT_TYPES =
+  'image/*,video/*,audio/*,.xlsx,.xls,.csv,.pdf,' +
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,' +
+  'application/vnd.ms-excel,application/pdf'
+
+const timeFmt = new Intl.DateTimeFormat('ja', { timeStyle: 'short' })
+
+// アバター背景色（吹き出し色と同じパレット）
+const AVATAR_COLORS = BUBBLE_PALETTE.map((p) => p.bg)
+
+function parseCSV(text: string): string[][] {
+  return text
+    .split('\n')
+    .filter((l) => l.trim())
+    .map((line) => line.split(',').map((c) => c.trim().replace(/^"|"$/g, '')))
+}
+
+// ─── FilePreview ──────────────────────────────────────────────────────────────
+
+function FilePreview({ file, textColor }: { file: FileAttachment; textColor: string }) {
+  const [csvRows, setCsvRows] = useState<string[][] | null>(null)
+  const [viewerOpen, setViewerOpen] = useState(false)
+
+  useEffect(() => {
+    if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
+      fetch(file.url).then((r) => r.text()).then((t) => setCsvRows(parseCSV(t)))
+    } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+      fetch(file.url)
+        .then((r) => r.arrayBuffer())
+        .then((ab) => {
+          const wb = XLSX.read(ab, { type: 'array' })
+          const wsname = wb.SheetNames[0]
+          const ws = wb.Sheets[wsname]
+          const data = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1 })
+          setCsvRows(data)
+        })
+        .catch(err => console.error("Excel parse error:", err))
+    }
+  }, [file])
+
+  const isImage = file.type.startsWith('image/')
+  const isVideo = file.type.startsWith('video/')
+  const isAudio = file.type.startsWith('audio/')
+  const isCSV = file.type === 'text/csv' || file.name.endsWith('.csv')
+  const isPDF = file.type === 'application/pdf' || file.name.endsWith('.pdf')
+  const isExcel =
+    file.name.endsWith('.xlsx') || file.name.endsWith('.xls') ||
+    file.type.includes('spreadsheet') || file.type.includes('excel')
 
   return (
-    <MessageWrapper
-      onMouseEnter={() => {
-        setTooltipOpen(true)
-      }}
-      onMouseLeave={() => {
-        setTooltipOpen(false)
-      }}
-    >
-      <Tooltip
-        open={tooltipOpen}
-        title={dateFormatter.format(chatMessage.createdAt)}
-        placement="right"
-        arrow
-      >
-        {messageType === MessageType.REGULAR_MESSAGE ? (
-          <p
-            style={{
-              color: getColorByString(chatMessage.author),
-            }}
-          >
-            {chatMessage.author}: <span>{chatMessage.content}</span>
-          </p>
-        ) : (
-          <p className="notification">
-            {chatMessage.author} {chatMessage.content}
-          </p>
-        )}
-      </Tooltip>
-    </MessageWrapper>
+    <FilePreviewWrapper style={{ color: textColor }}>
+      <div className="file-name">{file.name}</div>
+      {isImage && (
+        <>
+          <img 
+            src={file.url} 
+            alt={file.name} 
+            style={{ cursor: 'zoom-in' }}
+            onClick={() => setViewerOpen(true)} 
+          />
+          {viewerOpen && createPortal(
+            <FullScreenViewer onClick={() => setViewerOpen(false)}>
+              <img src={file.url} alt={file.name} onClick={(e) => e.stopPropagation()} />
+            </FullScreenViewer>,
+            document.body
+          )}
+        </>
+      )}
+      {isVideo && (
+        <>
+          <video 
+            src={file.url} 
+            style={{ cursor: 'zoom-in' }}
+            onClick={(e) => {
+              e.preventDefault()
+              setViewerOpen(true)
+            }} 
+          />
+          {viewerOpen && createPortal(
+            <FullScreenViewer onClick={() => setViewerOpen(false)}>
+              <video src={file.url} controls autoPlay onClick={(e) => e.stopPropagation()} />
+            </FullScreenViewer>,
+            document.body
+          )}
+        </>
+      )}
+      {isAudio && <audio src={file.url} controls />}
+      {isCSV && csvRows && (
+        <div className="csv-table">
+          <table>
+            <thead><tr>{csvRows[0]?.map((h, i) => <th key={i}>{h}</th>)}</tr></thead>
+            <tbody>
+              {csvRows.slice(1, 11).map((row, ri) => (
+                <tr key={ri}>{row.map((cell, ci) => <td key={ci}>{cell}</td>)}</tr>
+              ))}
+            </tbody>
+          </table>
+          {csvRows.length > 11 && (
+            <p style={{ fontSize: 11 }}>…他 {csvRows.length - 11} 行</p>
+          )}
+        </div>
+      )}
+      {isPDF && (
+        <a className="excel-badge" style={{ background: '#d32f2f' }} href={file.url} target="_blank" rel="noopener noreferrer">
+          PDFを開く（別タブ）
+        </a>
+      )}
+      {isExcel && (
+        <a className="excel-badge" href={file.url} target="_blank" rel="noopener noreferrer">
+          Excel を開く（別タブ）
+        </a>
+      )}
+    </FilePreviewWrapper>
   )
+}
+
+// ─── Message ──────────────────────────────────────────────────────────────────
+
+interface MessageProps {
+  chatMessage: any
+  messageType: MessageType
+  file?: FileAttachment
+  colorIndex: number
+  myName: string
+  sessionId: string
+}
+
+function Message({ chatMessage, messageType, file, colorIndex, myName, sessionId }: MessageProps) {
+  const isSystem =
+    messageType === MessageType.PLAYER_JOINED || messageType === MessageType.PLAYER_LEFT
+
+  useEffect(() => {
+    // 自分以外のメッセージで、まだ自分が既読にしていない場合は既読を送信
+    if (!isSystem && chatMessage.author !== myName && chatMessage.id) {
+      if (!chatMessage.readers?.includes(sessionId)) {
+        const game = phaserGame.scene.keys.game as Game
+        game.network.markAsRead(chatMessage.id)
+      }
+    }
+  }, [chatMessage, isSystem, myName, sessionId])
+
+  if (isSystem) {
+    return (
+      <NotificationRow>
+        {chatMessage.author} {chatMessage.content}
+      </NotificationRow>
+    )
+  }
+
+  const isMine = chatMessage.author === myName
+  const avatarBg = AVATAR_COLORS[colorIndex % AVATAR_COLORS.length]
+  const readCount = chatMessage.readers ? chatMessage.readers.length : 0
+
+  return (
+    <BubbleRow isMine={isMine}>
+      {!isMine && (
+        <Avatar bg={avatarBg}>
+          {chatMessage.author.charAt(0).toUpperCase()}
+        </Avatar>
+      )}
+
+      <BubbleGroup isMine={isMine}>
+        {!isMine && <AuthorName color="#bbb">{chatMessage.author}</AuthorName>}
+
+        <MessageBody isMine={isMine}>
+          <Bubble isMine={isMine}>
+            {messageType === MessageType.FILE_MESSAGE && file ? (
+              <FilePreview file={file} textColor="#111" />
+            ) : (
+              chatMessage.content
+            )}
+          </Bubble>
+          <MetaContainer isMine={isMine}>
+            {isMine && readCount > 0 && <ReadLabel>既読 {readCount}</ReadLabel>}
+            <TimeLabel>{timeFmt.format(chatMessage.createdAt)}</TimeLabel>
+          </MetaContainer>
+        </MessageBody>
+      </BubbleGroup>
+    </BubbleRow>
+  )
+}
+
+// ─── Chat ─────────────────────────────────────────────────────────────────────
+
+// ドラッグ対象として有効なMIMEタイプ
+const DROPPABLE_TYPES = /^(image\/|video\/|audio\/|application\/pdf)/
+
+function processDroppedFiles(files: FileList, myName: string, dispatch: any) {
+  Array.from(files).forEach((file) => {
+    if (!DROPPABLE_TYPES.test(file.type) &&
+        !file.name.match(/\.(xlsx?|csv|pdf)$/i)) return
+    const url = URL.createObjectURL(file)
+    dispatch(pushFileMessage({
+      author: myName,
+      file: { name: file.name, type: file.type || 'application/octet-stream', url, size: file.size },
+    }))
+  })
 }
 
 export default function Chat() {
   const [inputValue, setInputValue] = useState('')
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [readyToSubmit, setReadyToSubmit] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const dragCounterRef = useRef(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // 話者ごとの色インデックスを管理（出現順に 0, 1, 2, 0, 1, 2 ...）
+  const speakerColorMap = useRef(new Map<string, number>())
+
   const chatMessages = useAppSelector((state) => state.chat.chatMessages)
   const focused = useAppSelector((state) => state.chat.focused)
   const showChat = useAppSelector((state) => state.chat.showChat)
+  const sessionId = useAppSelector((state) => state.user.sessionId)
+  const myName = useAppSelector((state) => state.user.playerName || 'あなた')
   const dispatch = useAppDispatch()
   const game = phaserGame.scene.keys.game as Game
 
-  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setInputValue(event.target.value)
+  // 各メッセージの話者に色インデックスを割り当てる
+  const getColorIndex = (author: string): number => {
+    if (!speakerColorMap.current.has(author)) {
+      const idx = speakerColorMap.current.size % BUBBLE_PALETTE.length
+      speakerColorMap.current.set(author, idx)
+    }
+    return speakerColorMap.current.get(author)!
   }
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Escape') {
-      // move focus back to the game
       inputRef.current?.blur()
       dispatch(setShowChat(false))
     }
@@ -186,18 +532,8 @@ export default function Chat() {
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-
-    // this is added because without this, 2 things happen at the same
-    // time when Enter is pressed, (1) the inputRef gets focus (from
-    // useEffect) and (2) the form gets submitted (right after the input
-    // gets focused)
-    if (!readyToSubmit) {
-      setReadyToSubmit(true)
-      return
-    }
-    // move focus back to the game
+    if (!readyToSubmit) { setReadyToSubmit(true); return }
     inputRef.current?.blur()
-
     const val = inputValue.trim()
     setInputValue('')
     if (val) {
@@ -206,18 +542,50 @@ export default function Chat() {
     }
   }
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    const url = URL.createObjectURL(file)
+    dispatch(pushFileMessage({
+      author: myName,
+      file: { name: file.name, type: file.type || 'application/octet-stream', url, size: file.size },
+    }))
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  useEffect(() => {
-    if (focused) {
-      inputRef.current?.focus()
-    }
-  }, [focused])
+  // ─── ドラッグ&ドロップ ─────────────────────────────────────────────────────
 
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault()
+    dragCounterRef.current += 1
+    if (e.dataTransfer.types.includes('Files')) setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    dragCounterRef.current -= 1
+    if (dragCounterRef.current === 0) setIsDragging(false)
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    dragCounterRef.current = 0
+    setIsDragging(false)
+    if (e.dataTransfer.files.length > 0) {
+      processDroppedFiles(e.dataTransfer.files, myName, dispatch)
+      // チャットが閉じていれば開く
+      dispatch(setShowChat(true))
+    }
+  }
+
+  useEffect(() => { if (focused) inputRef.current?.focus() }, [focused])
   useEffect(() => {
-    scrollToBottom()
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages, showChat])
 
   return (
@@ -226,7 +594,7 @@ export default function Chat() {
         {showChat ? (
           <>
             <ChatHeader>
-              <h3>Chat</h3>
+              <h3>チャット</h3>
               <IconButton
                 aria-label="close dialog"
                 className="close"
@@ -236,11 +604,33 @@ export default function Chat() {
                 <CloseIcon />
               </IconButton>
             </ChatHeader>
-            <ChatBox>
-              {chatMessages.map(({ messageType, chatMessage }, index) => (
-                <Message chatMessage={chatMessage} messageType={messageType} key={index} />
+
+            <ChatBox
+              isDragging={isDragging}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+            >
+              {isDragging && (
+                <DropOverlay>
+                  <span className="drop-icon">📂</span>
+                  <span className="drop-text">ここにドロップして送信</span>
+                </DropOverlay>
+              )}
+              {chatMessages.map(({ messageType, chatMessage, file }, index) => (
+                <Message
+                  key={index}
+                  chatMessage={chatMessage}
+                  messageType={messageType}
+                  file={file}
+                  colorIndex={getColorIndex(chatMessage.author)}
+                  myName={myName}
+                  sessionId={sessionId}
+                />
               ))}
               <div ref={messagesEndRef} />
+
               {showEmojiPicker && (
                 <EmojiPickerWrapper>
                   <Picker
@@ -248,8 +638,8 @@ export default function Chat() {
                     showSkinTones={false}
                     showPreview={false}
                     onSelect={(emoji) => {
-                      setInputValue(inputValue + emoji.native)
-                      setShowEmojiPicker(!showEmojiPicker)
+                      setInputValue((v) => v + emoji.native)
+                      setShowEmojiPicker(false)
                       dispatch(setFocused(true))
                     }}
                     exclude={['recent', 'flags']}
@@ -257,28 +647,43 @@ export default function Chat() {
                 </EmojiPickerWrapper>
               )}
             </ChatBox>
+
             <InputWrapper onSubmit={handleSubmit}>
               <InputTextField
                 inputRef={inputRef}
                 autoFocus={focused}
                 fullWidth
-                placeholder="Press Enter to chat"
+                placeholder="エンターキーでチャット"
                 value={inputValue}
                 onKeyDown={handleKeyDown}
-                onChange={handleChange}
+                onChange={(e) => setInputValue(e.target.value)}
                 onFocus={() => {
-                  if (!focused) {
-                    dispatch(setFocused(true))
-                    setReadyToSubmit(true)
-                  }
+                  if (!focused) { dispatch(setFocused(true)); setReadyToSubmit(true) }
                 }}
                 onBlur={() => {
-                  dispatch(setFocused(false))
-                  setReadyToSubmit(false)
+                  dispatch(setFocused(false)); setReadyToSubmit(false)
                 }}
               />
-              <IconButton aria-label="emoji" onClick={() => setShowEmojiPicker(!showEmojiPicker)}>
-                <InsertEmoticonIcon />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ACCEPT_TYPES}
+                style={{ display: 'none' }}
+                onChange={handleFileChange}
+              />
+              <IconButton
+                aria-label="attach file"
+                onClick={() => fileInputRef.current?.click()}
+                style={{ padding: '10px' }}
+              >
+                <AttachFileIcon style={{ fontSize: 32 }} />
+              </IconButton>
+              <IconButton
+                aria-label="emoji"
+                onClick={() => setShowEmojiPicker((v) => !v)}
+                style={{ padding: '10px' }}
+              >
+                <InsertEmoticonIcon style={{ fontSize: 32 }} />
               </IconButton>
             </InputWrapper>
           </>
@@ -287,10 +692,7 @@ export default function Chat() {
             <Fab
               color="secondary"
               aria-label="showChat"
-              onClick={() => {
-                dispatch(setShowChat(true))
-                dispatch(setFocused(true))
-              }}
+              onClick={() => { dispatch(setShowChat(true)); dispatch(setFocused(true)) }}
             >
               <ChatBubbleOutlineIcon />
             </Fab>

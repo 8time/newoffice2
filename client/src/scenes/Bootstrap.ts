@@ -27,7 +27,13 @@ export default class Bootstrap extends Phaser.Scene {
     this.load.image('backdrop_night', 'assets/background/backdrop_night.png')
     this.load.image('sun_moon', 'assets/background/sun_moon.png')
 
+    this.load.image('new_office_bg', `assets/background/new_office_bg.png?v=${Date.now()}`)
+    this.load.image('jukebox', 'assets/items/jukebox.png')
+    this.load.audio('song1', 'assets/audio/song1.mp3')
+    this.load.audio('song2', 'assets/audio/song2.mp3')
+    this.load.audio('ping', 'assets/audio/ping.mp3')
     this.load.tilemapTiledJSON('tilemap', 'assets/map/map.json')
+    this.load.json('collision', 'assets/collision.tmj')
     this.load.spritesheet('tiles_wall', 'assets/map/FloorAndGround.png', {
       frameWidth: 32,
       frameHeight: 32,
@@ -79,7 +85,8 @@ export default class Bootstrap extends Phaser.Scene {
 
     this.load.on('complete', () => {
       this.preloadComplete = true
-      this.launchBackground(store.getState().user.backgroundMode)
+      // Disable legacy background scene
+      // this.launchBackground(store.getState().user.backgroundMode)
     })
   }
 
@@ -93,7 +100,6 @@ export default class Bootstrap extends Phaser.Scene {
 
   launchGame() {
     if (!this.preloadComplete) return
-    this.network.webRTC?.checkPreviousPermission()
     this.scene.launch('game', {
       network: this.network,
     })
@@ -104,6 +110,6 @@ export default class Bootstrap extends Phaser.Scene {
 
   changeBackgroundMode(backgroundMode: BackgroundMode) {
     this.scene.stop('background')
-    this.launchBackground(backgroundMode)
+    // this.launchBackground(backgroundMode)
   }
 }

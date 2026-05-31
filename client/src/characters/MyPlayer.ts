@@ -7,6 +7,7 @@ import Network from '../services/Network'
 import Chair from '../items/Chair'
 import Computer from '../items/Computer'
 import Whiteboard from '../items/Whiteboard'
+import Jukebox from '../items/Jukebox'
 
 import { phaserEvents, Event } from '../events/EventCenter'
 import store from '../stores'
@@ -17,7 +18,6 @@ import { JoystickMovement } from '../components/Joystick'
 import { openURL } from '../utils/helpers'
 
 export default class MyPlayer extends Player {
-  private playContainerBody: Phaser.Physics.Arcade.Body
   private chairOnSit?: Chair
   public joystickMovement?: JoystickMovement
   constructor(
@@ -29,11 +29,10 @@ export default class MyPlayer extends Player {
     frame?: string | number
   ) {
     super(scene, x, y, texture, id, frame)
-    this.playContainerBody = this.playerContainer.body as Phaser.Physics.Arcade.Body
   }
 
   setPlayerName(name: string) {
-    this.playerName.setText(name)
+    super.setPlayerName(name)
     phaserEvents.emit(Event.MY_PLAYER_NAME_CHANGE, name)
     store.dispatch(pushPlayerJoinedMessage(name))
   }
@@ -74,6 +73,10 @@ export default class MyPlayer extends Player {
           const url = 'https://www.buymeacoffee.com/skyoffice'
           openURL(url)
           break
+        case ItemType.JUKEBOX:
+          const jukebox = item as Jukebox
+          jukebox.openDialog()
+          break
       }
     }
 
@@ -98,8 +101,7 @@ export default class MyPlayer extends Player {
                   chairItem.x + sittingShiftData[chairItem.itemDirection][0],
                   chairItem.y + sittingShiftData[chairItem.itemDirection][1]
                 ).setDepth(chairItem.depth + sittingShiftData[chairItem.itemDirection][2])
-                // also update playerNameContainer velocity and position
-                this.playContainerBody.setVelocity(0, 0)
+                // also update playerNameContainer position
                 this.playerContainer.setPosition(
                   chairItem.x + sittingShiftData[chairItem.itemDirection][0],
                   chairItem.y + sittingShiftData[chairItem.itemDirection][1] - 30
@@ -155,9 +157,6 @@ export default class MyPlayer extends Player {
         // update character velocity
         this.setVelocity(vx, vy)
         this.body.velocity.setLength(speed)
-        // also update playerNameContainer velocity
-        this.playContainerBody.setVelocity(vx, vy)
-        this.playContainerBody.velocity.setLength(speed)
 
         // update animation according to velocity and send new location and anim to server
         if (vx !== 0 || vy !== 0) network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
@@ -196,6 +195,9 @@ export default class MyPlayer extends Player {
         }
         break
     }
+
+    // 名前コンテナの座標をプレイヤーの頭上に完全に固定（ズレを解消）
+    this.playerContainer.setPosition(this.x, this.y - 30)
   }
 }
 

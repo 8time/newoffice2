@@ -40,7 +40,7 @@ export const whiteboardSlice = createSlice({
     setWhiteboardUrls: (state, action: PayloadAction<{ whiteboardId: string; roomId: string }>) => {
       state.urls.set(
         action.payload.whiteboardId,
-        `https://wbo.ophir.dev/boards/sky-office-${action.payload.roomId}`
+        `https://www.tldraw.com/r/sky-office-${action.payload.roomId}`
       )
     },
   },

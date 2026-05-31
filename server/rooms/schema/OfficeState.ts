@@ -5,6 +5,7 @@ import {
   IComputer,
   IWhiteboard,
   IChatMessage,
+  ISignboard,
 } from '../../../types/IOfficeState'
 
 export class Player extends Schema implements IPlayer {
@@ -14,6 +15,8 @@ export class Player extends Schema implements IPlayer {
   @type('string') anim = 'adam_idle_down'
   @type('boolean') readyToConnect = false
   @type('boolean') videoConnected = false
+  @type('string') status = 'present'      // 'present' | 'away'
+  @type('string') awayMessage = ''         // 離席理由
 }
 
 export class Computer extends Schema implements IComputer {
@@ -26,9 +29,20 @@ export class Whiteboard extends Schema implements IWhiteboard {
 }
 
 export class ChatMessage extends Schema implements IChatMessage {
+  @type('string') id = ''
   @type('string') author = ''
   @type('number') createdAt = new Date().getTime()
   @type('string') content = ''
+  @type(['string']) readers = new ArraySchema<string>()
+}
+
+export class Signboard extends Schema implements ISignboard {
+  @type('number') x = 0
+  @type('number') y = 0
+  @type('string') text = ''
+  @type('string') image = ''
+  @type('string') url = ''
+  @type('string') createdBy = ''
 }
 
 export class OfficeState extends Schema implements IOfficeState {
@@ -43,6 +57,9 @@ export class OfficeState extends Schema implements IOfficeState {
 
   @type([ChatMessage])
   chatMessages = new ArraySchema<ChatMessage>()
+
+  @type({ map: Signboard })
+  signboards = new MapSchema<Signboard>()
 }
 
 export const whiteboardRoomIds = new Set<string>()

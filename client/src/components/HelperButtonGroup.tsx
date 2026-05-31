@@ -11,8 +11,6 @@ import DarkModeIcon from '@mui/icons-material/DarkMode'
 import CloseIcon from '@mui/icons-material/Close'
 import LightbulbIcon from '@mui/icons-material/Lightbulb'
 import ArrowRightIcon from '@mui/icons-material/ArrowRight'
-import GitHubIcon from '@mui/icons-material/GitHub'
-import TwitterIcon from '@mui/icons-material/Twitter'
 import VideogameAssetIcon from '@mui/icons-material/VideogameAsset'
 import VideogameAssetOffIcon from '@mui/icons-material/VideogameAssetOff'
 
@@ -26,7 +24,7 @@ const Backdrop = styled.div`
   display: flex;
   gap: 10px;
   bottom: 16px;
-  right: 16px;
+  right: 541px;   /* サイドバー幅525px + 余白16px */
   align-items: flex-end;
 
   .wrapper-group {
@@ -120,7 +118,7 @@ export default function HelperButtonGroup() {
     <Backdrop>
       <div className="wrapper-group">
         {roomJoined && (
-          <Tooltip title={showJoystick ? 'Disable virtual joystick' : 'Enable virtual joystick'}>
+          <Tooltip title={showJoystick ? 'ジョイスティックを無効にする' : 'ジョイスティックを有効にする'}>
             <StyledFab size="small" onClick={() => dispatch(setShowJoystick(!showJoystick))}>
               {showJoystick ? <VideogameAssetOffIcon /> : <VideogameAssetIcon />}
             </StyledFab>
@@ -141,40 +139,40 @@ export default function HelperButtonGroup() {
               <ArrowRightIcon /> ID: {roomId}
             </RoomDescription>
             <RoomDescription>
-              <ArrowRightIcon /> Description: {roomDescription}
+              <ArrowRightIcon /> 説明: {roomDescription}
             </RoomDescription>
             <p className="tip">
               <LightbulbIcon />
-              Shareable link coming up 😄
+              共有リンクは近日公開予定です 😄
             </p>
           </Wrapper>
         )}
         {showControlGuide && (
           <Wrapper>
-            <Title>Controls</Title>
+            <Title>操作方法</Title>
             <IconButton className="close" onClick={() => setShowControlGuide(false)} size="small">
               <CloseIcon />
             </IconButton>
             <ul>
               <li>
-                <strong>W, A, S, D or arrow keys</strong> to move
+                <strong>W, A, S, D または 矢印キー</strong> で移動
               </li>
               <li>
-                <strong>E</strong> to sit down (when facing a chair)
+                <strong>E</strong> キーで座る（椅子の前で）
               </li>
               <li>
-                <strong>R</strong> to use computer to screen share (when facing a computer)
+                <strong>R</strong> キーで画面共有（コンピュータの前で）
               </li>
               <li>
-                <strong>Enter</strong> to open chat
+                <strong>Enter</strong> キーでチャットを開く
               </li>
               <li>
-                <strong>ESC</strong> to close chat
+                <strong>ESC</strong> キーでチャットを閉じる
               </li>
             </ul>
             <p className="tip">
               <LightbulbIcon />
-              Video connection will start if you are close to someone else
+              他の人に近づくとビデオ接続が開始されます
             </p>
           </Wrapper>
         )}
@@ -182,7 +180,7 @@ export default function HelperButtonGroup() {
       <ButtonGroup>
         {roomJoined && (
           <>
-            <Tooltip title="Room Info">
+            <Tooltip title="ルーム情報">
               <StyledFab
                 size="small"
                 onClick={() => {
@@ -193,7 +191,7 @@ export default function HelperButtonGroup() {
                 <ShareIcon />
               </StyledFab>
             </Tooltip>
-            <Tooltip title="Control Guide">
+            <Tooltip title="操作ガイド">
               <StyledFab
                 size="small"
                 onClick={() => {
@@ -206,21 +204,7 @@ export default function HelperButtonGroup() {
             </Tooltip>
           </>
         )}
-        <Tooltip title="Visit Our GitHub">
-          <StyledFab
-            size="small"
-            href="https://github.com/kevinshen56714/SkyOffice"
-            target="_blank"
-          >
-            <GitHubIcon />
-          </StyledFab>
-        </Tooltip>
-        <Tooltip title="Follow Us on Twitter">
-          <StyledFab size="small" href="https://twitter.com/SkyOfficeApp" target="_blank">
-            <TwitterIcon />
-          </StyledFab>
-        </Tooltip>
-        <Tooltip title="Switch Background Theme">
+        <Tooltip title="背景テーマを切り替え">
           <StyledFab size="small" onClick={() => dispatch(toggleBackgroundMode())}>
             {backgroundMode === BackgroundMode.DAY ? <DarkModeIcon /> : <LightModeIcon />}
           </StyledFab>

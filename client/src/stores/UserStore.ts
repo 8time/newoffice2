@@ -19,6 +19,11 @@ export const userSlice = createSlice({
     loggedIn: false,
     playerNameMap: new Map<string, string>(),
     showJoystick: window.innerWidth < 650,
+    myStatus: 'present' as 'present' | 'away',
+    myAwayMessage: '',
+    playerStatusMap: new Map<string, { status: string; awayMessage: string }>(),
+    avatarName: 'adam',
+    playerName: '',
   },
   reducers: {
     toggleBackgroundMode: (state) => {
@@ -47,6 +52,31 @@ export const userSlice = createSlice({
     setShowJoystick: (state, action: PayloadAction<boolean>) => {
       state.showJoystick = action.payload
     },
+    setMyStatus: (
+      state,
+      action: PayloadAction<{ status: 'present' | 'away'; awayMessage: string }>
+    ) => {
+      state.myStatus = action.payload.status
+      state.myAwayMessage = action.payload.awayMessage
+    },
+    setPlayerStatus: (
+      state,
+      action: PayloadAction<{ id: string; status: string; awayMessage: string }>
+    ) => {
+      state.playerStatusMap.set(sanitizeId(action.payload.id), {
+        status: action.payload.status,
+        awayMessage: action.payload.awayMessage,
+      })
+    },
+    removePlayerStatus: (state, action: PayloadAction<string>) => {
+      state.playerStatusMap.delete(sanitizeId(action.payload))
+    },
+    setAvatarName: (state, action: PayloadAction<string>) => {
+      state.avatarName = action.payload
+    },
+    setPlayerName: (state, action: PayloadAction<string>) => {
+      state.playerName = action.payload
+    },
   },
 })
 
@@ -58,6 +88,11 @@ export const {
   setPlayerNameMap,
   removePlayerNameMap,
   setShowJoystick,
+  setMyStatus,
+  setPlayerStatus,
+  removePlayerStatus,
+  setAvatarName,
+  setPlayerName,
 } = userSlice.actions
 
 export default userSlice.reducer

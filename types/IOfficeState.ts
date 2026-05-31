@@ -7,6 +7,8 @@ export interface IPlayer extends Schema {
   anim: string
   readyToConnect: boolean
   videoConnected: boolean
+  status: string       // 'present' | 'away'
+  awayMessage: string  // 離席理由
 }
 
 export interface IComputer extends Schema {
@@ -19,9 +21,20 @@ export interface IWhiteboard extends Schema {
 }
 
 export interface IChatMessage extends Schema {
+  id: string
   author: string
   createdAt: number
   content: string
+  readers: ArraySchema<string>
+}
+
+export interface ISignboard extends Schema {
+  x: number
+  y: number
+  text: string
+  image: string // base64 data URL（空なら画像なし）
+  url: string   // クリックで開くリンク（空ならリンクなし）
+  createdBy: string
 }
 
 export interface IOfficeState extends Schema {
@@ -29,4 +42,5 @@ export interface IOfficeState extends Schema {
   computers: MapSchema<IComputer>
   whiteboards: MapSchema<IWhiteboard>
   chatMessages: ArraySchema<IChatMessage>
+  signboards: MapSchema<ISignboard>
 }

@@ -7,14 +7,49 @@ import { RoomType } from '../types/Rooms'
 
 // import socialRoutes from "@colyseus/social/express"
 
-import { SkyOffice } from './rooms/SkyOffice'
+import { SkyOffice, getAttendanceForDate } from './rooms/SkyOffice'
 
 const port = Number(process.env.PORT || 2567)
 const app = express()
 
 app.use(cors())
 app.use(express.json())
-// app.use(express.static('dist'))
+
+import fs from 'fs'
+import path from 'path'
+
+// クライアントのビルドファイル（dist）を静的配信
+app.use(express.static(path.join(__dirname, '../../client/dist')))
+
+
+// 勤怠記録取得API（?date=YYYY-MM-DD、省略時は今日）
+app.get('/api/attendance', (req, res) => {
+  const date = (req.query.date as string) || new Date().toISOString().slice(0, 10)
+  res.json(getAttendanceForDate(date))
+})
+
+// client/public/assets/audio/ フォルダ内のmp3ファイルを動的にスキャンして返すAPI
+app.get('/api/audio-list', (req, res) => {
+  const audioDir = path.join(__dirname, '../client/public/assets/audio')
+  try {
+    if (fs.existsSync(audioDir)) {
+      const files = fs.readdirSync(audioDir)
+      const mp3Files = files
+        .filter(file => file.toLowerCase().endsWith('.mp3') && file.toLowerCase() !== 'ping.mp3')
+        .map(file => ({
+          name: file.replace(/\.[^/.]+$/, ""), // 拡張子を削除して曲名に
+          url: `assets/audio/${file}`,
+          isLocal: false
+        }))
+      res.json(mp3Files)
+    } else {
+      res.json([])
+    }
+  } catch (err) {
+    console.error('Failed to read audio directory:', err)
+    res.status(500).json({ error: 'Failed to read audio directory' })
+  }
+})
 
 const server = http.createServer(app)
 const gameServer = new Server({
@@ -41,6 +76,14 @@ gameServer.define(RoomType.CUSTOM, SkyOffice).enableRealtimeListing()
 
 // register colyseus monitor AFTER registering your room handlers
 app.use('/colyseus', monitor())
+
+// SPAのクライアント側ルーティング対応（API等以外の全リクエストで index.html を返す）
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/colyseus')) {
+    return next()
+  }
+  res.sendFile(path.join(__dirname, '../../client/dist/index.html'))
+})
 
 gameServer.listen(port)
 console.log(`Listening on ws://localhost:${port}`)

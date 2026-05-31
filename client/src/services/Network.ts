@@ -1,12 +1,12 @@
 import { Client, Room } from 'colyseus.js'
-import { IComputer, IOfficeState, IPlayer, IWhiteboard } from '../../../types/IOfficeState'
+import { IComputer, IOfficeState, IPlayer, IWhiteboard, ISignboard } from '../../../types/IOfficeState'
 import { Message } from '../../../types/Messages'
 import { IRoomData, RoomType } from '../../../types/Rooms'
 import { ItemType } from '../../../types/Items'
 import WebRTC from '../web/WebRTC'
 import { phaserEvents, Event } from '../events/EventCenter'
 import store from '../stores'
-import { setSessionId, setPlayerNameMap, removePlayerNameMap } from '../stores/UserStore'
+import { setSessionId, setPlayerNameMap, removePlayerNameMap, setPlayerStatus, removePlayerStatus } from '../stores/UserStore'
 import {
   setLobbyJoined,
   setJoinedRoomData,
@@ -111,8 +111,17 @@ export default class Network {
           // when a new player finished setting up player name
           if (field === 'name' && value !== '') {
             phaserEvents.emit(Event.PLAYER_JOINED, player, key)
-            store.dispatch(setPlayerNameMap({ id: key, name: value }))
-            store.dispatch(pushPlayerJoinedMessage(value))
+            store.dispatch(setPlayerNameMap({ id: key, name: value as string }))
+            store.dispatch(pushPlayerJoinedMessage(value as string))
+          }
+
+          // ステータス・離席理由の変化をストアに反映
+          if (field === 'status' || field === 'awayMessage') {
+            store.dispatch(setPlayerStatus({
+              id: key,
+              status: player.status,
+              awayMessage: player.awayMessage,
+            }))
           }
         })
       }
@@ -125,6 +134,7 @@ export default class Network {
       this.webRTC?.deleteOnCalledVideoStream(key)
       store.dispatch(pushPlayerLeftMessage(player.name))
       store.dispatch(removePlayerNameMap(key))
+      store.dispatch(removePlayerStatus(key))
     }
 
     // new instance added to the computers MapSchema
@@ -158,6 +168,36 @@ export default class Network {
     // new instance added to the chatMessages ArraySchema
     this.room.state.chatMessages.onAdd = (item, index) => {
       store.dispatch(pushChatMessage(item))
+      
+      // 既読配列の変更を監視
+      item.readers.onAdd = () => {
+        store.dispatch(updateChatReaders({ id: item.id, readers: Array.from(item.readers) }))
+      }
+      item.readers.onRemove = () => {
+        store.dispatch(updateChatReaders({ id: item.id, readers: Array.from(item.readers) }))
+      }
+    }
+
+    // 看板（全員同期）の追加/削除/移動をPhaser側へ通知
+    this.room.state.signboards.onAdd = (signboard: ISignboard, key: string) => {
+      phaserEvents.emit(Event.SIGNBOARD_ADDED, {
+        id: key,
+        x: signboard.x,
+        y: signboard.y,
+        text: signboard.text,
+        image: signboard.image,
+        url: signboard.url,
+        createdBy: signboard.createdBy,
+      })
+      // 位置変更（ドラッグ移動）を監視して再配置
+      signboard.onChange = (changes) => {
+        if (changes.some((c) => c.field === 'x' || c.field === 'y')) {
+          phaserEvents.emit(Event.SIGNBOARD_MOVED, { id: key, x: signboard.x, y: signboard.y })
+        }
+      }
+    }
+    this.room.state.signboards.onRemove = (_signboard: ISignboard, key: string) => {
+      phaserEvents.emit(Event.SIGNBOARD_REMOVED, key)
     }
 
     // when the server sends room data
@@ -179,6 +219,10 @@ export default class Network {
     this.room.onMessage(Message.STOP_SCREEN_SHARE, (clientId: string) => {
       const computerState = store.getState().computer
       computerState.shareScreenManager?.onUserLeft(clientId)
+    })
+
+    this.room.onMessage(Message.MEETING_WHITEBOARD_SYNC, ({ roomId, payload }) => {
+      phaserEvents.emit(Event.MEETING_WHITEBOARD_REMOTE_UPDATE, roomId, payload)
     })
   }
 
@@ -281,5 +325,33 @@ export default class Network {
 
   addChatMessage(content: string) {
     this.room?.send(Message.ADD_CHAT_MESSAGE, { content: content })
+  }
+
+  markAsRead(messageId: string) {
+    this.room?.send(Message.READ_CHAT_MESSAGE, { id: messageId })
+  }
+
+  updateStatus(status: string, awayMessage: string) {
+    this.room?.send(Message.UPDATE_STATUS, { status, awayMessage })
+  }
+
+  sendMeetingWhiteboardUpdate(roomId: string, payload: unknown) {
+    this.room?.send(Message.MEETING_WHITEBOARD_SYNC, { roomId, payload })
+  }
+
+  requestMeetingWhiteboardSnapshot(roomId: string) {
+    this.room?.send(Message.REQUEST_MEETING_WHITEBOARD_SNAPSHOT, { roomId })
+  }
+
+  addSignboard(data: { x: number; y: number; text: string; image: string; url: string }) {
+    this.room?.send(Message.ADD_SIGNBOARD, data)
+  }
+
+  removeSignboard(id: string) {
+    this.room?.send(Message.REMOVE_SIGNBOARD, { id })
+  }
+
+  updateSignboard(id: string, x: number, y: number) {
+    this.room?.send(Message.UPDATE_SIGNBOARD, { id, x, y })
   }
 }

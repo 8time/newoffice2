@@ -11,6 +11,7 @@
   "dependencies": {
     "@emotion/react": "^11.9.0",
     "@emotion/styled": "^11.8.1",
+    "@excalidraw/excalidraw": "^0.18.1",
     "@mui/icons-material": "^5.0.1",
     "@mui/material": "^5.6.4",
     "@mui/styled-engine-sc": "^5.6.1",
@@ -27,9 +28,11 @@
     "sass": "^1.42.1",
     "styled-components": "^5.3.5",
     "swiper": "^8.1.4",
-    "vite": "^3.0.9"
+    "vite": "^3.0.9",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@types/d3-dispatch": "^3.0.6",
     "@types/jest": "^26.0.24",
     "@types/node": "^12.20.27",
     "@types/react": "^18.0.17",

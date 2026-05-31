@@ -21,7 +21,8 @@ const Backdrop = styled.div`
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  /* ユーザーの要望に合わせて全体を2倍に拡大 */
+  transform: translate(-50%, -50%) scale(2);
   display: flex;
   flex-direction: column;
   gap: 60px;
@@ -135,7 +136,7 @@ export default function RoomSelectionDialog() {
           // overwrites the dark theme on render
           style={{ background: '#fdeded', color: '#7d4747' }}
         >
-          Trying to connect to server, please try again!
+          サーバーに接続中、もう一度お試しください！
         </Alert>
       </Snackbar>
       <Backdrop>
@@ -146,7 +147,7 @@ export default function RoomSelectionDialog() {
                 <IconButton className="back-button" onClick={() => setShowCreateRoomForm(false)}>
                   <ArrowBackIcon />
                 </IconButton>
-                <Title>Create Custom Room</Title>
+                <Title>カスタムルームを作成</Title>
               </TitleWrapper>
               <CreateRoomForm />
             </CustomRoomWrapper>
@@ -157,9 +158,9 @@ export default function RoomSelectionDialog() {
                   <ArrowBackIcon />
                 </IconButton>
                 <Title>
-                  Custom Rooms
+                  カスタムルーム
                   <Tooltip
-                    title="We update the results in realtime, no refresh needed!"
+                    title="結果はリアルタイムで更新されます。リロードは不要です！"
                     placement="top"
                   >
                     <IconButton>
@@ -174,23 +175,23 @@ export default function RoomSelectionDialog() {
                 color="secondary"
                 onClick={() => setShowCreateRoomForm(true)}
               >
-                Create new room
+                新しくルームを作成
               </Button>
             </CustomRoomWrapper>
           ) : (
             <>
-              <Title>Welcome to SkyOffice</Title>
+              <Title>SkyOfficeへようこそ</Title>
               <Content>
                 <img src={logo} alt="logo" />
                 <Button variant="contained" color="secondary" onClick={handleConnect}>
-                  Connect to public lobby
+                  パブリックロビーに接続
                 </Button>
                 <Button
                   variant="outlined"
                   color="secondary"
                   onClick={() => (lobbyJoined ? setShowCustomRoom(true) : setShowSnackbar(true))}
                 >
-                  Create/find custom rooms
+                  ルームを作成・探す
                 </Button>
               </Content>
             </>
@@ -198,7 +199,7 @@ export default function RoomSelectionDialog() {
         </Wrapper>
         {!lobbyJoined && (
           <ProgressBarWrapper>
-            <h3> Connecting to server...</h3>
+            <h3> サーバーに接続中...</h3>
             <ProgressBar color="secondary" />
           </ProgressBarWrapper>
         )}

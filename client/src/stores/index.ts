@@ -5,6 +5,10 @@ import computerReducer from './ComputerStore'
 import whiteboardReducer from './WhiteboardStore'
 import chatReducer from './ChatStore'
 import roomReducer from './RoomStore'
+import mapBuilderReducer from './MapBuilderStore'
+import jukeboxReducer from './JukeboxStore'
+import meetingRoomReducer from './MeetingRoomStore'
+import signboardReducer from './SignboardStore'
 
 enableMapSet()
 
@@ -15,6 +19,10 @@ const store = configureStore({
     whiteboard: whiteboardReducer,
     chat: chatReducer,
     room: roomReducer,
+    mapBuilder: mapBuilderReducer,
+    jukebox: jukeboxReducer,
+    meetingRoom: meetingRoomReducer,
+    signboard: signboardReducer,
   },
   // Temporary disable serialize check for redux as we store MediaStream in ComputerStore.
   // https://stackoverflow.com/a/63244831

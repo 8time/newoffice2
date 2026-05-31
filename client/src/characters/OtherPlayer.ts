@@ -10,8 +10,9 @@ export default class OtherPlayer extends Player {
   private lastUpdateTimestamp?: number
   private connectionBufferTime = 0
   private connected = false
-  private playContainerBody: Phaser.Physics.Arcade.Body
   private myPlayer?: MyPlayer
+  _pendingAwayMessage = ''
+  _currentStatus = 'present'
 
   constructor(
     scene: Phaser.Scene,
@@ -26,7 +27,6 @@ export default class OtherPlayer extends Player {
     this.targetPosition = [x, y]
 
     this.playerName.setText(name)
-    this.playContainerBody = this.playerContainer.body as Phaser.Physics.Arcade.Body
   }
 
   makeCall(myPlayer: MyPlayer, webRTC: WebRTC) {
@@ -50,7 +50,7 @@ export default class OtherPlayer extends Player {
     switch (field) {
       case 'name':
         if (typeof value === 'string') {
-          this.playerName.setText(value)
+          this.setPlayerName(value)
         }
         break
 
@@ -81,6 +81,27 @@ export default class OtherPlayer extends Player {
       case 'videoConnected':
         if (typeof value === 'boolean') {
           this.videoConnected = value
+        }
+        break
+
+      case 'status':
+        if (typeof value === 'string') {
+          this._currentStatus = value
+          if (value === 'away') {
+            this.setAwayStatus(this._pendingAwayMessage || '')
+          } else {
+            this.clearAwayStatus()
+          }
+        }
+        break
+
+      case 'awayMessage':
+        if (typeof value === 'string') {
+          this._pendingAwayMessage = value
+          // statusが既にawayなら即座にバブル更新
+          if (this._currentStatus === 'away') {
+            this.setAwayStatus(value)
+          }
         }
         break
     }
@@ -148,9 +169,6 @@ export default class OtherPlayer extends Player {
     // update character velocity
     this.setVelocity(vx, vy)
     this.body.velocity.setLength(speed)
-    // also update playerNameContainer velocity
-    this.playContainerBody.setVelocity(vx, vy)
-    this.playContainerBody.velocity.setLength(speed)
 
     // while currently connected with myPlayer
     // if myPlayer and the otherPlayer stop overlapping, delete video stream
@@ -166,6 +184,9 @@ export default class OtherPlayer extends Player {
       this.connectionBufferTime = 0
       this.connected = false
     }
+
+    // 名前コンテナの座標をプレイヤーの頭上に完全に固定（ズレを解消）
+    this.playerContainer.setPosition(this.x, this.y - 30)
   }
 }
 
