@@ -508,15 +508,15 @@ export default class Game extends Phaser.Scene {
   }
 
   private getMeetingRooms() {
-    // デフォルトのミーティングルーム（マップ左下エリア）
+    // デフォルトのミーティングルーム（マップ左下エリア x < 610, y > 515 全域）
     const defaultRooms = [
       {
         id: 'default-meeting-room-1',
         name: 'Meeting Room',
-        x: 300,
-        y: 580,
-        width: 96,
-        height: 64,
+        x: 305,
+        y: 650,
+        width: 610,
+        height: 270,
       },
     ]
 
@@ -885,8 +885,15 @@ export default class Game extends Phaser.Scene {
     if (!room || this.activeMeetingRoomId === room.id) return
 
     this.activeMeetingRoomId = room.id
-    // 退出時は入室位置から少し下（+48px）に配置して、即座に再判定されるのを防ぐ
-    this.meetingRoomReturn = { x: this.myPlayer.x, y: this.myPlayer.y + 48 }
+
+    // デフォルトルームの場合は固定の退出位置（部屋の外、右上あたり）を指定
+    if (room.id === 'default-meeting-room-1') {
+      this.meetingRoomReturn = { x: 630, y: 500 }
+    } else {
+      // 退出時は入室位置から少し下（+48px）に配置して、即座に再判定されるのを防ぐ
+      this.meetingRoomReturn = { x: this.myPlayer.x, y: this.myPlayer.y + 48 }
+    }
+
     this.disableKeys()
     this.myPlayer.body.velocity.set(0, 0)
     store.dispatch(setActiveMeetingRoom(room))
@@ -1320,8 +1327,13 @@ export default class Game extends Phaser.Scene {
 
     // 別の曲を再生する場合は、現在の音声を停止
     this.handleJukeboxStop(isFromNetwork)
+    // 読み込み完了後に再生するためのキーを保持
+    ;(this as any).pendingJukeboxKey = key
 
     const playSound = () => {
+      // 読み込み中に別の曲がリクエストされたか、停止された場合は再生しない
+      if ((this as any).pendingJukeboxKey !== key) return
+
       try {
         const repeat = store.getState().jukebox.repeat
         const volume = store.getState().jukebox.volume
@@ -1368,6 +1380,7 @@ export default class Game extends Phaser.Scene {
   }
 
   private handleJukeboxStop(isFromNetwork = false) {
+    ;(this as any).pendingJukeboxKey = null
     if (this.currentSound) {
       this.currentSound.stop()
       this.currentSound.destroy()
