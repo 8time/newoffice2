@@ -5,7 +5,7 @@
   "main": ".eslintrc.js",
   "scripts": {
     "start": "cd server && ts-node-dev --project tsconfig.server.json --respawn --transpile-only index.ts",
-    "heroku-postbuild": "yarn && cd types && yarn && cd ../client && yarn && yarn build && cd ../server && yarn && tsc --project tsconfig.server.json",
+    "heroku-postbuild": "npm install && cd types && npm install && cd ../client && npm install && npm run build && cd ../server && npm install && tsc --project tsconfig.server.json",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
