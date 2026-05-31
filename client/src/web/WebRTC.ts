@@ -191,6 +191,7 @@ export default class WebRTC {
     this.setUpButtons()
     store.dispatch(setVideoConnected(true))
     this.network.videoConnected()
+    this.network.updateVideoStatus(this.isVideoOff) // 初期状態をサーバーに同期
     this.notifyVideoState()
   }
 
