@@ -107,10 +107,14 @@ export default class WebRTC {
 
   private handlePlayerUpdated(field: string, value: any, key: string) {
     if (field === 'isVideoOff') {
+      console.log(`[WebRTC] Peer ${key} camera toggled to: ${value}`)
       const sanitizedId = this.replaceInvalidId(key)
       const peer = this.peers.get(sanitizedId) || this.onCalledPeers.get(sanitizedId)
       if (peer) {
+        console.log(`[WebRTC] Applying video fallback for peer ${sanitizedId}`)
         this.applyVideoFallback(peer.video, value as boolean)
+      } else {
+        console.warn(`[WebRTC] Peer ${sanitizedId} not found in maps!`)
       }
     }
   }
@@ -334,12 +338,13 @@ export default class WebRTC {
 
     if (isVideoOff) {
       // カメラOFF → フォールバック表示
-      video.style.opacity = '0'
+      video.style.display = 'none'
       if (bgFallback) bgFallback.style.display = 'block'
+      if (avatarImg) bgFallback.appendChild(avatarImg) // ensure it's there
       if (avatarImg) avatarImg.style.display = 'block'
       wrapper.classList.add('camera-off')
     } else {
-      video.style.opacity = '1'
+      video.style.display = 'block'
       if (bgFallback) bgFallback.style.display = 'none'
       if (avatarImg) avatarImg.style.display = 'none'
       wrapper.classList.remove('camera-off')
