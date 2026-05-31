@@ -1273,11 +1273,11 @@ export default class Game extends Phaser.Scene {
 
   // ─── Jukebox 制御メソッド ───────────────────────────────────────────
 
-  private handleNetworkJukeboxSync(data: { status: string; song?: { name: string; url: string; isLocal: boolean; index: number } }) {
-    if (data.status === 'playing' && data.song) {
+  private handleNetworkJukeboxSync(data: { index: number; status: string; name: string; url: string; isLocal: boolean }) {
+    if (data.status === 'playing') {
       // 他人の再生操作を自分のReduxストアとPhaserに同期
-      store.dispatch(playSongByIndex(data.song.index))
-      this.handleJukeboxPlay(data.song, true)
+      store.dispatch(playSongByIndex(data.index))
+      this.handleJukeboxPlay({ name: data.name, url: data.url, isLocal: data.isLocal, index: data.index }, true)
     } else if (data.status === 'paused') {
       this.handleJukeboxPause(true)
     } else if (data.status === 'stopped') {

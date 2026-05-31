@@ -170,15 +170,26 @@ export default class OtherPlayer extends Player {
     this.setVelocity(vx, vy)
     this.body.velocity.setLength(speed)
 
+    this.connectionBufferTime += dt
+
+    // myPlayerの参照がなければ取得する
+    if (!this.myPlayer) {
+      const game = this.scene as any
+      if (game.myPlayer) {
+        this.myPlayer = game.myPlayer
+      }
+    }
+
     // while currently connected with myPlayer
     // if myPlayer and the otherPlayer stop overlapping, delete video stream
     // 距離ベースの接近・切断処理
     if (this.myPlayer) {
       const dist = Phaser.Math.Distance.Between(this.x, this.y, this.myPlayer.x, this.myPlayer.y)
       const proximityRange = 120 // ビデオチャットが開始する距離（px）
+      const inMeetingRoom = this.x < 610 && this.y > 515 && this.myPlayer.x < 610 && this.myPlayer.y > 515
 
-      if (dist <= proximityRange) {
-        // 接近 → ビデオ接続
+      if (dist <= proximityRange || inMeetingRoom) {
+        // 接近 または 会議室エリア内 → ビデオ接続
         this.makeCall(this.myPlayer, (this.scene as any).network?.webRTC)
         
         // 近くにいるプレイヤーとして登録（マイク自動ON）
