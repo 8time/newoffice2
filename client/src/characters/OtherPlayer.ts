@@ -193,10 +193,9 @@ export default class OtherPlayer extends Player {
         this.makeCall(this.myPlayer, (this.scene as any).network?.webRTC)
         
         // 近くにいるプレイヤーとして登録（マイク自動ON）
-        const id: string = this.playerId
         const game = this.scene as any
-        if (game.proximitySet && !game.proximitySet.has(id)) {
-          game.proximitySet.add(id)
+        if (game.proximitySet && !game.proximitySet.has(this.playerId)) {
+          game.proximitySet.add(this.playerId)
           if (game.proximitySet.size === 1) {
             phaserEvents.emit(Event.PROXIMITY_ENTER)
           }
@@ -214,8 +213,8 @@ export default class OtherPlayer extends Player {
 
             // 近くにいるプレイヤーから除外（マイク自動OFF）
             const game = this.scene as any
-            if (game.proximitySet && game.proximitySet.has(id)) {
-              game.proximitySet.delete(id)
+            if (game.proximitySet && game.proximitySet.has(this.playerId)) {
+              game.proximitySet.delete(this.playerId)
               if (game.proximitySet.size === 0) {
                 phaserEvents.emit(Event.PROXIMITY_LEAVE)
               }
