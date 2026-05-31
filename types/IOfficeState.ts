@@ -7,6 +7,7 @@ export interface IPlayer extends Schema {
   anim: string
   readyToConnect: boolean
   videoConnected: boolean
+  isVideoOff: boolean
   status: string       // 'present' | 'away'
   awayMessage: string  // 離席理由
 }

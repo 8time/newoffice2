@@ -289,6 +289,11 @@ export default class Network {
     this.room?.send(Message.UPDATE_PLAYER_NAME, { name: currentName })
   }
 
+  // method to send video status to Colyseus server
+  updateVideoStatus(isVideoOff: boolean) {
+    this.room?.send(Message.UPDATE_VIDEO_STATUS, { isVideoOff })
+  }
+
   // method to send ready-to-connect signal to Colyseus server
   readyToConnect() {
     this.room?.send(Message.READY_TO_CONNECT)

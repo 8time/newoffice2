@@ -66,7 +66,7 @@ export default class WebRTC {
     this.myVideo.srcObject = this.myStream
     this.myVideo.playsInline = true
     this.myVideo.play().catch(() => undefined)
-    this.applyVideoFallback(this.myVideo, this.myStream)
+    this.applyVideoFallback(this.myVideo, this.isVideoOff)
   }
 
   mountPeerVideos(container: HTMLElement) {
@@ -102,6 +102,17 @@ export default class WebRTC {
     // 近接イベントで自動マイクON/OFF
     phaserEvents.on(Event.PROXIMITY_ENTER, this.handleProximityEnter, this)
     phaserEvents.on(Event.PROXIMITY_LEAVE, this.handleProximityLeave, this)
+    phaserEvents.on(Event.PLAYER_UPDATED, this.handlePlayerUpdated, this)
+  }
+
+  private handlePlayerUpdated(field: string, value: any, key: string) {
+    if (field === 'isVideoOff') {
+      const sanitizedId = this.replaceInvalidId(key)
+      const peer = this.peers.get(sanitizedId) || this.onCalledPeers.get(sanitizedId)
+      if (peer) {
+        this.applyVideoFallback(peer.video, value as boolean)
+      }
+    }
   }
 
   private replaceInvalidId(userId: string) {
@@ -171,7 +182,7 @@ export default class WebRTC {
     }
 
     // カメラOFF状態が即座にアバター表示へ反映されるようにする
-    this.applyVideoFallback(this.myVideo, this.myStream)
+    this.applyVideoFallback(this.myVideo, this.isVideoOff)
 
     this.setUpButtons()
     store.dispatch(setVideoConnected(true))
@@ -292,20 +303,19 @@ export default class WebRTC {
     video.srcObject = stream
     video.playsInline = true
 
-    // カメラがOFFの場合はアバター画像を表示
-    this.applyVideoFallback(video, stream)
-
-    // ビデオトラックのenabledを監視してアバターフォールバックを更新
-    const videoTrack = stream.getVideoTracks()[0]
-    if (videoTrack) {
-      const interval = setInterval(() => {
-        if (!videoTrack.readyState || videoTrack.readyState === 'ended') {
-          clearInterval(interval)
-          return
+    let isVideoOff = false
+    // @ts-ignore
+    if (this.network?.room) {
+      // @ts-ignore
+      this.network.room.state.players.forEach((p: any, key: string) => {
+        if (this.replaceInvalidId(key) === peerId) {
+          isVideoOff = p.isVideoOff
         }
-        this.applyVideoFallback(video, stream)
-      }, 500)
+      })
     }
+
+    // カメラがOFFの場合はアバター画像を表示
+    this.applyVideoFallback(video, isVideoOff)
 
     video.addEventListener('loadedmetadata', () => {
       video.play()
@@ -315,15 +325,14 @@ export default class WebRTC {
     this.notifyVideoState()
   }
 
-  private applyVideoFallback(video: HTMLVideoElement, stream: MediaStream) {
-    const videoTrack = stream.getVideoTracks()[0]
+  private applyVideoFallback(video: HTMLVideoElement, isVideoOff: boolean) {
     const wrapper = video.parentElement
     if (!wrapper) return
 
     const bgFallback = wrapper.querySelector('.peer-bg-fallback') as HTMLDivElement
     const avatarImg = wrapper.querySelector('.peer-avatar-fallback') as HTMLImageElement
 
-    if (videoTrack && !videoTrack.enabled) {
+    if (isVideoOff) {
       // カメラOFF → フォールバック表示
       video.style.opacity = '0'
       if (bgFallback) bgFallback.style.display = 'block'
@@ -389,8 +398,9 @@ export default class WebRTC {
     if (!videoTrack) return
     this.isVideoOff = !this.isVideoOff
     videoTrack.enabled = !this.isVideoOff
-    this.applyVideoFallback(this.myVideo, this.myStream)
+    this.applyVideoFallback(this.myVideo, this.isVideoOff)
     this.updateButtonLabels()
+    this.network.updateVideoStatus(this.isVideoOff)
     this.notifyVideoState()
   }
 
@@ -520,6 +530,7 @@ export default class WebRTC {
   destroy() {
     phaserEvents.off(Event.PROXIMITY_ENTER, this.handleProximityEnter, this)
     phaserEvents.off(Event.PROXIMITY_LEAVE, this.handleProximityLeave, this)
+    phaserEvents.off(Event.PLAYER_UPDATED, this.handlePlayerUpdated, this)
     this.myPeer.destroy()
   }
 }

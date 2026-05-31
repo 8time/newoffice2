@@ -15,6 +15,7 @@ export class Player extends Schema implements IPlayer {
   @type('string') anim = 'adam_idle_down'
   @type('boolean') readyToConnect = false
   @type('boolean') videoConnected = false
+  @type('boolean') isVideoOff = false
   @type('string') status = 'present'      // 'present' | 'away'
   @type('string') awayMessage = ''         // 離席理由
 }

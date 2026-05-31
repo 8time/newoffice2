@@ -178,6 +178,13 @@ export class SkyOffice extends Room<OfficeState> {
       }
     })
 
+    this.onMessage(Message.UPDATE_VIDEO_STATUS, (client, message: { isVideoOff: boolean }) => {
+      const player = this.state.players.get(client.sessionId)
+      if (player) {
+        player.isVideoOff = message.isVideoOff
+      }
+    })
+
     this.onMessage(Message.READY_TO_CONNECT, (client) => {
       const player = this.state.players.get(client.sessionId)
       if (player) player.readyToConnect = true
