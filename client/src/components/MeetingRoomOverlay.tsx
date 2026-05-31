@@ -527,11 +527,17 @@ const AvatarFallback = styled.div<{ $bgGradient: string }>`
 
 /* 他者ビデオを縦積みにするコンテナ（WebRTCのDOM要素を受け取る） */
 const PeerVideosColumn = styled.div`
-  display: contents;   /* 子の video を CameraColumn の直接 flex 子として扱う */
+  display: contents;   /* 子の video や wrapper を CameraColumn の直接 flex 子として扱う */
+
+  .peer-video-wrapper {
+    width: ${CAM_W}px !important;
+    height: ${CAM_H}px !important;
+    flex-shrink: 0;
+  }
 
   video {
-    width: ${CAM_W}px;
-    height: ${CAM_H}px;
+    width: 100% !important;
+    height: 100% !important;
     object-fit: cover;
     border-bottom: 2px solid #333;
     flex-shrink: 0;

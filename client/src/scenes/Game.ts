@@ -198,6 +198,8 @@ export default class Game extends Phaser.Scene {
     })
 
     this.otherPlayers = this.physics.add.group({ classType: OtherPlayer })
+    this.physics.add.collider(this.myPlayer, this.otherPlayers)
+    this.physics.add.collider(this.otherPlayers, this.otherPlayers)
     this.meetingRoomEntrances = this.physics.add.staticGroup()
 
     // ── 画面中央下の退出（エントランス）ゾーン ──

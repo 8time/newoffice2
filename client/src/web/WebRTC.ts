@@ -3,6 +3,35 @@ import Network from '../services/Network'
 import store from '../stores'
 import { setVideoConnected } from '../stores/UserStore'
 import { phaserEvents, Event } from '../events/EventCenter'
+import Adam from '../images/login/Adam_login.png'
+import Ash from '../images/login/Ash_login.png'
+import Lucy from '../images/login/Lucy_login.png'
+import Nancy from '../images/login/Nancy_login.png'
+import phaserGame from '../PhaserGame'
+import Game from '../scenes/Game'
+
+const avatarMap: Record<string, string> = {
+  adam: Adam,
+  ash: Ash,
+  lucy: Lucy,
+  nancy: Nancy,
+}
+
+function getOtherPlayerInfo(peerId: string) {
+  const game = phaserGame.scene.keys.game as Game
+  if (game) {
+    for (const otherPlayer of game.otherPlayerMap.values()) {
+      const sanitized = otherPlayer.playerId.replace(/[^0-9a-z]/gi, 'G')
+      if (sanitized === peerId) {
+        return {
+          avatarName: otherPlayer.texture.key,
+          playerName: otherPlayer.playerName.text,
+        }
+      }
+    }
+  }
+  return null
+}
 
 export interface PeerVideoEntry {
   peerId: string
@@ -12,8 +41,8 @@ export interface PeerVideoEntry {
 
 export default class WebRTC {
   private myPeer: Peer
-  private peers = new Map<string, { call: Peer.MediaConnection; video: HTMLVideoElement }>()
-  private onCalledPeers = new Map<string, { call: Peer.MediaConnection; video: HTMLVideoElement }>()
+  private peers = new Map<string, { call: Peer.MediaConnection; video: HTMLVideoElement; wrapper: HTMLDivElement }>()
+  private onCalledPeers = new Map<string, { call: Peer.MediaConnection; video: HTMLVideoElement; wrapper: HTMLDivElement }>()
   private myVideo = document.createElement('video')
   myStream?: MediaStream
   private screenStream?: MediaStream
@@ -41,11 +70,11 @@ export default class WebRTC {
   }
 
   mountPeerVideos(container: HTMLElement) {
-    this.peers.forEach(({ video }) => {
-      if (video.parentElement !== container) container.appendChild(video)
+    this.peers.forEach(({ wrapper }) => {
+      if (wrapper.parentElement !== container) container.appendChild(wrapper)
     })
-    this.onCalledPeers.forEach(({ video }) => {
-      if (video.parentElement !== container) container.appendChild(video)
+    this.onCalledPeers.forEach(({ wrapper }) => {
+      if (wrapper.parentElement !== container) container.appendChild(wrapper)
     })
   }
 
@@ -84,10 +113,13 @@ export default class WebRTC {
       if (!this.onCalledPeers.has(call.peer)) {
         call.answer(this.myStream)
         const video = document.createElement('video')
-        this.onCalledPeers.set(call.peer, { call, video })
 
         call.on('stream', (userVideoStream) => {
-          this.addVideoStream(video, userVideoStream)
+          if (!this.onCalledPeers.has(call.peer)) {
+            const wrapper = this.createVideoWrapper(call.peer, video, userVideoStream)
+            this.onCalledPeers.set(call.peer, { call, video, wrapper })
+          }
+          this.addVideoStream(call.peer, video, userVideoStream)
         })
       }
     })
@@ -153,16 +185,107 @@ export default class WebRTC {
       if (!this.peers.has(sanitizedId)) {
         const call = this.myPeer.call(sanitizedId, this.myStream)
         const video = document.createElement('video')
-        this.peers.set(sanitizedId, { call, video })
 
         call.on('stream', (userVideoStream) => {
-          this.addVideoStream(video, userVideoStream)
+          if (!this.peers.has(sanitizedId)) {
+            const wrapper = this.createVideoWrapper(sanitizedId, video, userVideoStream)
+            this.peers.set(sanitizedId, { call, video, wrapper })
+          }
+          this.addVideoStream(sanitizedId, video, userVideoStream)
         })
       }
     }
   }
 
-  addVideoStream(video: HTMLVideoElement, stream: MediaStream) {
+  createVideoWrapper(peerId: string, video: HTMLVideoElement, stream: MediaStream): HTMLDivElement {
+    const wrapper = document.createElement('div')
+    wrapper.className = 'peer-video-wrapper'
+    wrapper.style.position = 'relative'
+    wrapper.style.width = '240px'
+    wrapper.style.height = '180px'
+    wrapper.style.backgroundColor = '#222'
+    wrapper.style.borderBottom = '2px solid #333'
+    wrapper.style.overflow = 'hidden'
+
+    // ビデオ要素のスタイリング
+    video.style.width = '100%'
+    video.style.height = '100%'
+    video.style.objectFit = 'cover'
+    video.style.transform = 'scaleX(-1)'
+    video.style.display = 'block'
+    video.style.transition = 'opacity 0.2s'
+    wrapper.appendChild(video)
+
+    // 相手の情報を取得
+    const info = getOtherPlayerInfo(peerId)
+    const avatarName = info?.avatarName || 'adam'
+    const playerName = info?.playerName || 'Player'
+
+    // 背景のグラデーション
+    const getGradient = (str: string) => {
+      const colors = [
+        'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+        'linear-gradient(135deg, #3a7bd5 0%, #3a6073 100%)',
+        'linear-gradient(135deg, #00b4db 0%, #0083b0 100%)',
+        'linear-gradient(135deg, #83a4d4 0%, #b6fbff 100%)',
+        'linear-gradient(135deg, #4ca1af 0%, #c4e0e5 100%)',
+      ]
+      let hash = 0
+      for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash)
+      return colors[Math.abs(hash) % colors.length]
+    }
+    
+    const bgContainer = document.createElement('div')
+    bgContainer.style.position = 'absolute'
+    bgContainer.style.top = '0'
+    bgContainer.style.left = '0'
+    bgContainer.style.width = '100%'
+    bgContainer.style.height = '100%'
+    bgContainer.style.background = getGradient(peerId)
+    bgContainer.style.display = 'none'
+    bgContainer.className = 'peer-bg-fallback'
+
+    // アバター用フォールバック画像
+    const avatarImg = document.createElement('img')
+    avatarImg.src = avatarMap[avatarName] || Adam
+    avatarImg.style.position = 'absolute'
+    avatarImg.style.bottom = '10%'
+    avatarImg.style.left = '50%'
+    avatarImg.style.transform = 'translateX(-50%)'
+    avatarImg.style.height = '70%'
+    avatarImg.style.objectFit = 'contain'
+    avatarImg.style.display = 'none'
+    avatarImg.style.imageRendering = 'pixelated'
+    avatarImg.style.filter = 'drop-shadow(0px 8px 12px rgba(0,0,0,0.6))'
+    avatarImg.className = 'peer-avatar-fallback'
+    
+    bgContainer.appendChild(avatarImg)
+    wrapper.appendChild(bgContainer)
+
+    // 名前ラベル
+    const label = document.createElement('div')
+    label.className = 'cam-label'
+    label.innerText = playerName
+    label.style.position = 'absolute'
+    label.style.bottom = '8px'
+    label.style.left = '10px'
+    label.style.right = '10px'
+    label.style.fontSize = '20px'
+    label.style.fontWeight = '600'
+    label.style.color = '#fff'
+    label.style.background = 'rgba(0,0,0,0.65)'
+    label.style.borderRadius = '6px'
+    label.style.padding = '3px 10px'
+    label.style.overflow = 'hidden'
+    label.style.textOverflow = 'ellipsis'
+    label.style.whiteSpace = 'nowrap'
+    label.style.zIndex = '10'
+    wrapper.appendChild(label)
+
+    return wrapper
+  }
+
+  addVideoStream(peerId: string, video: HTMLVideoElement, stream: MediaStream) {
     video.srcObject = stream
     video.playsInline = true
 
@@ -190,15 +313,23 @@ export default class WebRTC {
 
   private applyVideoFallback(video: HTMLVideoElement, stream: MediaStream) {
     const videoTrack = stream.getVideoTracks()[0]
+    const wrapper = video.parentElement
+    if (!wrapper) return
+
+    const bgFallback = wrapper.querySelector('.peer-bg-fallback') as HTMLDivElement
+    const avatarImg = wrapper.querySelector('.peer-avatar-fallback') as HTMLImageElement
+
     if (videoTrack && !videoTrack.enabled) {
-      // カメラOFF → アバター画像をdata属性でマーク（CSS側でfallback表示）
+      // カメラOFF → フォールバック表示
       video.style.opacity = '0'
-      const wrapper = video.parentElement
-      if (wrapper) wrapper.classList.add('camera-off')
+      if (bgFallback) bgFallback.style.display = 'block'
+      if (avatarImg) avatarImg.style.display = 'block'
+      wrapper.classList.add('camera-off')
     } else {
       video.style.opacity = '1'
-      const wrapper = video.parentElement
-      if (wrapper) wrapper.classList.remove('camera-off')
+      if (bgFallback) bgFallback.style.display = 'none'
+      if (avatarImg) avatarImg.style.display = 'none'
+      wrapper.classList.remove('camera-off')
     }
   }
 
@@ -207,7 +338,7 @@ export default class WebRTC {
     if (this.peers.has(sanitizedId)) {
       const peer = this.peers.get(sanitizedId)
       peer?.call.close()
-      peer?.video.remove()
+      peer?.wrapper.remove()
       this.peers.delete(sanitizedId)
     }
     this.notifyVideoState()
@@ -218,7 +349,7 @@ export default class WebRTC {
     if (this.onCalledPeers.has(sanitizedId)) {
       const onCalledPeer = this.onCalledPeers.get(sanitizedId)
       onCalledPeer?.call.close()
-      onCalledPeer?.video.remove()
+      onCalledPeer?.wrapper.remove()
       this.onCalledPeers.delete(sanitizedId)
     }
     this.notifyVideoState()

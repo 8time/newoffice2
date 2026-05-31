@@ -172,17 +172,46 @@ export default class OtherPlayer extends Player {
 
     // while currently connected with myPlayer
     // if myPlayer and the otherPlayer stop overlapping, delete video stream
-    this.connectionBufferTime += dt
-    if (
-      this.connected &&
-      !this.body.embedded &&
-      this.body.touching.none &&
-      this.connectionBufferTime >= 750
-    ) {
-      if (this.x < 610 && this.y > 515 && this.myPlayer!.x < 610 && this.myPlayer!.y > 515) return
-      phaserEvents.emit(Event.PLAYER_DISCONNECTED, this.playerId)
-      this.connectionBufferTime = 0
-      this.connected = false
+    // 距離ベースの接近・切断処理
+    if (this.myPlayer) {
+      const dist = Phaser.Math.Distance.Between(this.x, this.y, this.myPlayer.x, this.myPlayer.y)
+      const proximityRange = 120 // ビデオチャットが開始する距離（px）
+
+      if (dist <= proximityRange) {
+        // 接近 → ビデオ接続
+        this.makeCall(this.myPlayer, (this.scene as any).network?.webRTC)
+        
+        // 近くにいるプレイヤーとして登録（マイク自動ON）
+        const id: string = this.playerId
+        const game = this.scene as any
+        if (game.proximitySet && !game.proximitySet.has(id)) {
+          game.proximitySet.add(id)
+          if (game.proximitySet.size === 1) {
+            phaserEvents.emit(Event.PROXIMITY_ENTER)
+          }
+        }
+      } else {
+        // 離脱 → 切断
+        if (this.connected && this.connectionBufferTime >= 750) {
+          // 会議室内は特別なため除外
+          if (this.x < 610 && this.y > 515 && this.myPlayer.x < 610 && this.myPlayer.y > 515) {
+            // 会議室エリア内は何もしない
+          } else {
+            phaserEvents.emit(Event.PLAYER_DISCONNECTED, this.playerId)
+            this.connectionBufferTime = 0
+            this.connected = false
+
+            // 近くにいるプレイヤーから除外（マイク自動OFF）
+            const game = this.scene as any
+            if (game.proximitySet && game.proximitySet.has(id)) {
+              game.proximitySet.delete(id)
+              if (game.proximitySet.size === 0) {
+                phaserEvents.emit(Event.PROXIMITY_LEAVE)
+              }
+            }
+          }
+        }
+      }
     }
 
     // 名前コンテナの座標をプレイヤーの頭上に完全に固定（ズレを解消）
@@ -223,12 +252,12 @@ Phaser.GameObjects.GameObjectFactory.register(
 
     this.scene.physics.world.enableBody(sprite, Phaser.Physics.Arcade.DYNAMIC_BODY)
 
-    const collisionScale = [6, 4]
+    const collisionScale = [0.5, 0.2]
     sprite.body
       .setSize(sprite.width * collisionScale[0], sprite.height * collisionScale[1])
       .setOffset(
         sprite.width * (1 - collisionScale[0]) * 0.5,
-        sprite.height * (1 - collisionScale[1]) * 0.5 + 17
+        sprite.height * (1 - collisionScale[1])
       )
 
     return sprite
