@@ -79,6 +79,13 @@ export class SkyOffice extends Room<OfficeState> {
   private description: string
   private password: string | null = null
   private meetingWhiteboardSnapshots = new Map<string, unknown>()
+  private currentJukeboxState = {
+    index: -1,
+    status: 'stopped',
+    name: '',
+    url: '',
+    isLocal: false
+  }
 
   async onCreate(options: IRoomData) {
     const { name, description, password, autoDispose } = options
@@ -275,6 +282,19 @@ export class SkyOffice extends Room<OfficeState> {
         sign.x = message.x
         sign.y = message.y
       }
+    })
+
+    // ジュークボックスのリアルタイム同期（全員に配信）
+    this.onMessage(
+      Message.JUKEBOX_SYNC,
+      (client, message: { index: number; status: string; name: string; url: string; isLocal: boolean }) => {
+        this.currentJukeboxState = message
+        this.broadcast(Message.JUKEBOX_SYNC, message, { except: client })
+      }
+    )
+
+    this.onMessage(Message.REQUEST_JUKEBOX_STATE, (client) => {
+      client.send(Message.JUKEBOX_SYNC, this.currentJukeboxState)
     })
   }
 

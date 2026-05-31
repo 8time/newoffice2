@@ -224,6 +224,10 @@ export default class Network {
     this.room.onMessage(Message.MEETING_WHITEBOARD_SYNC, ({ roomId, payload }) => {
       phaserEvents.emit(Event.MEETING_WHITEBOARD_REMOTE_UPDATE, roomId, payload)
     })
+
+    this.room.onMessage(Message.JUKEBOX_SYNC, (message) => {
+      phaserEvents.emit('network-jukebox-sync', message)
+    })
   }
 
   // method to register event listener and call back function when a item user added
@@ -288,6 +292,7 @@ export default class Network {
   // method to send ready-to-connect signal to Colyseus server
   readyToConnect() {
     this.room?.send(Message.READY_TO_CONNECT)
+    this.requestJukeboxState()
     phaserEvents.emit(Event.MY_PLAYER_READY)
   }
 
@@ -353,5 +358,13 @@ export default class Network {
 
   updateSignboard(id: string, x: number, y: number) {
     this.room?.send(Message.UPDATE_SIGNBOARD, { id, x, y })
+  }
+
+  sendJukeboxSync(data: { index: number; status: string; name: string; url: string; isLocal: boolean }) {
+    this.room?.send(Message.JUKEBOX_SYNC, data)
+  }
+
+  requestJukeboxState() {
+    this.room?.send(Message.REQUEST_JUKEBOX_STATE)
   }
 }

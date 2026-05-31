@@ -21,7 +21,7 @@ import { ItemType } from '../../../types/Items'
 
 import store from '../stores'
 import { setFocused, setShowChat } from '../stores/ChatStore'
-import { setPlayState } from '../stores/JukeboxStore'
+import { setPlayState, playSongByIndex } from '../stores/JukeboxStore'
 import {
   addPlacedItem,
   removePlacedItem,
@@ -291,6 +291,7 @@ export default class Game extends Phaser.Scene {
     phaserEvents.on(Event.JUKEBOX_STOP, this.handleJukeboxStop, this)
     phaserEvents.on(Event.JUKEBOX_REPEAT, this.handleJukeboxRepeat, this)
     phaserEvents.on(Event.JUKEBOX_VOLUME, this.handleJukeboxVolume, this)
+    phaserEvents.on('network-jukebox-sync', this.handleNetworkJukeboxSync, this)
 
     // クリックとドラッグを区別するための移動しきい値（看板の誤ドラッグ防止）
     this.input.dragDistanceThreshold = 6
@@ -307,6 +308,7 @@ export default class Game extends Phaser.Scene {
       phaserEvents.off(Event.JUKEBOX_STOP, this.handleJukeboxStop, this)
       phaserEvents.off(Event.JUKEBOX_REPEAT, this.handleJukeboxRepeat, this)
       phaserEvents.off(Event.JUKEBOX_VOLUME, this.handleJukeboxVolume, this)
+      phaserEvents.off('network-jukebox-sync', this.handleNetworkJukeboxSync, this)
       phaserEvents.off(Event.BUILDER_PICK_MEETING_ENTRANCE, this.startPickingMeetingEntrance, this)
       phaserEvents.off(Event.MEETING_ROOM_EXIT, this.exitMeetingRoom, this)
       phaserEvents.off(Event.SIGNBOARD_ADDED, this.handleSignboardAdded, this)
@@ -1271,7 +1273,19 @@ export default class Game extends Phaser.Scene {
 
   // ─── Jukebox 制御メソッド ───────────────────────────────────────────
 
-  private handleJukeboxPlay(data: { name: string; url: string; isLocal: boolean; index: number }) {
+  private handleNetworkJukeboxSync(data: { status: string; song?: { name: string; url: string; isLocal: boolean; index: number } }) {
+    if (data.status === 'playing' && data.song) {
+      // 他人の再生操作を自分のReduxストアとPhaserに同期
+      store.dispatch(playSongByIndex(data.song.index))
+      this.handleJukeboxPlay(data.song, true)
+    } else if (data.status === 'paused') {
+      this.handleJukeboxPause(true)
+    } else if (data.status === 'stopped') {
+      this.handleJukeboxStop(true)
+    }
+  }
+
+  private handleJukeboxPlay(data: { name: string; url: string; isLocal: boolean; index: number }, isFromNetwork = false) {
     const songIndex = data.index
     // アセットキーの作成 (ローカル追加曲はインデックスベース、サーバー提供曲は名前ベースにして重複やズレを防ぐ)
     const key = data.isLocal ? `local_song_${songIndex}` : `bgm_${data.name}`
@@ -1281,12 +1295,15 @@ export default class Game extends Phaser.Scene {
       if (this.currentSound.isPaused) {
         this.currentSound.resume()
         store.dispatch(setPlayState({ playing: true, paused: false }))
+        if (!isFromNetwork) {
+          this.network.sendJukeboxSync({ index: data.index, status: 'playing', name: data.name, url: data.url, isLocal: data.isLocal })
+        }
       }
       return
     }
 
     // 別の曲を再生する場合は、現在の音声を停止
-    this.handleJukeboxStop()
+    this.handleJukeboxStop(isFromNetwork)
 
     const playSound = () => {
       try {
@@ -1301,6 +1318,11 @@ export default class Game extends Phaser.Scene {
         this.currentSound.on('complete', () => {
           phaserEvents.emit(Event.JUKEBOX_STATE_UPDATE, { status: 'complete' })
         })
+
+        // 自分が操作した場合はサーバーに同期
+        if (!isFromNetwork) {
+          this.network.sendJukeboxSync({ index: data.index, status: 'playing', name: data.name, url: data.url, isLocal: data.isLocal })
+        }
       } catch (err) {
         console.error('Phaser play sound error:', err)
       }
@@ -1319,20 +1341,26 @@ export default class Game extends Phaser.Scene {
     }
   }
 
-  private handleJukeboxPause() {
+  private handleJukeboxPause(isFromNetwork = false) {
     if (this.currentSound) {
       this.currentSound.pause()
       store.dispatch(setPlayState({ playing: false, paused: true }))
+      if (!isFromNetwork) {
+        this.network.sendJukeboxSync({ index: -1, status: 'paused', name: '', url: '', isLocal: false })
+      }
     }
   }
 
-  private handleJukeboxStop() {
+  private handleJukeboxStop(isFromNetwork = false) {
     if (this.currentSound) {
       this.currentSound.stop()
       this.currentSound.destroy()
       this.currentSound = undefined
     }
     store.dispatch(setPlayState({ playing: false, paused: false }))
+    if (!isFromNetwork) {
+      this.network.sendJukeboxSync({ index: -1, status: 'stopped', name: '', url: '', isLocal: false })
+    }
   }
 
   private handleJukeboxRepeat(repeat: boolean) {
