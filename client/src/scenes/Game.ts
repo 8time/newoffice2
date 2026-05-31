@@ -508,15 +508,15 @@ export default class Game extends Phaser.Scene {
   }
 
   private getMeetingRooms() {
-    // デフォルトのミーティングルーム（マップ左下エリア x < 610, y > 515 全域）
+    // デフォルトのミーティングルーム（左下部屋の入り口付近）
     const defaultRooms = [
       {
         id: 'default-meeting-room-1',
         name: 'Meeting Room',
-        x: 305,
-        y: 650,
-        width: 610,
-        height: 270,
+        x: 600,
+        y: 680,
+        width: 48,
+        height: 96,
       },
     ]
 
@@ -886,9 +886,9 @@ export default class Game extends Phaser.Scene {
 
     this.activeMeetingRoomId = room.id
 
-    // デフォルトルームの場合は固定の退出位置（部屋の外、右上あたり）を指定
+    // デフォルトルームの場合は固定の退出位置（部屋の外、通路側）を指定
     if (room.id === 'default-meeting-room-1') {
-      this.meetingRoomReturn = { x: 630, y: 500 }
+      this.meetingRoomReturn = { x: 680, y: 680 }
     } else {
       // 退出時は入室位置から少し下（+48px）に配置して、即座に再判定されるのを防ぐ
       this.meetingRoomReturn = { x: this.myPlayer.x, y: this.myPlayer.y + 48 }
