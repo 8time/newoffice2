@@ -21,7 +21,7 @@ import { ItemType } from '../../../types/Items'
 
 import store from '../stores'
 import { setFocused, setShowChat } from '../stores/ChatStore'
-import { setPlayState, playSongByIndex } from '../stores/JukeboxStore'
+import { setPlayState, playSongByIndex, setCurrentSong } from '../stores/JukeboxStore'
 import {
   addPlacedItem,
   removePlacedItem,
@@ -508,6 +508,18 @@ export default class Game extends Phaser.Scene {
   }
 
   private getMeetingRooms() {
+    // デフォルトのミーティングルーム（マップ左下エリア）
+    const defaultRooms = [
+      {
+        id: 'default-meeting-room-1',
+        name: 'Meeting Room',
+        x: 300,
+        y: 580,
+        width: 96,
+        height: 64,
+      },
+    ]
+
     const entrance = store.getState().mapBuilder.meetingRoomEntrance
     const savedEntranceRooms = entrance
       ? [
@@ -533,7 +545,7 @@ export default class Game extends Phaser.Scene {
         height: 96,
       }))
 
-    return [...savedEntranceRooms, ...placedRooms]
+    return [...defaultRooms, ...savedEntranceRooms, ...placedRooms]
   }
 
   private rebuildMeetingRoomEntrances() {
@@ -1274,9 +1286,13 @@ export default class Game extends Phaser.Scene {
   // ─── Jukebox 制御メソッド ───────────────────────────────────────────
 
   private handleNetworkJukeboxSync(data: { index: number; status: string; name: string; url: string; isLocal: boolean }) {
-    if (data.status === 'playing') {
+    console.log('[Jukebox Sync] 受信データ:', data)
+    if (data.status === 'playing' && data.name && data.url) {
       // 他人の再生操作を自分のReduxストアとPhaserに同期
-      store.dispatch(playSongByIndex(data.index))
+      // playSongByIndex はローカルのプレイリストに依存するため、
+      // 代わりに直接ストアを更新してから再生
+      store.dispatch(setCurrentSong({ name: data.name, index: data.index }))
+      store.dispatch(setPlayState({ playing: true, paused: false }))
       this.handleJukeboxPlay({ name: data.name, url: data.url, isLocal: data.isLocal, index: data.index }, true)
     } else if (data.status === 'paused') {
       this.handleJukeboxPause(true)

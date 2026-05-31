@@ -152,14 +152,21 @@ const PeerVideosContainer = styled.div`
   align-items: flex-start;
   pointer-events: auto;
 
-  video {
+  .peer-video-wrapper {
     width: 495px;
     height: 324px;
-    object-fit: cover;
     border-radius: 10px;
     border: 4px solid #00CCCC;
-    background: #222;
     flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+    background: #222;
+  }
+
+  .peer-video-wrapper video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 `
 

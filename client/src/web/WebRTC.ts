@@ -201,8 +201,11 @@ export default class WebRTC {
     const wrapper = document.createElement('div')
     wrapper.className = 'peer-video-wrapper'
     wrapper.style.position = 'relative'
-    wrapper.style.width = '240px'
-    wrapper.style.height = '180px'
+    wrapper.style.width = '495px'
+    wrapper.style.height = '324px'
+    wrapper.style.borderRadius = '10px'
+    wrapper.style.border = '4px solid #00CCCC'
+    wrapper.style.flexShrink = '0'
     wrapper.style.backgroundColor = '#222'
     wrapper.style.borderBottom = '2px solid #333'
     wrapper.style.overflow = 'hidden'
@@ -307,7 +310,8 @@ export default class WebRTC {
     video.addEventListener('loadedmetadata', () => {
       video.play()
     })
-    if (this.videoGrid) this.videoGrid.append(video)
+    const wrapper = video.parentElement
+    if (this.videoGrid && wrapper) this.videoGrid.append(wrapper)
     this.notifyVideoState()
   }
 
