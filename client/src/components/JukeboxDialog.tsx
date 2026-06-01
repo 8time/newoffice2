@@ -127,11 +127,11 @@ export default function JukeboxDialog() {
   }
 
   // ダイアログが開いた際にサーバーから最新の mp3 ファイルリストをフェッチして同期
+  // 相対パスを使用することで開発・本番（Render）どちらでも動作する
   useEffect(() => {
     if (!open) return
 
-    const host = window.location.hostname
-    fetch(`http://${host}:2567/api/audio-list`)
+    fetch('/api/audio-list')
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -204,6 +204,7 @@ export default function JukeboxDialog() {
   }
 
   // ローカル mp3 のアップロード・プレイリスト追加
+  // ※ローカルアップロード曲は blob: URL のため他ユーザーには配信されない（自分だけ聴ける）
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -217,12 +218,15 @@ export default function JukeboxDialog() {
     }
 
     dispatch(addSongToPlaylist(newSong))
-    
+
     // 追加した曲を即再生
     setTimeout(() => {
       playSong(playlist.length) // 追加前の長さがそのまま追加後のインデックスになる
     }, 100)
   }
+
+  // 現在再生中の曲がローカルアップロードかどうか
+  const isCurrentSongLocal = playlist[currentSongIndex]?.isLocal ?? false
 
   return (
     <Dialog
@@ -263,7 +267,11 @@ export default function JukeboxDialog() {
           }}
         >
           <Typography variant="body2" style={{ color: '#38bdf8', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>
-            {playing ? '🔊 Now Playing' : paused ? '⏸️ Paused' : '⏹️ Stopped'}
+            {playing
+              ? isCurrentSongLocal
+                ? '🔊 Now Playing (自分のみ)'
+                : '🔊 Now Playing (全員に配信中)'
+              : paused ? '⏸️ Paused' : '⏹️ Stopped'}
           </Typography>
           <Typography
             variant="body1"
@@ -378,7 +386,7 @@ export default function JukeboxDialog() {
                         fontSize: '13px',
                       },
                     }}
-                    secondary={song.isLocal ? 'Uploaded' : 'Default BGM'}
+                    secondary={song.isLocal ? '📱 自分のみ再生' : '📡 全員に配信'}
                     secondaryTypographyProps={{
                       style: {
                         color: isActive ? 'rgba(0, 255, 136, 0.6)' : 'rgba(224, 242, 254, 0.4)',
@@ -388,7 +396,7 @@ export default function JukeboxDialog() {
                   />
                   {isActive && playing && (
                     <ListItemSecondaryAction>
-                      <MusicNoteIcon style={{ color: '#00ff88', fontSize: '16px' }} />
+                      <MusicNoteIcon style={{ color: song.isLocal ? '#f59e0b' : '#00ff88', fontSize: '16px' }} />
                     </ListItemSecondaryAction>
                   )}
                 </SongListItem>

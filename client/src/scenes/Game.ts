@@ -1313,7 +1313,7 @@ export default class Game extends Phaser.Scene {
       if (this.currentSound.isPaused) {
         this.currentSound.resume()
         store.dispatch(setPlayState({ playing: true, paused: false }))
-        if (!isFromNetwork) {
+        if (!isFromNetwork && !data.isLocal) {
           this.network.sendJukeboxSync({ index: data.index, status: 'playing', name: data.name, url: data.url, isLocal: data.isLocal })
         }
       }
@@ -1337,13 +1337,16 @@ export default class Game extends Phaser.Scene {
         this.currentSound.play({ loop: repeat, volume: volume })
         store.dispatch(setPlayState({ playing: true, paused: false }))
 
-        // 曲が終了した際の自動遷移（React 側に通知）
+        // 曲が終了した際の自動遷移
+        // ネットワーク受信側は「complete」を発火させない（次の曲の選択はオリジナル操作者が行い、syncで受け取る）
         this.currentSound.on('complete', () => {
-          phaserEvents.emit(Event.JUKEBOX_STATE_UPDATE, { status: 'complete' })
+          if (!isFromNetwork) {
+            phaserEvents.emit(Event.JUKEBOX_STATE_UPDATE, { status: 'complete' })
+          }
         })
 
-        // 自分が操作した場合はサーバーに同期
-        if (!isFromNetwork) {
+        // 自分が操作した場合はサーバーに同期（ローカルアップロード曲は blob: URL のため除外）
+        if (!isFromNetwork && !data.isLocal) {
           this.network.sendJukeboxSync({ index: data.index, status: 'playing', name: data.name, url: data.url, isLocal: data.isLocal })
         }
       } catch (err) {
