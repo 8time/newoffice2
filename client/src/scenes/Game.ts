@@ -879,10 +879,10 @@ export default class Game extends Phaser.Scene {
 
     this.activeMeetingRoomId = room.id
 
-    // 退出時の戻り先: ゾーンの中心から十分下（ゾーン高さ96 + 余白）に設定
+    // 退出時の戻り先: ゾーン上端（room.y - 48）の1タイル上
     this.meetingRoomReturn = {
       x: room.x !== undefined ? room.x : this.myPlayer.x,
-      y: room.y !== undefined ? room.y + 100 : this.myPlayer.y + 100,
+      y: room.y !== undefined ? room.y - 48 - TILE_SIZE : this.myPlayer.y - 80,
     }
 
     this.disableKeys()
