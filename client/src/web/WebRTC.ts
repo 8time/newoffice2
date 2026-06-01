@@ -191,7 +191,7 @@ export default class WebRTC {
     this.setUpButtons()
     store.dispatch(setVideoConnected(true))
     this.network.videoConnected()
-    this.network.updateVideoStatus(this.isVideoOff) // 初期状態をサーバーに同期
+    this.network.updateMediaStatus(this.isVideoOff, this.isAudioMuted) // 初期状態をサーバーに同期
     this.notifyVideoState()
   }
 
@@ -234,6 +234,17 @@ export default class WebRTC {
     video.style.display = 'block'
     video.style.transition = 'opacity 0.2s'
     wrapper.appendChild(video)
+
+    // ステータスアイコン用コンテナ
+    const statusIcons = document.createElement('div')
+    statusIcons.className = 'peer-status-icons'
+    statusIcons.style.position = 'absolute'
+    statusIcons.style.bottom = '10px'
+    statusIcons.style.right = '10px'
+    statusIcons.style.display = 'flex'
+    statusIcons.style.gap = '5px'
+    statusIcons.style.zIndex = '10'
+    wrapper.appendChild(statusIcons)
 
     // 相手の情報を取得
     const info = getOtherPlayerInfo(peerId)
@@ -309,18 +320,21 @@ export default class WebRTC {
     video.playsInline = true
 
     let isVideoOff = false
+    let isAudioMuted = false
     // @ts-ignore
     if (this.network?.room) {
       // @ts-ignore
       this.network.room.state.players.forEach((p: any, key: string) => {
         if (this.replaceInvalidId(key) === peerId) {
           isVideoOff = p.isVideoOff
+          isAudioMuted = p.isAudioMuted
         }
       })
     }
 
-    // カメラがOFFの場合はアバター画像を表示
+    // カメラがOFFの場合のアバター画像を表示
     this.applyVideoFallback(video, isVideoOff)
+    this.updatePeerStatusIcons(peerId, isVideoOff, isAudioMuted)
 
     video.addEventListener('loadedmetadata', () => {
       video.play()
@@ -383,6 +397,7 @@ export default class WebRTC {
     this.isAudioMuted = !this.isAudioMuted
     audioTrack.enabled = !this.isAudioMuted
     this.updateButtonLabels()
+    this.network.updateMediaStatus(this.isVideoOff, this.isAudioMuted)
     this.notifyVideoState()
   }
 
@@ -393,6 +408,7 @@ export default class WebRTC {
     this.isAudioMuted = muted
     audioTrack.enabled = !muted
     this.updateButtonLabels()
+    this.network.updateMediaStatus(this.isVideoOff, this.isAudioMuted)
     this.notifyVideoState()
   }
 
@@ -406,7 +422,7 @@ export default class WebRTC {
     videoTrack.enabled = !this.isVideoOff
     this.applyVideoFallback(this.myVideo, this.isVideoOff)
     this.updateButtonLabels()
-    this.network.updateVideoStatus(this.isVideoOff)
+    this.network.updateMediaStatus(this.isVideoOff, this.isAudioMuted)
     this.notifyVideoState()
   }
 
@@ -472,6 +488,19 @@ export default class WebRTC {
   private handleProximityLeave() {
     // 誰もいない → マイクを無効化（ミュート）
     this.setMuted(true)
+  }
+
+  // 相手のステータスアイコンを更新
+  updatePeerStatusIcons(peerId: string, isVideoOff: boolean, isAudioMuted: boolean) {
+    const peer = this.peers.get(peerId) || this.onCalledPeers.get(peerId)
+    if (!peer) return
+    const statusIcons = peer.wrapper.querySelector('.peer-status-icons')
+    if (statusIcons) {
+      statusIcons.innerHTML = `
+        ${isAudioMuted ? '<div style="background:rgba(0,0,0,0.6);border-radius:50%;padding:6px;display:flex;align-items:center;justify-content:center;color:#ff4444;"><svg fill="currentColor" width="20" height="20" viewBox="0 0 24 24"><path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6 6V11c0 1.66 1.34 3 3 3 .23 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/></svg></div>' : ''}
+        ${isVideoOff ? '<div style="background:rgba(0,0,0,0.6);border-radius:50%;padding:6px;display:flex;align-items:center;justify-content:center;color:#ff4444;"><svg fill="currentColor" width="20" height="20" viewBox="0 0 24 24"><path d="M21 6.5l-4 4V7c0-.55-.45-1-1-1H9.82L21 17.18V6.5zM3.27 2L2 3.27 4.73 6H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.21 0 .39-.08.54-.18L19.73 21 21 19.73 3.27 2z"/></svg></div>' : ''}
+      `
+    }
   }
 
   // ─── ボタン（レガシー DOM ボタン）の生成・更新 ──────────────────────────────

@@ -67,6 +67,7 @@ export default class Game extends Phaser.Scene {
   private meetingRoomEntrances!: Phaser.Physics.Arcade.StaticGroup
   private activeMeetingRoomId?: string
   private meetingRoomReturn?: { x: number; y: number }
+  private meetingRoomCooldown = false
 
   // ─── 背景画像 & 当たり判定システム ────────────────────────────────────────
   private bgImage!: Phaser.GameObjects.Image
@@ -111,6 +112,7 @@ export default class Game extends Phaser.Scene {
 
   enableKeys() {
     this.input.keyboard.enabled = true
+    this.input.keyboard.resetKeys()
   }
 
   create(data: { network: Network }) {
@@ -508,18 +510,6 @@ export default class Game extends Phaser.Scene {
   }
 
   private getMeetingRooms() {
-    // デフォルトのミーティングルーム（左下部屋の入り口付近）
-    const defaultRooms = [
-      {
-        id: 'default-meeting-room-1',
-        name: 'Meeting Room',
-        x: 600,
-        y: 680,
-        width: 48,
-        height: 96,
-      },
-    ]
-
     const entrance = store.getState().mapBuilder.meetingRoomEntrance
     const savedEntranceRooms = entrance
       ? [
@@ -545,7 +535,7 @@ export default class Game extends Phaser.Scene {
         height: 96,
       }))
 
-    return [...defaultRooms, ...savedEntranceRooms, ...placedRooms]
+    return [...savedEntranceRooms, ...placedRooms]
   }
 
   private rebuildMeetingRoomEntrances() {
@@ -847,6 +837,8 @@ export default class Game extends Phaser.Scene {
   // function to add new player to the otherPlayer group
   private handlePlayerJoined(newPlayer: IPlayer, id: string) {
     const otherPlayer = this.add.otherPlayer(newPlayer.x, newPlayer.y, 'adam', id, newPlayer.name)
+    otherPlayer.isVideoOff = newPlayer.isVideoOff
+    otherPlayer.isAudioMuted = newPlayer.isAudioMuted
     this.otherPlayers.add(otherPlayer)
     this.otherPlayerMap.set(id, otherPlayer)
   }
@@ -881,17 +873,16 @@ export default class Game extends Phaser.Scene {
   }
 
   private handleMeetingRoomEntrance(_player, entrance) {
+    if (this.meetingRoomCooldown) return
     const room = entrance.getData('meetingRoom')
     if (!room || this.activeMeetingRoomId === room.id) return
 
     this.activeMeetingRoomId = room.id
 
-    // デフォルトルームの場合は固定の退出位置（部屋の外、通路側）を指定
-    if (room.id === 'default-meeting-room-1') {
-      this.meetingRoomReturn = { x: 680, y: 680 }
-    } else {
-      // 退出時は入室位置から少し下（+48px）に配置して、即座に再判定されるのを防ぐ
-      this.meetingRoomReturn = { x: this.myPlayer.x, y: this.myPlayer.y + 48 }
+    // 退出時の戻り先: ゾーンの中心から十分下（ゾーン高さ96 + 余白）に設定
+    this.meetingRoomReturn = {
+      x: room.x !== undefined ? room.x : this.myPlayer.x,
+      y: room.y !== undefined ? room.y + 100 : this.myPlayer.y + 100,
     }
 
     this.disableKeys()
@@ -913,6 +904,10 @@ export default class Game extends Phaser.Scene {
     this.meetingRoomReturn = undefined
     this.enableKeys()
     store.dispatch(clearActiveMeetingRoom())
+
+    // 退出直後の再入室を防ぐクールダウン（1秒）
+    this.meetingRoomCooldown = true
+    this.time.delayedCall(1000, () => { this.meetingRoomCooldown = false })
   }
 
   private proximitySet = new Set<string>()

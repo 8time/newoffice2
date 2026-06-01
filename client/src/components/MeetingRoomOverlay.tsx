@@ -994,6 +994,18 @@ export default function MeetingRoomOverlay() {
   const [showMembers, setShowMembers] = useState(false)
 
   useEffect(() => {
+    const rtc = getWebRTC()
+    if (rtc) {
+      setVideoState({
+        isAudioMuted: rtc.isAudioMuted,
+        isVideoOff: rtc.isVideoOff,
+        isSharingScreen: rtc.isSharingScreen,
+        hasStream: !!rtc.myStream,
+      })
+    }
+  }, [])
+
+  useEffect(() => {
     const handler = (e: globalThis.Event) => setVideoState((e as CustomEvent).detail as VideoState)
     window.addEventListener('webrtc-state-change', handler)
     return () => window.removeEventListener('webrtc-state-change', handler)
@@ -1002,13 +1014,13 @@ export default function MeetingRoomOverlay() {
   // activeRoom が存在するときだけビデオをマウント
   useEffect(() => {
     if (!activeRoom) return
-    // DOM が描画されてから少し待ってマウント
+    // DOM が描画されてから少し待ってマウント（hasStream が変わった時も再アタッチ）
     const timer = setTimeout(() => {
       getWebRTC()?.attachLocalVideo('meeting-my-video-mount')
       if (peerContainerRef.current) getWebRTC()?.mountPeerVideos(peerContainerRef.current)
     }, 100)
     return () => clearTimeout(timer)
-  }, [activeRoom, videoConnected, videoState.isVideoOff])
+  }, [activeRoom, videoConnected, videoState.isVideoOff, videoState.hasStream])
 
   if (!activeRoom) return null
 
@@ -1042,17 +1054,25 @@ export default function MeetingRoomOverlay() {
       {/* 右上：カメラ列（縦積み） */}
       <CameraColumn>
         {/* 自分のカメラ */}
-        {videoConnected && (
-          <CamCard>
-            {videoState.isVideoOff
-              ? <AvatarFallback $bgGradient={getGradient(sessionId || myName)}><img src={avatarMap[myAvatarName]} alt={myAvatarName} /></AvatarFallback>
-              : <div id="meeting-my-video-mount" style={{ width: '100%', height: '100%' }} />
-            }
-            <div className="cam-label">
-              {videoState.isAudioMuted ? '🔇 ' : ''}{myName}（自分）
-            </div>
-          </CamCard>
-        )}
+        <CamCard>
+          {/* 常にDOM上に置いてWebRTCがアタッチできるようにする。映像が来たら表示 */}
+          <div
+            id="meeting-my-video-mount"
+            style={{
+              width: '100%', height: '100%',
+              display: (videoConnected && !videoState.isVideoOff && videoState.hasStream) ? 'block' : 'none',
+            }}
+          />
+          {/* カメラOFF・未接続・ストリーム待ちの間はアバターを表示 */}
+          {(!videoConnected || videoState.isVideoOff || !videoState.hasStream) && (
+            <AvatarFallback $bgGradient={getGradient(sessionId || myName)}>
+              <img src={avatarMap[myAvatarName]} alt={myAvatarName} />
+            </AvatarFallback>
+          )}
+          <div className="cam-label">
+            {(!videoConnected || videoState.isAudioMuted) ? '🔇 ' : ''}{myName}（自分）
+          </div>
+        </CamCard>
 
         {/* 他者のカメラ（WebRTCが動的に追加） */}
         <PeerVideosColumn ref={peerContainerRef} />

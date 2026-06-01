@@ -8,6 +8,7 @@ export interface IPlayer extends Schema {
   readyToConnect: boolean
   videoConnected: boolean
   isVideoOff: boolean
+  isAudioMuted: boolean
   status: string       // 'present' | 'away'
   awayMessage: string  // 離席理由
 }

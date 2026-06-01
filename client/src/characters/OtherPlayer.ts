@@ -13,6 +13,8 @@ export default class OtherPlayer extends Player {
   private myPlayer?: MyPlayer
   _pendingAwayMessage = ''
   _currentStatus = 'present'
+  isVideoOff = false
+  isAudioMuted = false
 
   constructor(
     scene: Phaser.Scene,
@@ -81,6 +83,22 @@ export default class OtherPlayer extends Player {
       case 'videoConnected':
         if (typeof value === 'boolean') {
           this.videoConnected = value
+        }
+        break
+
+      case 'isVideoOff':
+        if (typeof value === 'boolean') {
+          this.isVideoOff = value
+          const game = this.scene as any
+          game.network?.webRTC?.updatePeerStatusIcons(this.playerId, this.isVideoOff, this.isAudioMuted)
+        }
+        break
+
+      case 'isAudioMuted':
+        if (typeof value === 'boolean') {
+          this.isAudioMuted = value
+          const game = this.scene as any
+          game.network?.webRTC?.updatePeerStatusIcons(this.playerId, this.isVideoOff, this.isAudioMuted)
         }
         break
 

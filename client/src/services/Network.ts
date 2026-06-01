@@ -294,6 +294,11 @@ export default class Network {
     this.room?.send(Message.UPDATE_VIDEO_STATUS, { isVideoOff })
   }
 
+  // method to send media status to Colyseus server
+  updateMediaStatus(isVideoOff: boolean, isAudioMuted: boolean) {
+    this.room?.send(Message.UPDATE_MEDIA_STATUS, { isVideoOff, isAudioMuted })
+  }
+
   // method to send ready-to-connect signal to Colyseus server
   readyToConnect() {
     this.room?.send(Message.READY_TO_CONNECT)
