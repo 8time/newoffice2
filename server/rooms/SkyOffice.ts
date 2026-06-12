@@ -303,6 +303,19 @@ export class SkyOffice extends Room<OfficeState> {
       }
     })
 
+    // 看板のコンテンツ変更（全員に同期）
+    this.onMessage(Message.UPDATE_SIGNBOARD_CONTENT, (client, message: { id: string; text?: string; image?: string; url?: string; bgColor?: string; textColor?: string; scale?: number }) => {
+      const sign = this.state.signboards.get(message.id)
+      if (sign) {
+        if (message.text !== undefined) sign.text = (message.text || '').slice(0, 500)
+        if (message.image !== undefined) sign.image = message.image || ''
+        if (message.url !== undefined) sign.url = (message.url || '').slice(0, 2000)
+        if (message.bgColor !== undefined && /^#[0-9a-f]{6}$/i.test(message.bgColor)) sign.bgColor = message.bgColor
+        if (message.textColor !== undefined && /^#[0-9a-f]{6}$/i.test(message.textColor)) sign.textColor = message.textColor
+        if (message.scale !== undefined) sign.scale = Math.min(3, Math.max(0.3, message.scale))
+      }
+    })
+
     // ジュークボックスのリアルタイム同期（全員に配信）
     this.onMessage(
       Message.JUKEBOX_SYNC,

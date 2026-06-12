@@ -200,6 +200,20 @@ export default class Network {
         if (changes.some((c) => c.field === 'scale')) {
           phaserEvents.emit(Event.SIGNBOARD_SCALED, { id: key, scale: signboard.scale })
         }
+        const contentFields = ['text', 'image', 'url', 'bgColor', 'textColor']
+        if (changes.some((c) => contentFields.includes(c.field))) {
+          phaserEvents.emit(Event.SIGNBOARD_UPDATED, {
+            id: key,
+            x: signboard.x,
+            y: signboard.y,
+            text: signboard.text,
+            image: signboard.image,
+            url: signboard.url,
+            bgColor: signboard.bgColor,
+            textColor: signboard.textColor,
+            scale: signboard.scale,
+          })
+        }
       }
     }
     this.room.state.signboards.onRemove = (_signboard: ISignboard, key: string) => {
@@ -388,6 +402,10 @@ export default class Network {
 
   updateSignboardScale(id: string, scale: number) {
     this.room?.send(Message.UPDATE_SIGNBOARD, { id, scale })
+  }
+
+  updateSignboardContent(data: { id: string; text?: string; image?: string; url?: string; bgColor?: string; textColor?: string; scale?: number }) {
+    this.room?.send(Message.UPDATE_SIGNBOARD_CONTENT, data)
   }
 
   sendJukeboxSync(data: { index: number; status: string; name: string; url: string; isLocal: boolean }) {

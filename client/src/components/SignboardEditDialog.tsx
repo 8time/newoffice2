@@ -1,0 +1,379 @@
+import React, { useRef, useState } from 'react'
+import styled from 'styled-components'
+
+import { useAppSelector, useAppDispatch } from '../hooks'
+import { closeEditSignboard } from '../stores/SignboardStore'
+import phaserGame from '../PhaserGame'
+import Game from '../scenes/Game'
+
+const Backdrop = styled.div`
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 2000;
+`
+
+const Panel = styled.div`
+  width: 440px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  background: #222639;
+  color: #eee;
+  border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  padding: 24px;
+  font-family: 'Roboto', 'Inter', sans-serif;
+`
+
+const Title = styled.h3`
+  margin: 0 0 16px;
+  font-size: 22px;
+  text-align: center;
+`
+
+const Label = styled.label`
+  display: block;
+  font-size: 14px;
+  color: #aab;
+  margin: 14px 0 6px;
+`
+
+const TextArea = styled.textarea`
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 80px;
+  resize: vertical;
+  border-radius: 8px;
+  border: 1px solid #3a3f57;
+  background: #1a1d2e;
+  color: #fff;
+  font-size: 15px;
+  padding: 10px 12px;
+  outline: none;
+  &:focus { border-color: #5599ee; }
+`
+
+const Input = styled.input`
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 1px solid #3a3f57;
+  background: #1a1d2e;
+  color: #fff;
+  font-size: 15px;
+  padding: 10px 12px;
+  outline: none;
+  &:focus { border-color: #5599ee; }
+`
+
+const ImageRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+`
+
+const FileButton = styled.button`
+  border: none;
+  border-radius: 8px;
+  background: #3a3f57;
+  color: #fff;
+  font-size: 14px;
+  padding: 10px 16px;
+  cursor: pointer;
+  white-space: nowrap;
+  &:hover { background: #4a5070; }
+`
+
+const PreviewImg = styled.img`
+  max-width: 120px;
+  max-height: 80px;
+  border-radius: 6px;
+  border: 1px solid #3a3f57;
+  object-fit: contain;
+  background: #000;
+`
+
+const RemoveImg = styled.button`
+  border: none;
+  background: transparent;
+  color: #e57373;
+  cursor: pointer;
+  font-size: 13px;
+`
+
+const ColorRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+`
+
+const ColorSwatch = styled.button<{ color: string; selected: boolean }>`
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 3px solid ${({ selected }) => (selected ? '#5599ee' : 'transparent')};
+  background: ${({ color }) => color};
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  transition: transform 0.1s;
+  &:hover { transform: scale(1.15); }
+`
+
+const ScaleRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+`
+
+const ScaleSlider = styled.input`
+  flex: 1;
+  accent-color: #5599ee;
+`
+
+const ScaleLabel = styled.span`
+  width: 36px;
+  text-align: right;
+  font-size: 14px;
+  color: #cdd;
+`
+
+const BoardPreview = styled.div<{ bg: string; textCol: string; scale: number }>`
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: ${({ bg }) => bg};
+  color: ${({ textCol }) => textCol};
+  border-radius: 8px;
+  font-size: ${({ scale }) => Math.round(13 * scale)}px;
+  border: 2px solid #b0a070;
+  display: inline-block;
+  max-width: 100%;
+  word-break: break-word;
+`
+
+const UrlLinkRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+`
+
+const OpenUrlBtn = styled.a`
+  font-size: 13px;
+  color: #5599ee;
+  text-decoration: underline;
+  cursor: pointer;
+  word-break: break-all;
+`
+
+const Actions = styled.div`
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+`
+
+const Button = styled.button<{ primary?: boolean; danger?: boolean }>`
+  flex: 1;
+  border: none;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #fff;
+  background: ${({ primary, danger }) =>
+    danger ? '#8b2020' : primary ? '#1a6b2a' : '#3a3f57'};
+  &:hover {
+    background: ${({ primary, danger }) =>
+      danger ? '#a82828' : primary ? '#208035' : '#4a5070'};
+  }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+`
+
+const BG_COLORS = [
+  '#fff8e1', '#ffffff', '#fffde7', '#f1f8e9',
+  '#e3f2fd', '#fce4ec', '#ede7f6', '#e8f5e9',
+  '#1a1a2e', '#222639', '#0d1b2a', '#1b2838',
+  '#ff6b6b', '#ffd166', '#06d6a0', '#118ab2',
+]
+
+const TEXT_COLORS = [
+  '#1a1a1a', '#ffffff', '#333333', '#ffdd57',
+  '#ff6b6b', '#06d6a0', '#118ab2', '#a78bfa',
+]
+
+function fileToDownscaledDataUrl(file: File, maxSize = 480): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const img = new Image()
+      img.onload = () => {
+        const scale = Math.min(1, maxSize / Math.max(img.width, img.height))
+        const w = Math.max(1, Math.round(img.width * scale))
+        const h = Math.max(1, Math.round(img.height * scale))
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return reject(new Error('canvas context unavailable'))
+        ctx.drawImage(img, 0, 0, w, h)
+        resolve(canvas.toDataURL('image/jpeg', 0.75))
+      }
+      img.onerror = reject
+      img.src = reader.result as string
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+export default function SignboardEditDialog() {
+  const dispatch = useAppDispatch()
+  const editBoard = useAppSelector((state) => state.signboard.editBoard)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const [text, setText] = useState(editBoard?.text ?? '')
+  const [url, setUrl] = useState(editBoard?.url ?? '')
+  const [image, setImage] = useState(editBoard?.image ?? '')
+  const [bgColor, setBgColor] = useState(editBoard?.bgColor ?? '#fff8e1')
+  const [textColor, setTextColor] = useState(editBoard?.textColor ?? '#1a1a1a')
+  const [scale, setScale] = useState(editBoard?.scale ?? 1.0)
+
+  if (!editBoard) return null
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const dataUrl = await fileToDownscaledDataUrl(file)
+      setImage(dataUrl)
+    } catch (err) {
+      console.error('画像の読み込みに失敗:', err)
+    }
+    e.target.value = ''
+  }
+
+  const getGame = () => phaserGame.scene.keys.game as Game
+
+  const handleSave = () => {
+    let normalizedUrl = url.trim()
+    if (normalizedUrl && !/^https?:\/\//i.test(normalizedUrl)) {
+      normalizedUrl = 'https://' + normalizedUrl
+    }
+    getGame()?.network?.updateSignboardContent({
+      id: editBoard.id,
+      text: text.trim(),
+      image,
+      url: normalizedUrl,
+      bgColor,
+      textColor,
+      scale,
+    })
+    dispatch(closeEditSignboard())
+  }
+
+  const handleDelete = () => {
+    if (!window.confirm('この看板を削除しますか？')) return
+    getGame()?.network?.removeSignboard(editBoard.id)
+    dispatch(closeEditSignboard())
+  }
+
+  const normalizedCurrentUrl = url.trim().match(/^https?:\/\//i)
+    ? url.trim()
+    : url.trim() ? 'https://' + url.trim() : ''
+
+  return (
+    <Backdrop onMouseDown={() => dispatch(closeEditSignboard())}>
+      <Panel onMouseDown={(e) => e.stopPropagation()}>
+        <Title>看板を編集</Title>
+
+        <Label>メモ / テキスト</Label>
+        <TextArea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="例：本日17時から全体MTG　など"
+        />
+
+        <Label>背景色</Label>
+        <ColorRow>
+          {BG_COLORS.map((c) => (
+            <ColorSwatch key={c} color={c} selected={bgColor === c} onClick={() => setBgColor(c)} title={c} />
+          ))}
+        </ColorRow>
+
+        <Label>文字色</Label>
+        <ColorRow>
+          {TEXT_COLORS.map((c) => (
+            <ColorSwatch key={c} color={c} selected={textColor === c} onClick={() => setTextColor(c)} title={c} />
+          ))}
+        </ColorRow>
+
+        <Label>サイズ（スケール）</Label>
+        <ScaleRow>
+          <ScaleSlider
+            type="range"
+            min={0.5}
+            max={3.0}
+            step={0.1}
+            value={scale}
+            onChange={(e) => setScale(parseFloat(e.target.value))}
+          />
+          <ScaleLabel>{scale.toFixed(1)}x</ScaleLabel>
+        </ScaleRow>
+
+        {text && (
+          <>
+            <Label>プレビュー</Label>
+            <BoardPreview bg={bgColor} textCol={textColor} scale={scale}>
+              {text}
+            </BoardPreview>
+          </>
+        )}
+
+        <Label>画像（任意）</Label>
+        <ImageRow>
+          <FileButton type="button" onClick={() => fileRef.current?.click()}>
+            画像を選択
+          </FileButton>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={handleFile}
+          />
+          {image && (
+            <>
+              <PreviewImg src={image} alt="preview" />
+              <RemoveImg type="button" onClick={() => setImage('')}>削除</RemoveImg>
+            </>
+          )}
+        </ImageRow>
+
+        <Label>リンクURL（任意）</Label>
+        <Input
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://example.com"
+        />
+        {normalizedCurrentUrl && (
+          <UrlLinkRow>
+            <OpenUrlBtn href={normalizedCurrentUrl} target="_blank" rel="noopener noreferrer">
+              ↗ URLを開く
+            </OpenUrlBtn>
+          </UrlLinkRow>
+        )}
+
+        <Actions>
+          <Button danger onClick={handleDelete}>削除</Button>
+          <Button onClick={() => dispatch(closeEditSignboard())}>キャンセル</Button>
+          <Button primary onClick={handleSave}>保存</Button>
+        </Actions>
+      </Panel>
+    </Backdrop>
+  )
+}

@@ -17,6 +17,7 @@ import PredictionBoardDialog from './components/PredictionBoardDialog'
 import SignboardDialog from './components/SignboardDialog'
 import KnockNotification from './components/KnockNotification'
 import SignboardDeleteConfirm from './components/SignboardDeleteConfirm'
+import SignboardEditDialog from './components/SignboardEditDialog'
 import EmotePanel from './components/EmotePanel'
 import VideoOverlay from './components/VideoOverlay'
 import OnlineUsers from './components/OnlineUsers'
@@ -135,6 +136,7 @@ function App() {
   const isBuilderMode = useAppSelector((state) => state.mapBuilder.isBuilderMode)
   const activeMeetingRoom = useAppSelector((state) => state.meetingRoom.activeRoom)
   const signboardDialogOpen = useAppSelector((state) => state.signboard.signboardDialogOpen)
+  const editBoard = useAppSelector((state) => state.signboard.editBoard)
 
   useEffect(() => {
     if (loggedIn) {
@@ -191,6 +193,9 @@ function App() {
 
       {/* 看板削除確認ダイアログ */}
       {loggedIn && <SignboardDeleteConfirm />}
+
+      {/* 看板編集ダイアログ */}
+      {loggedIn && editBoard && <SignboardEditDialog />}
 
       {/* エモートパネル（画面下中央） */}
       {loggedIn && !activeMeetingRoom && <EmotePanel />}

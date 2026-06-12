@@ -22,7 +22,7 @@ import { ItemType } from '../../../types/Items'
 
 import store from '../stores'
 import { setFocused, setShowChat } from '../stores/ChatStore'
-import { requestDeleteSignboard } from '../stores/SignboardStore'
+import { requestDeleteSignboard, openEditSignboard } from '../stores/SignboardStore'
 import { setPlayState, playSongByIndex, setCurrentSong } from '../stores/JukeboxStore'
 import {
   addPlacedItem,
@@ -330,6 +330,7 @@ export default class Game extends Phaser.Scene {
     phaserEvents.on(Event.SIGNBOARD_REMOVED, this.handleSignboardRemoved, this)
     phaserEvents.on(Event.SIGNBOARD_MOVED, this.handleSignboardMoved, this)
     phaserEvents.on(Event.SIGNBOARD_SCALED, this.handleSignboardScaled, this)
+    phaserEvents.on(Event.SIGNBOARD_UPDATED, this.handleSignboardUpdated, this)
     phaserEvents.on(Event.SIGNBOARD_PLACE, this.handleSignboardPlace, this)
     phaserEvents.on(Event.EMOTE_RECEIVED, this.handleEmote, this)
 
@@ -346,6 +347,7 @@ export default class Game extends Phaser.Scene {
       phaserEvents.off(Event.SIGNBOARD_REMOVED, this.handleSignboardRemoved, this)
       phaserEvents.off(Event.SIGNBOARD_MOVED, this.handleSignboardMoved, this)
       phaserEvents.off(Event.SIGNBOARD_SCALED, this.handleSignboardScaled, this)
+      phaserEvents.off(Event.SIGNBOARD_UPDATED, this.handleSignboardUpdated, this)
       phaserEvents.off(Event.SIGNBOARD_PLACE, this.handleSignboardPlace, this)
       phaserEvents.off(Event.EMOTE_RECEIVED, this.handleEmote, this)
     })
@@ -526,7 +528,7 @@ export default class Game extends Phaser.Scene {
   }
 
   private renderSignboard(
-    data: { id: string; x: number; y: number; text: string; url: string; bgColor?: string; textColor?: string; scale?: number },
+    data: { id: string; x: number; y: number; text: string; url: string; image?: string; bgColor?: string; textColor?: string; scale?: number },
     texKey: string | null
   ) {
     const PAD = 8
@@ -582,6 +584,11 @@ export default class Game extends Phaser.Scene {
     container.setData('cardW', cardW)
     container.setData('cardH', cardH)
     container.setData('offsetY', OFFSET_Y)
+    container.setData('signText', data.text || '')
+    container.setData('signUrl', data.url || '')
+    container.setData('signImage', (data as any).image || '')
+    container.setData('signBgColor', data.bgColor || '#fff8e1')
+    container.setData('signTextColor', data.textColor || '#1a1a1a')
     container.setDepth(data.y)
     container.setInteractive(
       new Phaser.Geom.Rectangle(0, 0, cardW, cardH),
@@ -589,9 +596,7 @@ export default class Game extends Phaser.Scene {
     )
     this.input.setDraggable(container)
 
-    container.on('pointerover', () =>
-      this.input.setDefaultCursor(data.url ? 'pointer' : 'move')
-    )
+    container.on('pointerover', () => this.input.setDefaultCursor('pointer'))
     container.on('pointerout', () => this.input.setDefaultCursor('default'))
 
     container.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
@@ -633,7 +638,15 @@ export default class Game extends Phaser.Scene {
 
     container.on('pointerup', () => {
       if (container.getData('moved') || container.getData('suppressClick')) return
-      if (data.url) window.open(data.url, '_blank', 'noopener,noreferrer')
+      store.dispatch(openEditSignboard({
+        id: data.id,
+        text: container.getData('signText') as string,
+        url: container.getData('signUrl') as string,
+        image: container.getData('signImage') as string,
+        bgColor: container.getData('signBgColor') as string,
+        textColor: container.getData('signTextColor') as string,
+        scale: container.scaleX,
+      }))
     })
 
     this.signboardMap.set(data.id, container)
@@ -652,6 +665,20 @@ export default class Game extends Phaser.Scene {
   private handleSignboardScaled(data: { id: string; scale: number }) {
     const container = this.signboardMap.get(data.id)
     if (container) container.setScale(data.scale)
+  }
+
+  private handleSignboardUpdated(data: {
+    id: string; x: number; y: number; text: string; image: string; url: string
+    bgColor: string; textColor: string; scale: number
+  }) {
+    const existing = this.signboardMap.get(data.id)
+    if (existing) {
+      existing.destroy(true)
+      this.signboardMap.delete(data.id)
+    }
+    const texKey = `signtex_${data.id}`
+    if (this.textures.exists(texKey)) this.textures.remove(texKey)
+    this.handleSignboardAdded({ ...data, createdBy: '' })
   }
 
   // ─── Map Builder ────────────────────────────────────────────────────────────

@@ -42,6 +42,7 @@ export enum Event {
   SIGNBOARD_REMOVED = 'signboard-removed',
   SIGNBOARD_MOVED = 'signboard-moved',
   SIGNBOARD_SCALED = 'signboard-scaled',
+  SIGNBOARD_UPDATED = 'signboard-updated',
   // 看板の設置を確定（入力ダイアログ → クリック位置に設置）
   SIGNBOARD_PLACE = 'signboard-place',
   // ノック（呼び出し）
