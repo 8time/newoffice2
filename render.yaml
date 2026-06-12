@@ -3,7 +3,7 @@ services:
     name: newoffice2
     env: node
     buildCommand: npm install --include=dev --legacy-peer-deps && cd types && npm install --legacy-peer-deps && cd ../client && npm install --legacy-peer-deps && npm run build && cd .. && npx tsc -p server/tsconfig.server.json
-    startCommand: node server/lib/server/index.js
+    startCommand: node server-start.js
     envVars:
       - key: NODE_ENV
         value: production
