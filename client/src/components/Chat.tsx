@@ -499,9 +499,11 @@ function readAndSendFile(file: File, myName: string, dispatch: any) {
       url: reader.result as string,
       size: file.size,
     }
-    dispatch(pushFileMessage({ author: myName, file: attachment }))
+    // 一意IDを付与し、受信側での重複表示を防ぐ
+    const id = `file_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+    dispatch(pushFileMessage({ author: myName, file: attachment, id }))
     const game = phaserGame.scene.keys.game as Game
-    game.network.sendFileMessage(attachment)
+    game.network.sendFileMessage(attachment, id)
   }
   reader.readAsDataURL(file)
 }

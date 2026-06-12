@@ -32,6 +32,8 @@ export const chatSlice = createSlice({
   },
   reducers: {
     pushChatMessage: (state, action: PayloadAction<IChatMessage>) => {
+      // 同一IDの重複表示を防ぐ（ハンドラ多重発火・再接続対策）
+      if (action.payload.id && state.chatMessages.some((m) => m.chatMessage.id === action.payload.id)) return
       // JSONシリアライズ可能な形でコピー
       const payload = { ...action.payload, readers: action.payload.readers ? Array.from(action.payload.readers) : [] }
       state.chatMessages.push({
@@ -47,16 +49,20 @@ export const chatSlice = createSlice({
     },
     pushFileMessage: (
       state,
-      action: PayloadAction<{ author: string; file: FileAttachment }>
+      action: PayloadAction<{ author: string; file: FileAttachment; id?: string }>
     ) => {
+      const { author, file, id } = action.payload
+      // 同一IDの重複表示を防ぐ（ハンドラ多重発火・エコー・再接続対策）
+      if (id && state.chatMessages.some((m) => m.chatMessage.id === id)) return
       state.chatMessages.push({
         messageType: MessageType.FILE_MESSAGE,
         chatMessage: {
+          id,
           createdAt: new Date().getTime(),
-          author: action.payload.author,
-          content: `[ファイル] ${action.payload.file.name}`,
+          author,
+          content: `[ファイル] ${file.name}`,
         } as IChatMessage,
-        file: action.payload.file,
+        file,
       })
     },
     pushPlayerJoinedMessage: (state, action: PayloadAction<string>) => {

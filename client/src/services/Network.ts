@@ -295,8 +295,8 @@ export default class Network {
     // ファイル受信（チャットに表示）
     this.room.onMessage(
       Message.SEND_FILE_MESSAGE,
-      (message: { author: string; file: FileAttachment }) => {
-        store.dispatch(pushFileMessage({ author: message.author, file: message.file }))
+      (message: { author: string; file: FileAttachment; id?: string }) => {
+        store.dispatch(pushFileMessage({ author: message.author, file: message.file, id: message.id }))
       }
     )
   }
@@ -465,8 +465,8 @@ export default class Network {
     this.room?.send(Message.SEND_EMOTE, { emoji })
   }
 
-  sendFileMessage(file: FileAttachment) {
-    this.room?.send(Message.SEND_FILE_MESSAGE, { file })
+  sendFileMessage(file: FileAttachment, id: string) {
+    this.room?.send(Message.SEND_FILE_MESSAGE, { file, id })
   }
 
   // ─── マップビルダー設置物（全員同期） ──────────────────────────────────────

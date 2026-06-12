@@ -473,12 +473,12 @@ export class SkyOffice extends Room<OfficeState> {
     // ファイル送信: 送信者以外の全員へ転送（送信者名を付与）
     this.onMessage(
       Message.SEND_FILE_MESSAGE,
-      (client, message: { file: { name: string; type: string; url: string; size: number } }) => {
+      (client, message: { file: { name: string; type: string; url: string; size: number }; id?: string }) => {
         const player = this.state.players.get(client.sessionId)
         const author = player?.name || '名無し'
         this.broadcast(
           Message.SEND_FILE_MESSAGE,
-          { author, file: message.file },
+          { author, file: message.file, id: message.id },
           { except: client }
         )
       }
