@@ -37,6 +37,9 @@ export interface ISignboard extends Schema {
   image: string // base64 data URL（空なら画像なし）
   url: string   // クリックで開くリンク（空ならリンクなし）
   createdBy: string
+  bgColor: string    // 看板背景色 CSS hex (#rrggbb)
+  textColor: string  // テキスト色 CSS hex
+  scale: number      // 表示スケール (0.3〜3.0)
 }
 
 export interface IOfficeState extends Schema {

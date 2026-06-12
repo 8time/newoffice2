@@ -53,6 +53,12 @@ export default class Game extends Phaser.Scene {
 
   // 看板（全員同期）
   private signboardMap = new Map<string, Phaser.GameObjects.Container>()
+  // 看板プレースモード（クリック位置で設置）
+  private isPlacingSignboard = false
+  private signboardPlacingData: { text: string; image: string; url: string; bgColor: string; textColor: string; scale: number } | null = null
+  private signboardPreview: Phaser.GameObjects.Container | null = null
+  private signboardPointerMoveHandler: ((pointer: Phaser.Input.Pointer) => void) | null = null
+  private signboardPointerDownHandler: ((pointer: Phaser.Input.Pointer) => void) | null = null
 
   // Map Builder
   private builderGroup!: Phaser.Physics.Arcade.StaticGroup
@@ -104,6 +110,10 @@ export default class Game extends Phaser.Scene {
       store.dispatch(setFocused(true))
     })
     this.input.keyboard.on('keydown-ESC', (event) => {
+      if (this.isPlacingSignboard) {
+        this.exitSignboardPlacement()
+        return
+      }
       store.dispatch(setShowChat(false))
     })
   }
@@ -370,14 +380,101 @@ export default class Game extends Phaser.Scene {
 
   // ─── 看板（全員同期） ────────────────────────────────────────────────────────
 
-  private handleSignboardPlace(content: { text: string; image: string; url: string }) {
-    this.network.addSignboard({
-      x: Math.round(this.myPlayer.x),
-      y: Math.round(this.myPlayer.y),
-      text: content.text,
-      image: content.image,
-      url: content.url,
-    })
+  private handleSignboardPlace(content: { text: string; image: string; url: string; bgColor: string; textColor: string; scale: number }) {
+    if (this.isPlacingSignboard) this.exitSignboardPlacement()
+    this.signboardPlacingData = content
+    this.isPlacingSignboard = true
+    this.input.setDefaultCursor('crosshair')
+    this.signboardPreview = this.buildSignboardPreview(content)
+
+    this.signboardPointerMoveHandler = (pointer: Phaser.Input.Pointer) => {
+      if (!this.signboardPreview) return
+      const wp = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
+      const cardW = (this.signboardPreview.getData('cardW') as number) || 100
+      const cardH = (this.signboardPreview.getData('cardH') as number) || 40
+      this.signboardPreview.setPosition(wp.x - cardW / 2, wp.y - cardH - 24)
+    }
+
+    this.signboardPointerDownHandler = (pointer: Phaser.Input.Pointer) => {
+      if (!this.isPlacingSignboard || !this.signboardPlacingData) return
+      if (pointer.rightButtonDown()) {
+        this.exitSignboardPlacement()
+        return
+      }
+      const wp = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
+      this.network.addSignboard({
+        x: Math.round(wp.x),
+        y: Math.round(wp.y),
+        text: this.signboardPlacingData.text,
+        image: this.signboardPlacingData.image,
+        url: this.signboardPlacingData.url,
+        bgColor: this.signboardPlacingData.bgColor,
+        textColor: this.signboardPlacingData.textColor,
+        scale: this.signboardPlacingData.scale,
+      })
+      this.exitSignboardPlacement()
+    }
+
+    this.input.on('pointermove', this.signboardPointerMoveHandler)
+    this.input.on('pointerdown', this.signboardPointerDownHandler)
+  }
+
+  private buildSignboardPreview(data: { text: string; bgColor: string; textColor: string; scale: number }): Phaser.GameObjects.Container {
+    const PAD = 8
+    const MAX_W = 160
+    const bgNum = parseInt((data.bgColor || '#fff8e1').replace('#', ''), 16)
+    const items: Phaser.GameObjects.GameObject[] = []
+    let contentW = 0
+    let cursorY = PAD
+
+    if (data.text) {
+      const txt = this.add.text(PAD, cursorY, data.text, {
+        fontFamily: 'Inter, Arial, sans-serif',
+        fontSize: '13px',
+        color: data.textColor || '#1a1a1a',
+        wordWrap: { width: MAX_W },
+      }).setOrigin(0, 0)
+      items.push(txt)
+      contentW = Math.max(contentW, txt.width)
+      cursorY += txt.height
+    }
+
+    const cardW = Math.max(contentW + PAD * 2, 60)
+    const cardH = Math.max(cursorY + PAD, 30)
+
+    const bg = this.add.graphics()
+    bg.fillStyle(bgNum, 0.7)
+    bg.fillRoundedRect(0, 0, cardW, cardH, 8)
+    bg.lineStyle(2, 0x4488ff, 1)
+    bg.strokeRoundedRect(0, 0, cardW, cardH, 8)
+
+    const container = this.add.container(0, 0)
+    container.add(bg)
+    items.forEach(c => container.add(c))
+    container.setAlpha(0.75)
+    container.setScale(data.scale || 1)
+    container.setDepth(999999)
+    container.setData('cardW', cardW)
+    container.setData('cardH', cardH)
+    return container
+  }
+
+  private exitSignboardPlacement() {
+    this.isPlacingSignboard = false
+    this.signboardPlacingData = null
+    if (this.signboardPreview) {
+      this.signboardPreview.destroy(true)
+      this.signboardPreview = null
+    }
+    if (this.signboardPointerMoveHandler) {
+      this.input.off('pointermove', this.signboardPointerMoveHandler)
+      this.signboardPointerMoveHandler = null
+    }
+    if (this.signboardPointerDownHandler) {
+      this.input.off('pointerdown', this.signboardPointerDownHandler)
+      this.signboardPointerDownHandler = null
+    }
+    this.input.setDefaultCursor('default')
   }
 
   private handleSignboardAdded(data: {
@@ -388,6 +485,9 @@ export default class Game extends Phaser.Scene {
     image: string
     url: string
     createdBy: string
+    bgColor?: string
+    textColor?: string
+    scale?: number
   }) {
     if (this.signboardMap.has(data.id)) return
 
@@ -422,7 +522,7 @@ export default class Game extends Phaser.Scene {
   }
 
   private renderSignboard(
-    data: { id: string; x: number; y: number; text: string; url: string },
+    data: { id: string; x: number; y: number; text: string; url: string; bgColor?: string; textColor?: string; scale?: number },
     texKey: string | null
   ) {
     const PAD = 8
@@ -430,13 +530,16 @@ export default class Game extends Phaser.Scene {
     const children: Phaser.GameObjects.GameObject[] = []
     let contentW = 0
     let cursorY = PAD
+    const bgColorHex = parseInt((data.bgColor || '#fff8e1').replace('#', ''), 16)
+    const textColor = data.textColor || '#1a1a1a'
+    const signScale = data.scale || 1
 
     if (texKey && this.textures.exists(texKey)) {
       const src = this.textures.get(texKey).getSourceImage() as { width: number; height: number }
-      const scale = Math.min(1, MAX_W / src.width)
-      const dw = src.width * scale
-      const dh = src.height * scale
-      const img = this.add.image(PAD, cursorY, texKey).setOrigin(0, 0).setScale(scale)
+      const imgScale = Math.min(1, MAX_W / src.width)
+      const dw = src.width * imgScale
+      const dh = src.height * imgScale
+      const img = this.add.image(PAD, cursorY, texKey).setOrigin(0, 0).setScale(imgScale)
       children.push(img)
       contentW = Math.max(contentW, dw)
       cursorY += dh + (data.text ? 6 : 0)
@@ -447,7 +550,7 @@ export default class Game extends Phaser.Scene {
         .text(PAD, cursorY, data.text, {
           fontFamily: 'Inter, Arial, sans-serif',
           fontSize: '13px',
-          color: '#1a1a1a',
+          color: textColor,
           wordWrap: { width: MAX_W },
         })
         .setOrigin(0, 0)
@@ -460,7 +563,7 @@ export default class Game extends Phaser.Scene {
     const cardH = cursorY + PAD
 
     const bg = this.add.graphics()
-    bg.fillStyle(0xfff8e1, 1)
+    bg.fillStyle(bgColorHex, 1)
     bg.fillRoundedRect(0, 0, cardW, cardH, 8)
     bg.lineStyle(2, data.url ? 0x1a6b2a : 0xb0a070, 1)
     bg.strokeRoundedRect(0, 0, cardW, cardH, 8)
@@ -471,6 +574,7 @@ export default class Game extends Phaser.Scene {
     container.add(bg)
     children.forEach((c) => container.add(c))
     container.setSize(cardW, cardH)
+    container.setScale(signScale)
     container.setData('cardW', cardW)
     container.setData('cardH', cardH)
     container.setData('offsetY', OFFSET_Y)

@@ -16,7 +16,7 @@ const Backdrop = styled.div`
 `
 
 const Panel = styled.div`
-  width: 420px;
+  width: 440px;
   max-width: calc(100vw - 32px);
   max-height: calc(100vh - 32px);
   overflow-y: auto;
@@ -104,6 +104,57 @@ const RemoveImg = styled.button`
   font-size: 13px;
 `
 
+const ColorRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+`
+
+const ColorSwatch = styled.button<{ color: string; selected: boolean }>`
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 3px solid ${({ selected }) => (selected ? '#5599ee' : 'transparent')};
+  background: ${({ color }) => color};
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  transition: transform 0.1s;
+  &:hover { transform: scale(1.15); }
+`
+
+const ScaleRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+`
+
+const ScaleSlider = styled.input`
+  flex: 1;
+  accent-color: #5599ee;
+`
+
+const ScaleLabel = styled.span`
+  width: 36px;
+  text-align: right;
+  font-size: 14px;
+  color: #cdd;
+`
+
+const BoardPreview = styled.div<{ bg: string; textCol: string; scale: number }>`
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: ${({ bg }) => bg};
+  color: ${({ textCol }) => textCol};
+  border-radius: 8px;
+  font-size: ${({ scale }) => Math.round(13 * scale)}px;
+  border: 2px solid #b0a070;
+  display: inline-block;
+  max-width: 100%;
+  word-break: break-word;
+  transform-origin: left top;
+`
+
 const Actions = styled.div`
   display: flex;
   gap: 12px;
@@ -130,7 +181,18 @@ const Hint = styled.p`
   margin: 6px 0 0;
 `
 
-// 画像を縮小して base64(JPEG) に変換（サーバ同期のためサイズを抑える）
+const BG_COLORS = [
+  '#fff8e1', '#ffffff', '#fffde7', '#f1f8e9',
+  '#e3f2fd', '#fce4ec', '#ede7f6', '#e8f5e9',
+  '#1a1a2e', '#222639', '#0d1b2a', '#1b2838',
+  '#ff6b6b', '#ffd166', '#06d6a0', '#118ab2',
+]
+
+const TEXT_COLORS = [
+  '#1a1a1a', '#ffffff', '#333333', '#ffdd57',
+  '#ff6b6b', '#06d6a0', '#118ab2', '#a78bfa',
+]
+
 function fileToDownscaledDataUrl(file: File, maxSize = 480): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -162,6 +224,9 @@ export default function SignboardDialog() {
   const [text, setText] = useState('')
   const [url, setUrl] = useState('')
   const [image, setImage] = useState('')
+  const [bgColor, setBgColor] = useState('#fff8e1')
+  const [textColor, setTextColor] = useState('#1a1a1a')
+  const [scale, setScale] = useState(1.0)
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -187,6 +252,9 @@ export default function SignboardDialog() {
       text: text.trim(),
       image,
       url: normalizedUrl,
+      bgColor,
+      textColor,
+      scale,
     })
     dispatch(closeSignboardDialog())
   }
@@ -200,8 +268,56 @@ export default function SignboardDialog() {
         <TextArea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="例：本日17時から全体MTG／〇〇の資料はこちら など"
+          placeholder="例：本日17時から全体MTG　など"
         />
+
+        <Label>背景色</Label>
+        <ColorRow>
+          {BG_COLORS.map((c) => (
+            <ColorSwatch
+              key={c}
+              color={c}
+              selected={bgColor === c}
+              onClick={() => setBgColor(c)}
+              title={c}
+            />
+          ))}
+        </ColorRow>
+
+        <Label>文字色</Label>
+        <ColorRow>
+          {TEXT_COLORS.map((c) => (
+            <ColorSwatch
+              key={c}
+              color={c}
+              selected={textColor === c}
+              onClick={() => setTextColor(c)}
+              title={c}
+            />
+          ))}
+        </ColorRow>
+
+        <Label>サイズ（スケール）</Label>
+        <ScaleRow>
+          <ScaleSlider
+            type="range"
+            min={0.5}
+            max={3.0}
+            step={0.1}
+            value={scale}
+            onChange={(e) => setScale(parseFloat(e.target.value))}
+          />
+          <ScaleLabel>{scale.toFixed(1)}x</ScaleLabel>
+        </ScaleRow>
+
+        {text && (
+          <>
+            <Label>プレビュー</Label>
+            <BoardPreview bg={bgColor} textCol={textColor} scale={scale}>
+              {text}
+            </BoardPreview>
+          </>
+        )}
 
         <Label>画像（任意）</Label>
         <ImageRow>
@@ -232,12 +348,12 @@ export default function SignboardDialog() {
           placeholder="https://example.com"
         />
 
-        <Hint>「入力&看板設置」を押すと、今いる場所に看板が設置されます（全員に表示）。</Hint>
+        <Hint>「設置モードへ」を押した後、マップ上でクリックした場所に看板が設置されます。ESCまたは右クリックでキャンセル。</Hint>
 
         <Actions>
           <Button onClick={() => dispatch(closeSignboardDialog())}>キャンセル</Button>
           <Button primary disabled={!canSubmit} onClick={handleSubmit}>
-            入力&看板設置
+            設置モードへ →
           </Button>
         </Actions>
       </Panel>

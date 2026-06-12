@@ -188,6 +188,9 @@ export default class Network {
         image: signboard.image,
         url: signboard.url,
         createdBy: signboard.createdBy,
+        bgColor: signboard.bgColor || '#fff8e1',
+        textColor: signboard.textColor || '#1a1a1a',
+        scale: signboard.scale || 1,
       })
       // 位置変更（ドラッグ移動）を監視して再配置
       signboard.onChange = (changes) => {
@@ -368,7 +371,7 @@ export default class Network {
     this.room?.send(Message.REQUEST_MEETING_WHITEBOARD_SNAPSHOT, { roomId })
   }
 
-  addSignboard(data: { x: number; y: number; text: string; image: string; url: string }) {
+  addSignboard(data: { x: number; y: number; text: string; image: string; url: string; bgColor?: string; textColor?: string; scale?: number }) {
     this.room?.send(Message.ADD_SIGNBOARD, data)
   }
 

@@ -270,7 +270,7 @@ export class SkyOffice extends Room<OfficeState> {
     // 看板を設置（全員に同期）
     this.onMessage(
       Message.ADD_SIGNBOARD,
-      (client, message: { x: number; y: number; text: string; image: string; url: string }) => {
+      (client, message: { x: number; y: number; text: string; image: string; url: string; bgColor?: string; textColor?: string; scale?: number }) => {
         const sign = new Signboard()
         sign.x = message.x
         sign.y = message.y
@@ -278,6 +278,9 @@ export class SkyOffice extends Room<OfficeState> {
         sign.image = message.image || ''
         sign.url = (message.url || '').slice(0, 2000)
         sign.createdBy = client.sessionId
+        sign.bgColor = /^#[0-9a-f]{6}$/i.test(message.bgColor || '') ? message.bgColor! : '#fff8e1'
+        sign.textColor = /^#[0-9a-f]{6}$/i.test(message.textColor || '') ? message.textColor! : '#1a1a1a'
+        sign.scale = Math.min(3, Math.max(0.3, Number(message.scale) || 1))
         const id = `sign_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
         this.state.signboards.set(id, sign)
       }

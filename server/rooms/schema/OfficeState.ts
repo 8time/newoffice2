@@ -45,6 +45,9 @@ export class Signboard extends Schema implements ISignboard {
   @type('string') image = ''
   @type('string') url = ''
   @type('string') createdBy = ''
+  @type('string') bgColor = '#fff8e1'
+  @type('string') textColor = '#1a1a1a'
+  @type('number') scale = 1
 }
 
 export class OfficeState extends Schema implements IOfficeState {
