@@ -103,6 +103,20 @@ app.post('/api/mission', (req, res) => {
   }
 })
 
+// 知識DB API（馬データ・調査結果）
+app.get('/api/knowledge', (req, res) => {
+  try {
+    const knowledgeFile = path.join(__dirname, 'bots', 'knowledge.json')
+    if (fs.existsSync(knowledgeFile)) {
+      return res.json(JSON.parse(fs.readFileSync(knowledgeFile, 'utf-8')))
+    }
+    res.json({ entries: [], raceData: {}, updatedAt: 0 })
+  } catch (err) {
+    console.error('Knowledge API error:', err)
+    res.status(500).json({ error: 'Failed to load knowledge' })
+  }
+})
+
 const server = http.createServer(app)
 const gameServer = new Server({
   server,
