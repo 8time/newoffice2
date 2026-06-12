@@ -20,6 +20,45 @@ import {
 import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
 
 const ATTENDANCE_FILE = path.join(__dirname, '../../attendance.json')
+const SIGNBOARDS_FILE = path.join(__dirname, '../../signboards.json')
+
+// ─── 看板永続化 ────────────────────────────────────────────────────────────────
+
+interface SignboardRecord {
+  id: string
+  x: number
+  y: number
+  text: string
+  image: string
+  url: string
+  createdBy: string
+  bgColor: string
+  textColor: string
+  scale: number
+}
+
+function loadSignboards(): SignboardRecord[] {
+  try {
+    if (fs.existsSync(SIGNBOARDS_FILE)) {
+      return JSON.parse(fs.readFileSync(SIGNBOARDS_FILE, 'utf-8'))
+    }
+  } catch {}
+  return []
+}
+
+function saveSignboards(signboards: { forEach: (cb: (sign: Signboard, id: string) => void) => void }) {
+  try {
+    const records: SignboardRecord[] = []
+    signboards.forEach((sign, id) => {
+      records.push({ id, x: sign.x, y: sign.y, text: sign.text, image: sign.image, url: sign.url, createdBy: sign.createdBy, bgColor: sign.bgColor, textColor: sign.textColor, scale: sign.scale })
+    })
+    fs.writeFileSync(SIGNBOARDS_FILE, JSON.stringify(records, null, 2), 'utf-8')
+  } catch (e) {
+    console.error('[Signboards] 保存失敗:', e)
+  }
+}
+
+// ─── 勤怠 ─────────────────────────────────────────────────────────────────────
 
 interface AttendanceRecord {
   name: string
@@ -102,6 +141,25 @@ export class SkyOffice extends Room<OfficeState> {
     this.setMetadata({ name, description, hasPassword })
 
     this.setState(new OfficeState())
+
+    // 看板データを永続化ファイルから復元
+    const savedSignboards = loadSignboards()
+    savedSignboards.forEach((record) => {
+      const sign = new Signboard()
+      sign.x = record.x
+      sign.y = record.y
+      sign.text = record.text || ''
+      sign.image = record.image || ''
+      sign.url = record.url || ''
+      sign.createdBy = record.createdBy || ''
+      sign.bgColor = /^#[0-9a-f]{6}$/i.test(record.bgColor || '') ? record.bgColor : '#fff8e1'
+      sign.textColor = /^#[0-9a-f]{6}$/i.test(record.textColor || '') ? record.textColor : '#1a1a1a'
+      sign.scale = Math.min(3, Math.max(0.3, Number(record.scale) || 1))
+      this.state.signboards.set(record.id, sign)
+    })
+    if (savedSignboards.length > 0) {
+      console.log(`[Signboards] ${savedSignboards.length} 件の看板を復元しました`)
+    }
 
     // HARD-CODED: Add 5 computers in a room
     for (let i = 0; i < 5; i++) {
@@ -283,6 +341,7 @@ export class SkyOffice extends Room<OfficeState> {
         sign.scale = Math.min(3, Math.max(0.3, Number(message.scale) || 1))
         const id = `sign_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
         this.state.signboards.set(id, sign)
+        saveSignboards(this.state.signboards)
       }
     )
 
@@ -290,6 +349,7 @@ export class SkyOffice extends Room<OfficeState> {
     this.onMessage(Message.REMOVE_SIGNBOARD, (client, message: { id: string }) => {
       if (this.state.signboards.has(message.id)) {
         this.state.signboards.delete(message.id)
+        saveSignboards(this.state.signboards)
       }
     })
 
@@ -300,6 +360,7 @@ export class SkyOffice extends Room<OfficeState> {
         if (message.x !== undefined) sign.x = message.x
         if (message.y !== undefined) sign.y = message.y
         if (message.scale !== undefined) sign.scale = Math.min(3, Math.max(0.3, message.scale))
+        saveSignboards(this.state.signboards)
       }
     })
 
@@ -313,6 +374,7 @@ export class SkyOffice extends Room<OfficeState> {
         if (message.bgColor !== undefined && /^#[0-9a-f]{6}$/i.test(message.bgColor)) sign.bgColor = message.bgColor
         if (message.textColor !== undefined && /^#[0-9a-f]{6}$/i.test(message.textColor)) sign.textColor = message.textColor
         if (message.scale !== undefined) sign.scale = Math.min(3, Math.max(0.3, message.scale))
+        saveSignboards(this.state.signboards)
       }
     })
 
