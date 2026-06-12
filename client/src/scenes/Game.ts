@@ -318,6 +318,7 @@ export default class Game extends Phaser.Scene {
     phaserEvents.on(Event.SIGNBOARD_REMOVED, this.handleSignboardRemoved, this)
     phaserEvents.on(Event.SIGNBOARD_MOVED, this.handleSignboardMoved, this)
     phaserEvents.on(Event.SIGNBOARD_PLACE, this.handleSignboardPlace, this)
+    phaserEvents.on(Event.EMOTE_RECEIVED, this.handleEmote, this)
 
     this.events.once('destroy', () => {
       phaserEvents.off(Event.JUKEBOX_PLAY, this.handleJukeboxPlay, this)
@@ -332,6 +333,38 @@ export default class Game extends Phaser.Scene {
       phaserEvents.off(Event.SIGNBOARD_REMOVED, this.handleSignboardRemoved, this)
       phaserEvents.off(Event.SIGNBOARD_MOVED, this.handleSignboardMoved, this)
       phaserEvents.off(Event.SIGNBOARD_PLACE, this.handleSignboardPlace, this)
+      phaserEvents.off(Event.EMOTE_RECEIVED, this.handleEmote, this)
+    })
+  }
+
+  // ─── エモート（頭上フロートテキスト） ────────────────────────────────────────────
+  private handleEmote(sessionId: string, emoji: string) {
+    let target: Phaser.GameObjects.Sprite | null = null
+    if (sessionId === this.network?.mySessionId) {
+      target = this.myPlayer
+    } else {
+      target = this.otherPlayerMap.get(sessionId) || null
+    }
+    if (!target) return
+
+    const x = target.x
+    const y = target.y - 56
+    const text = this.add
+      .text(x, y, emoji, {
+        fontSize: '32px',
+        backgroundColor: 'rgba(0,0,0,0.45)',
+        padding: { x: 6, y: 4 },
+      })
+      .setDepth(20000)
+      .setOrigin(0.5)
+
+    this.tweens.add({
+      targets: text,
+      y: y - 36,
+      alpha: 0,
+      duration: 2200,
+      ease: 'Power2',
+      onComplete: () => text.destroy(),
     })
   }
 

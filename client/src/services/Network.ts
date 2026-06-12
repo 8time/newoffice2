@@ -228,6 +228,16 @@ export default class Network {
     this.room.onMessage(Message.JUKEBOX_SYNC, (message) => {
       phaserEvents.emit('network-jukebox-sync', message)
     })
+
+    // ノック受信
+    this.room.onMessage(Message.KNOCK_PLAYER, (message: { fromSessionId: string; fromName: string }) => {
+      phaserEvents.emit(Event.KNOCK_RECEIVED, message.fromSessionId, message.fromName)
+    })
+
+    // エモート受信（Phaser側で頭上に表示）
+    this.room.onMessage(Message.SEND_EMOTE, (message: { sessionId: string; emoji: string }) => {
+      phaserEvents.emit(Event.EMOTE_RECEIVED, message.sessionId, message.emoji)
+    })
   }
 
   // method to register event listener and call back function when a item user added
@@ -376,5 +386,13 @@ export default class Network {
 
   requestJukeboxState() {
     this.room?.send(Message.REQUEST_JUKEBOX_STATE)
+  }
+
+  knockPlayer(targetSessionId: string) {
+    this.room?.send(Message.KNOCK_PLAYER, { targetSessionId })
+  }
+
+  sendEmote(emoji: string) {
+    this.room?.send(Message.SEND_EMOTE, { emoji })
   }
 }

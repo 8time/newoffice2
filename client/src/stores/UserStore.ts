@@ -19,7 +19,7 @@ export const userSlice = createSlice({
     loggedIn: false,
     playerNameMap: new Map<string, string>(),
     showJoystick: window.innerWidth < 650,
-    myStatus: 'present' as 'present' | 'away',
+    myStatus: 'present' as 'present' | 'away' | 'focus' | 'break',
     myAwayMessage: '',
     playerStatusMap: new Map<string, { status: string; awayMessage: string }>(),
     avatarName: 'adam',
@@ -54,7 +54,7 @@ export const userSlice = createSlice({
     },
     setMyStatus: (
       state,
-      action: PayloadAction<{ status: 'present' | 'away'; awayMessage: string }>
+      action: PayloadAction<{ status: 'present' | 'away' | 'focus' | 'break'; awayMessage: string }>
     ) => {
       state.myStatus = action.payload.status
       state.myAwayMessage = action.payload.awayMessage

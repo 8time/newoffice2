@@ -43,4 +43,8 @@ export enum Event {
   SIGNBOARD_MOVED = 'signboard-moved',
   // 看板の設置を確定（入力ダイアログ → プレイヤー位置に設置）
   SIGNBOARD_PLACE = 'signboard-place',
+  // ノック（呼び出し）
+  KNOCK_RECEIVED = 'knock-received',
+  // エモート（頭上リアクション）
+  EMOTE_RECEIVED = 'emote-received',
 }

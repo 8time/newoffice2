@@ -12,33 +12,48 @@ import { setMyStatus } from '../stores/UserStore'
 import phaserGame from '../PhaserGame'
 import Game from '../scenes/Game'
 import { phaserEvents, Event } from '../events/EventCenter'
+import { playAwaySound, playPresentSound } from '../util/sound'
 
 const ToggleBar = styled.div`
-  padding: 14px 20px;
+  padding: 12px 20px;
   border-bottom: 1px solid #2d2d2d;
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 8px;
 `
 
-const StatusButton = styled.button<{ isAway: boolean }>`
+const StatusRow = styled.div`
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+`
+
+type StatusType = 'present' | 'away' | 'focus' | 'break'
+
+const STATUS_CONFIG: Record<StatusType, { label: string; color: string; bg: string }> = {
+  present: { label: '🟢 在席中',  color: '#44cc77', bg: 'rgba(68,204,119,0.15)' },
+  away:    { label: '🔴 離席中',  color: '#ff6b35', bg: 'rgba(255,107,53,0.15)' },
+  focus:   { label: '🟡 集中中',  color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
+  break:   { label: '⏸️ 休憩中', color: '#60a5fa', bg: 'rgba(96,165,250,0.15)' },
+}
+
+const StatusButton = styled.button<{ active: boolean; color: string; bg: string }>`
   flex: 1;
-  padding: 13px 16px;
-  border-radius: 28px;
-  border: 2px solid ${({ isAway }) => (isAway ? '#ff6b35' : '#44cc77')};
-  background: ${({ isAway }) => (isAway ? 'rgba(255,107,53,0.15)' : 'rgba(68,204,119,0.15)')};
-  color: ${({ isAway }) => (isAway ? '#ff6b35' : '#44cc77')};
-  font-size: 22px;
+  min-width: 110px;
+  padding: 10px 8px;
+  border-radius: 22px;
+  border: 2px solid ${({ active, color }) => (active ? color : '#444')};
+  background: ${({ active, bg }) => (active ? bg : 'transparent')};
+  color: ${({ active, color }) => (active ? color : '#666')};
+  font-size: 18px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
+  transition: all 0.18s;
 
   &:hover {
-    opacity: 0.8;
+    border-color: ${({ color }) => color};
+    color: ${({ color }) => color};
+    background: ${({ bg }) => bg};
   }
 `
 
@@ -190,43 +205,55 @@ export default function StatusToggle() {
     return () => { phaserEvents.off(Event.SHOW_AWAY_MESSAGE, handler) }
   }, [])
 
-  const handleToggle = () => {
-    if (myStatus === 'present') {
-      // 離席 → ダイアログで理由入力
+  const applyStatus = (status: StatusType, message = '') => {
+    const wasPresent = myStatus === 'present'
+    const goingPresent = status === 'present'
+
+    dispatch(setMyStatus({ status, awayMessage: message }))
+
+    const game = getGame()
+    if (status === 'present') {
+      game?.myPlayer?.clearAwayStatus()
+    } else {
+      game?.myPlayer?.setAwayStatus(message || STATUS_CONFIG[status].label)
+    }
+    game?.network?.updateStatus(status, message)
+
+    if (goingPresent && !wasPresent) playPresentSound()
+    else if (!goingPresent && wasPresent) playAwaySound()
+  }
+
+  const handleClick = (status: StatusType) => {
+    if (status === myStatus) return
+    if (status === 'away') {
       setDialogOpen(true)
     } else {
-      // 出席に戻す
-      goPresent()
+      applyStatus(status)
     }
   }
 
   const goAway = (message: string) => {
-    dispatch(setMyStatus({ status: 'away', awayMessage: message }))
     setDialogOpen(false)
-
-    const game = getGame()
-    if (game?.myPlayer) {
-      game.myPlayer.setAwayStatus(message)
-    }
-    game?.network?.updateStatus('away', message)
-  }
-
-  const goPresent = () => {
-    dispatch(setMyStatus({ status: 'present', awayMessage: '' }))
-
-    const game = getGame()
-    if (game?.myPlayer) {
-      game.myPlayer.clearAwayStatus()
-    }
-    game?.network?.updateStatus('present', '')
+    applyStatus('away', message)
   }
 
   return (
     <>
       <ToggleBar>
-        <StatusButton isAway={myStatus === 'away'} onClick={handleToggle}>
-          {myStatus === 'away' ? '🔴 離席中' : '🟢 在席中'}
-        </StatusButton>
+        <StatusRow>
+          {(Object.entries(STATUS_CONFIG) as [StatusType, typeof STATUS_CONFIG[StatusType]][]).map(([key, cfg]) => (
+            <StatusButton
+              key={key}
+              active={myStatus === key}
+              color={cfg.color}
+              bg={cfg.bg}
+              onClick={() => handleClick(key)}
+              title={key === 'focus' ? '集中モード（話しかけ不可）' : key === 'break' ? '休憩中' : undefined}
+            >
+              {cfg.label}
+            </StatusButton>
+          ))}
+        </StatusRow>
         {myStatus === 'away' && myAwayMessage && (
           <ReasonPreview title={myAwayMessage}>{myAwayMessage}</ReasonPreview>
         )}

@@ -15,6 +15,8 @@ import MapBuilder from './components/MapBuilder'
 import JukeboxDialog from './components/JukeboxDialog'
 import PredictionBoardDialog from './components/PredictionBoardDialog'
 import SignboardDialog from './components/SignboardDialog'
+import KnockNotification from './components/KnockNotification'
+import EmotePanel from './components/EmotePanel'
 import VideoOverlay from './components/VideoOverlay'
 import OnlineUsers from './components/OnlineUsers'
 import AttendancePanel from './components/AttendancePanel'
@@ -182,6 +184,12 @@ function App() {
 
       {/* 看板の入力ダイアログ（サイドバーより前面に出すためルート直下に配置） */}
       {loggedIn && signboardDialogOpen && <SignboardDialog />}
+
+      {/* ノック通知（常時待機） */}
+      {loggedIn && <KnockNotification />}
+
+      {/* エモートパネル（画面下中央） */}
+      {loggedIn && !activeMeetingRoom && <EmotePanel />}
 
       {/* 右サイドバー */}
       {loggedIn && (
