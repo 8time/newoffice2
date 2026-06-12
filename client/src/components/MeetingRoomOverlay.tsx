@@ -1022,6 +1022,21 @@ export default function MeetingRoomOverlay() {
     return () => clearTimeout(timer)
   }, [activeRoom, videoConnected, videoState.isVideoOff, videoState.hasStream])
 
+  // 入室後に接続したピアの映像も取り込む（webrtc-video-source を監視して移動）
+  useEffect(() => {
+    if (!activeRoom) return
+    const peerTarget = peerContainerRef.current
+    if (!peerTarget) return
+    getWebRTC()?.mountPeerVideos(peerTarget)
+    const srcGrid = document.getElementById('webrtc-video-source')
+    if (!srcGrid) return
+    const observer = new MutationObserver(() => {
+      while (srcGrid.firstChild) peerTarget.appendChild(srcGrid.firstChild)
+    })
+    observer.observe(srcGrid, { childList: true })
+    return () => observer.disconnect()
+  }, [activeRoom, videoConnected])
+
   if (!activeRoom) return null
 
   const myName = myPlayerName
