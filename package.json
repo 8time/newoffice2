@@ -5,6 +5,8 @@
   "main": ".eslintrc.js",
   "scripts": {
     "start": "cd server && ts-node-dev --project tsconfig.server.json --respawn --transpile-only index.ts",
+    "bots": "cd server && ts-node --project tsconfig.server.json bots/bot-runner.ts",
+    "bots:ollama": "cd server && ts-node --project tsconfig.server.json bots/bot-runner.ts --ollama",
     "heroku-postbuild": "npm install --legacy-peer-deps && cd types && npm install --legacy-peer-deps && cd ../client && npm install --legacy-peer-deps && npm run build && cd ../server && npm install --legacy-peer-deps && tsc --project tsconfig.server.json",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

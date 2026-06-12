@@ -13,6 +13,7 @@ import HelperButtonGroup from './components/HelperButtonGroup'
 import MobileVirtualJoystick from './components/MobileVirtualJoystick'
 import MapBuilder from './components/MapBuilder'
 import JukeboxDialog from './components/JukeboxDialog'
+import PredictionBoardDialog from './components/PredictionBoardDialog'
 import SignboardDialog from './components/SignboardDialog'
 import VideoOverlay from './components/VideoOverlay'
 import OnlineUsers from './components/OnlineUsers'
@@ -167,6 +168,7 @@ function App() {
         {loggedIn && !computerDialogOpen && !whiteboardDialogOpen && <HelperButtonGroup />}
         {loggedIn && isBuilderMode && <MapBuilder />}
         {loggedIn && <JukeboxDialog />}
+        {loggedIn && <PredictionBoardDialog />}
         {/* 隠しビデオソース（WebRTC の DOM 操作の受け皿、VideoOverlay の MutationObserver が監視） */}
         <HiddenVideoGrid>
           <div id="webrtc-video-source" />

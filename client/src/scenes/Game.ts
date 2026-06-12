@@ -9,6 +9,7 @@ import Computer from '../items/Computer'
 import Whiteboard from '../items/Whiteboard'
 import VendingMachine from '../items/VendingMachine'
 import Jukebox from '../items/Jukebox'
+import PredictionBoard from '../items/PredictionBoard'
 import '../characters/MyPlayer'
 import '../characters/OtherPlayer'
 import MyPlayer from '../characters/MyPlayer'
@@ -47,6 +48,7 @@ export default class Game extends Phaser.Scene {
   computerMap = new Map<string, Computer>()
   private whiteboardMap = new Map<string, Whiteboard>()
   private jukeboxes!: Phaser.Physics.Arcade.StaticGroup
+  private predictionBoards!: Phaser.Physics.Arcade.StaticGroup
   private currentSound?: Phaser.Sound.BaseSound
 
   // 看板（全員同期）
@@ -170,6 +172,19 @@ export default class Game extends Phaser.Scene {
       jb.openDialog()
     })
 
+    // 予想ボード（エントランス近くに設置）
+    this.predictionBoards = this.physics.add.staticGroup({ classType: PredictionBoard })
+    const pb = new PredictionBoard(this, 850, 380, 'whiteboards', 0)
+    this.add.existing(pb)
+    this.physics.add.existing(pb, true)
+    pb.setDisplaySize(40, 40)
+    this.predictionBoards.add(pb)
+    pb.body.reset(pb.x, pb.y)
+    pb.body.setSize(40, 40)
+    pb.setDepth(pb.y + 10)
+    pb.setInteractive({ useHandCursor: true })
+    pb.on('pointerdown', () => { pb.openDialog() })
+
     // カスタムコライダーのロードと衝突設定
     this.customCollidersGroup = this.physics.add.staticGroup()
     this.physics.add.collider(this.myPlayer, this.customCollidersGroup)
@@ -234,7 +249,7 @@ export default class Game extends Phaser.Scene {
 
     this.physics.add.overlap(
       this.playerSelector,
-      [chairs, computers, whiteboards, vendingMachines, this.jukeboxes],
+      [chairs, computers, whiteboards, vendingMachines, this.jukeboxes, this.predictionBoards],
       this.handleItemSelectorOverlap,
       undefined,
       this

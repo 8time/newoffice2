@@ -19,7 +19,9 @@ import fs from 'fs'
 import path from 'path'
 
 // クライアントのビルドファイル（dist）を静的配信
-app.use(express.static(path.join(process.cwd(), 'client/dist')))
+// npm start が "cd server && ..." なので process.cwd() は server/ になる。__dirname 基準で解決する。
+const CLIENT_DIST = path.join(__dirname, '..', 'client', 'dist')
+app.use(express.static(CLIENT_DIST))
 
 
 // 勤怠記録取得API（?date=YYYY-MM-DD、省略時は今日）
@@ -48,6 +50,50 @@ app.get('/api/audio-list', (req, res) => {
   } catch (err) {
     console.error('Failed to read audio directory:', err)
     res.status(500).json({ error: 'Failed to read audio directory' })
+  }
+})
+
+// 予想ボードAPI（AUTOMATA agent-state.json を優先、なければ静的フォールバック）
+app.get('/api/predictions', (req, res) => {
+  try {
+    const stateFile = path.join(__dirname, 'bots', 'agent-state.json')
+    if (fs.existsSync(stateFile)) {
+      const state = JSON.parse(fs.readFileSync(stateFile, 'utf-8'))
+      return res.json(state)
+    }
+
+    // フォールバック: bot-runner未起動時
+    res.json({ predictions: [], debates: [], consensus: 'AIエージェント未起動', updatedAt: 0 })
+  } catch (err) {
+    console.error('Predictions API error:', err)
+    res.status(500).json({ error: 'Failed to load predictions' })
+  }
+})
+
+// ミッション（課題）API — ゼミの教授が課題を出す
+const MISSION_FILE = path.join(__dirname, 'bots', 'mission.json')
+
+app.get('/api/mission', (req, res) => {
+  try {
+    if (fs.existsSync(MISSION_FILE)) {
+      return res.json(JSON.parse(fs.readFileSync(MISSION_FILE, 'utf-8')))
+    }
+    res.json({ mission: '', setAt: 0 })
+  } catch { res.json({ mission: '', setAt: 0 }) }
+})
+
+app.post('/api/mission', (req, res) => {
+  try {
+    const { mission } = req.body
+    if (!mission || typeof mission !== 'string') {
+      return res.status(400).json({ error: 'mission is required' })
+    }
+    const data = { mission: mission.slice(0, 500), setAt: Date.now() }
+    fs.writeFileSync(MISSION_FILE, JSON.stringify(data, null, 2), 'utf-8')
+    console.log(`[Mission] 新課題: ${data.mission}`)
+    res.json(data)
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to save mission' })
   }
 })
 
@@ -82,7 +128,7 @@ app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api') || req.path.startsWith('/colyseus')) {
     return next()
   }
-  res.sendFile(path.join(process.cwd(), 'client/dist/index.html'))
+  res.sendFile(path.join(CLIENT_DIST, 'index.html'))
 })
 
 gameServer.listen(port)
