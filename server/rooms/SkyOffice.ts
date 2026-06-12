@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { Room, Client, ServerError } from 'colyseus'
 import { Dispatcher } from '@colyseus/command'
-import { Player, OfficeState, Computer, Whiteboard, Signboard } from './schema/OfficeState'
+import { Player, OfficeState, Computer, Whiteboard, Signboard, PlacedItem } from './schema/OfficeState'
 import { Message } from '../../types/Messages'
 import { IRoomData } from '../../types/Rooms'
 import { whiteboardRoomIds } from './schema/OfficeState'
@@ -21,6 +21,46 @@ import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
 
 const ATTENDANCE_FILE = path.join(__dirname, '../../attendance.json')
 const SIGNBOARDS_FILE = path.join(__dirname, '../../signboards.json')
+const BUILDER_FILE = path.join(__dirname, '../../builder.json')
+
+// ─── マップビルダー設置物の永続化 ──────────────────────────────────────────────
+
+interface PlacedItemRecord {
+  id: string
+  itemType: string
+  x: number
+  y: number
+  frame: number
+  direction: string
+}
+
+interface BuilderData {
+  items: PlacedItemRecord[]
+  meetingEntrance: { x: number; y: number } | null
+}
+
+function loadBuilder(): BuilderData {
+  try {
+    if (fs.existsSync(BUILDER_FILE)) {
+      return JSON.parse(fs.readFileSync(BUILDER_FILE, 'utf-8'))
+    }
+  } catch {}
+  return { items: [], meetingEntrance: null }
+}
+
+function saveBuilder(state: OfficeState) {
+  try {
+    const items: PlacedItemRecord[] = []
+    state.placedItems.forEach((item, id) => {
+      items.push({ id, itemType: item.itemType, x: item.x, y: item.y, frame: item.frame, direction: item.direction })
+    })
+    const meetingEntrance =
+      state.meetingEntranceX >= 0 ? { x: state.meetingEntranceX, y: state.meetingEntranceY } : null
+    fs.writeFileSync(BUILDER_FILE, JSON.stringify({ items, meetingEntrance }, null, 2), 'utf-8')
+  } catch (e) {
+    console.error('[Builder] 保存失敗:', e)
+  }
+}
 
 // ─── 看板永続化 ────────────────────────────────────────────────────────────────
 
@@ -159,6 +199,25 @@ export class SkyOffice extends Room<OfficeState> {
     })
     if (savedSignboards.length > 0) {
       console.log(`[Signboards] ${savedSignboards.length} 件の看板を復元しました`)
+    }
+
+    // マップビルダー設置物を永続化ファイルから復元
+    const savedBuilder = loadBuilder()
+    savedBuilder.items.forEach((record) => {
+      const item = new PlacedItem()
+      item.itemType = record.itemType || 'chair'
+      item.x = record.x
+      item.y = record.y
+      item.frame = record.frame || 0
+      item.direction = record.direction || ''
+      this.state.placedItems.set(record.id, item)
+    })
+    if (savedBuilder.meetingEntrance) {
+      this.state.meetingEntranceX = savedBuilder.meetingEntrance.x
+      this.state.meetingEntranceY = savedBuilder.meetingEntrance.y
+    }
+    if (savedBuilder.items.length > 0) {
+      console.log(`[Builder] ${savedBuilder.items.length} 件の設置物を復元しました`)
     }
 
     // HARD-CODED: Add 5 computers in a room
@@ -409,6 +468,63 @@ export class SkyOffice extends Room<OfficeState> {
         sessionId: client.sessionId,
         emoji: (message.emoji || '👍').slice(0, 4),
       })
+    })
+
+    // ファイル送信: 送信者以外の全員へ転送（送信者名を付与）
+    this.onMessage(
+      Message.SEND_FILE_MESSAGE,
+      (client, message: { file: { name: string; type: string; url: string; size: number } }) => {
+        const player = this.state.players.get(client.sessionId)
+        const author = player?.name || '名無し'
+        this.broadcast(
+          Message.SEND_FILE_MESSAGE,
+          { author, file: message.file },
+          { except: client }
+        )
+      }
+    )
+
+    // ─── マップビルダー設置物（全員同期・永続化） ──────────────────────────────
+    this.onMessage(
+      Message.ADD_BUILDER_ITEM,
+      (client, message: { id: string; itemType: string; x: number; y: number; frame: number; direction?: string }) => {
+        if (!message.id) return
+        const item = new PlacedItem()
+        item.itemType = message.itemType || 'chair'
+        item.x = message.x
+        item.y = message.y
+        item.frame = message.frame || 0
+        item.direction = message.direction || ''
+        this.state.placedItems.set(message.id, item)
+        saveBuilder(this.state)
+      }
+    )
+
+    this.onMessage(Message.REMOVE_BUILDER_ITEM, (client, message: { id: string }) => {
+      if (this.state.placedItems.has(message.id)) {
+        this.state.placedItems.delete(message.id)
+        saveBuilder(this.state)
+      }
+    })
+
+    this.onMessage(Message.MOVE_BUILDER_ITEM, (client, message: { id: string; x: number; y: number }) => {
+      const item = this.state.placedItems.get(message.id)
+      if (item) {
+        item.x = message.x
+        item.y = message.y
+        saveBuilder(this.state)
+      }
+    })
+
+    this.onMessage(Message.CLEAR_BUILDER_ITEMS, () => {
+      this.state.placedItems.clear()
+      saveBuilder(this.state)
+    })
+
+    this.onMessage(Message.SET_MEETING_ENTRANCE, (client, message: { x: number; y: number }) => {
+      this.state.meetingEntranceX = message.x
+      this.state.meetingEntranceY = message.y
+      saveBuilder(this.state)
     })
   }
 

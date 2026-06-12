@@ -49,4 +49,9 @@ export enum Event {
   KNOCK_RECEIVED = 'knock-received',
   // エモート（頭上リアクション）
   EMOTE_RECEIVED = 'emote-received',
+  // マップビルダー設置物（全員同期）
+  BUILDER_ITEM_ADDED = 'builder-item-added',
+  BUILDER_ITEM_REMOVED = 'builder-item-removed',
+  BUILDER_ITEM_MOVED = 'builder-item-moved',
+  MEETING_ENTRANCE_CHANGED = 'meeting-entrance-changed',
 }

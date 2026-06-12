@@ -2,6 +2,7 @@ import http from 'http'
 import express from 'express'
 import cors from 'cors'
 import { Server, LobbyRoom } from 'colyseus'
+import { WebSocketTransport } from '@colyseus/ws-transport'
 import { monitor } from '@colyseus/monitor'
 import { RoomType } from '../types/Rooms'
 import { spawn, ChildProcess } from 'child_process'
@@ -119,7 +120,11 @@ app.get('/api/knowledge', (req, res) => {
 
 const server = http.createServer(app)
 const gameServer = new Server({
-  server,
+  // 画像/動画/PDF等の大きめファイル送信に対応するため maxPayload を拡張（既定100MiB→明示64MB）
+  transport: new WebSocketTransport({
+    server,
+    maxPayload: 64 * 1024 * 1024, // 64MB
+  }),
 })
 
 // register room handlers

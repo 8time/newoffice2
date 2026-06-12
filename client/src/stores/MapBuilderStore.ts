@@ -39,48 +39,13 @@ interface MapBuilderState {
   meetingRoomEntrance: MeetingRoomEntrance | null
 }
 
-const STORAGE_KEY = 'skyoffice_builder_items'
-const MEETING_ENTRANCE_STORAGE_KEY = 'skyoffice_meeting_room_entrance'
-
-const loadFromStorage = (): PlacedItem[] => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    return saved ? JSON.parse(saved) : []
-  } catch {
-    return []
-  }
-}
-
-const saveToStorage = (items: PlacedItem[]) => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
-  } catch {}
-}
-
-const loadMeetingEntrance = (): MeetingRoomEntrance | null => {
-  try {
-    const saved = localStorage.getItem(MEETING_ENTRANCE_STORAGE_KEY)
-    return saved ? JSON.parse(saved) : null
-  } catch {
-    return null
-  }
-}
-
-const saveMeetingEntrance = (entrance: MeetingRoomEntrance | null) => {
-  try {
-    if (entrance) {
-      localStorage.setItem(MEETING_ENTRANCE_STORAGE_KEY, JSON.stringify(entrance))
-    } else {
-      localStorage.removeItem(MEETING_ENTRANCE_STORAGE_KEY)
-    }
-  } catch {}
-}
-
+// 設置物はサーバ権威の同期状態（builder.json）。このストアはサーバからの
+// エコーで更新されるローカルミラーであり、localStorageからの初期ロードは行わない。
 const initialState: MapBuilderState = {
   isBuilderMode: false,
   selectedPaletteIndex: null,
-  placedItems: loadFromStorage(),
-  meetingRoomEntrance: loadMeetingEntrance(),
+  placedItems: [],
+  meetingRoomEntrance: null,
 }
 
 const mapBuilderSlice = createSlice({
@@ -98,31 +63,25 @@ const mapBuilderSlice = createSlice({
     },
     addPlacedItem(state, action: PayloadAction<PlacedItem>) {
       state.placedItems.push(action.payload)
-      saveToStorage(state.placedItems)
     },
     removePlacedItem(state, action: PayloadAction<string>) {
       state.placedItems = state.placedItems.filter((i) => i.id !== action.payload)
-      saveToStorage(state.placedItems)
     },
     updatePlacedItemPosition(state, action: PayloadAction<{ id: string; x: number; y: number }>) {
       const item = state.placedItems.find((i) => i.id === action.payload.id)
       if (item) {
         item.x = action.payload.x
         item.y = action.payload.y
-        saveToStorage(state.placedItems)
       }
     },
     clearAllItems(state) {
       state.placedItems = []
-      localStorage.removeItem(STORAGE_KEY)
     },
     importItems(state, action: PayloadAction<PlacedItem[]>) {
       state.placedItems = action.payload
-      saveToStorage(state.placedItems)
     },
     setMeetingRoomEntrance(state, action: PayloadAction<MeetingRoomEntrance | null>) {
       state.meetingRoomEntrance = action.payload
-      saveMeetingEntrance(action.payload)
     },
   },
 })

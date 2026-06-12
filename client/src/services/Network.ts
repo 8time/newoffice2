@@ -1,5 +1,5 @@
 import { Client, Room } from 'colyseus.js'
-import { IComputer, IOfficeState, IPlayer, IWhiteboard, ISignboard } from '../../../types/IOfficeState'
+import { IComputer, IOfficeState, IPlayer, IWhiteboard, ISignboard, IPlacedItem } from '../../../types/IOfficeState'
 import { Message } from '../../../types/Messages'
 import { IRoomData, RoomType } from '../../../types/Rooms'
 import { ItemType } from '../../../types/Items'
@@ -16,8 +16,11 @@ import {
 } from '../stores/RoomStore'
 import {
   pushChatMessage,
+  pushFileMessage,
   pushPlayerJoinedMessage,
   pushPlayerLeftMessage,
+  updateChatReaders,
+  FileAttachment,
 } from '../stores/ChatStore'
 import { setWhiteboardUrls } from '../stores/WhiteboardStore'
 
@@ -220,6 +223,36 @@ export default class Network {
       phaserEvents.emit(Event.SIGNBOARD_REMOVED, key)
     }
 
+    // マップビルダー設置物（全員同期）の追加/削除/移動をPhaser側へ通知
+    this.room.state.placedItems.onAdd = (item: IPlacedItem, key: string) => {
+      phaserEvents.emit(Event.BUILDER_ITEM_ADDED, {
+        id: key,
+        itemType: item.itemType,
+        x: item.x,
+        y: item.y,
+        frame: item.frame,
+        direction: item.direction,
+      })
+      item.onChange = (changes) => {
+        if (changes.some((c) => c.field === 'x' || c.field === 'y')) {
+          phaserEvents.emit(Event.BUILDER_ITEM_MOVED, { id: key, x: item.x, y: item.y })
+        }
+      }
+    }
+    this.room.state.placedItems.onRemove = (_item: IPlacedItem, key: string) => {
+      phaserEvents.emit(Event.BUILDER_ITEM_REMOVED, key)
+    }
+
+    // ミーティングルーム入口（全員同期）
+    this.room.state.onChange = (changes) => {
+      if (changes.some((c) => c.field === 'meetingEntranceX' || c.field === 'meetingEntranceY')) {
+        phaserEvents.emit(Event.MEETING_ENTRANCE_CHANGED, {
+          x: this.room!.state.meetingEntranceX,
+          y: this.room!.state.meetingEntranceY,
+        })
+      }
+    }
+
     // when the server sends room data
     this.room.onMessage(Message.SEND_ROOM_DATA, (content) => {
       store.dispatch(setJoinedRoomData(content))
@@ -258,6 +291,14 @@ export default class Network {
     this.room.onMessage(Message.SEND_EMOTE, (message: { sessionId: string; emoji: string }) => {
       phaserEvents.emit(Event.EMOTE_RECEIVED, message.sessionId, message.emoji)
     })
+
+    // ファイル受信（チャットに表示）
+    this.room.onMessage(
+      Message.SEND_FILE_MESSAGE,
+      (message: { author: string; file: FileAttachment }) => {
+        store.dispatch(pushFileMessage({ author: message.author, file: message.file }))
+      }
+    )
   }
 
   // method to register event listener and call back function when a item user added
@@ -422,5 +463,30 @@ export default class Network {
 
   sendEmote(emoji: string) {
     this.room?.send(Message.SEND_EMOTE, { emoji })
+  }
+
+  sendFileMessage(file: FileAttachment) {
+    this.room?.send(Message.SEND_FILE_MESSAGE, { file })
+  }
+
+  // ─── マップビルダー設置物（全員同期） ──────────────────────────────────────
+  addBuilderItem(item: { id: string; itemType: string; x: number; y: number; frame: number; direction?: string }) {
+    this.room?.send(Message.ADD_BUILDER_ITEM, item)
+  }
+
+  removeBuilderItem(id: string) {
+    this.room?.send(Message.REMOVE_BUILDER_ITEM, { id })
+  }
+
+  moveBuilderItem(id: string, x: number, y: number) {
+    this.room?.send(Message.MOVE_BUILDER_ITEM, { id, x, y })
+  }
+
+  clearBuilderItems() {
+    this.room?.send(Message.CLEAR_BUILDER_ITEMS)
+  }
+
+  setMeetingEntrance(x: number, y: number) {
+    this.room?.send(Message.SET_MEETING_ENTRANCE, { x, y })
   }
 }

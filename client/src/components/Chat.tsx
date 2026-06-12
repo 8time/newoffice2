@@ -481,15 +481,36 @@ function Message({ chatMessage, messageType, file, colorIndex, myName, sessionId
 // ドラッグ対象として有効なMIMEタイプ
 const DROPPABLE_TYPES = /^(image\/|video\/|audio\/|application\/pdf)/
 
+// 送信可能な最大ファイルサイズ（base64化で約1.37倍になる。サーバのmaxPayloadと整合させること）
+const MAX_FILE_SIZE = 25 * 1024 * 1024 // 25MB
+
+// ファイルをbase64 data URLとして読み込み、ローカル表示＋全員へ送信する。
+// blob: URL は生成元ブラウザでしか開けないため、相手に届けるには data URL 化が必須。
+function readAndSendFile(file: File, myName: string, dispatch: any) {
+  if (file.size > MAX_FILE_SIZE) {
+    alert(`ファイルが大きすぎて送信できません（最大 ${MAX_FILE_SIZE / 1024 / 1024}MB）: ${file.name}`)
+    return
+  }
+  const reader = new FileReader()
+  reader.onload = () => {
+    const attachment: FileAttachment = {
+      name: file.name,
+      type: file.type || 'application/octet-stream',
+      url: reader.result as string,
+      size: file.size,
+    }
+    dispatch(pushFileMessage({ author: myName, file: attachment }))
+    const game = phaserGame.scene.keys.game as Game
+    game.network.sendFileMessage(attachment)
+  }
+  reader.readAsDataURL(file)
+}
+
 function processDroppedFiles(files: FileList, myName: string, dispatch: any) {
   Array.from(files).forEach((file) => {
     if (!DROPPABLE_TYPES.test(file.type) &&
         !file.name.match(/\.(xlsx?|csv|pdf)$/i)) return
-    const url = URL.createObjectURL(file)
-    dispatch(pushFileMessage({
-      author: myName,
-      file: { name: file.name, type: file.type || 'application/octet-stream', url, size: file.size },
-    }))
+    readAndSendFile(file, myName, dispatch)
   })
 }
 
@@ -545,11 +566,7 @@ export default function Chat() {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
-    const url = URL.createObjectURL(file)
-    dispatch(pushFileMessage({
-      author: myName,
-      file: { name: file.name, type: file.type || 'application/octet-stream', url, size: file.size },
-    }))
+    readAndSendFile(file, myName, dispatch)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 

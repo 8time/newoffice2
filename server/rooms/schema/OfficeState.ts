@@ -6,6 +6,7 @@ import {
   IWhiteboard,
   IChatMessage,
   ISignboard,
+  IPlacedItem,
 } from '../../../types/IOfficeState'
 
 export class Player extends Schema implements IPlayer {
@@ -50,6 +51,14 @@ export class Signboard extends Schema implements ISignboard {
   @type('number') scale = 1
 }
 
+export class PlacedItem extends Schema implements IPlacedItem {
+  @type('string') itemType = 'chair'
+  @type('number') x = 0
+  @type('number') y = 0
+  @type('number') frame = 0
+  @type('string') direction = ''
+}
+
 export class OfficeState extends Schema implements IOfficeState {
   @type({ map: Player })
   players = new MapSchema<Player>()
@@ -65,6 +74,12 @@ export class OfficeState extends Schema implements IOfficeState {
 
   @type({ map: Signboard })
   signboards = new MapSchema<Signboard>()
+
+  @type({ map: PlacedItem })
+  placedItems = new MapSchema<PlacedItem>()
+
+  @type('number') meetingEntranceX = -1
+  @type('number') meetingEntranceY = -1
 }
 
 export const whiteboardRoomIds = new Set<string>()

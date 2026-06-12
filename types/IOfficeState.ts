@@ -42,10 +42,21 @@ export interface ISignboard extends Schema {
   scale: number      // 表示スケール (0.3〜3.0)
 }
 
+export interface IPlacedItem extends Schema {
+  itemType: string   // 'chair' | 'computer' | 'whiteboard' | 'vendingmachine' | 'meetingroom'
+  x: number
+  y: number
+  frame: number
+  direction: string  // 空文字なら向き指定なし
+}
+
 export interface IOfficeState extends Schema {
   players: MapSchema<IPlayer>
   computers: MapSchema<IComputer>
   whiteboards: MapSchema<IWhiteboard>
   chatMessages: ArraySchema<IChatMessage>
   signboards: MapSchema<ISignboard>
+  placedItems: MapSchema<IPlacedItem>
+  meetingEntranceX: number  // -1 = 未設定
+  meetingEntranceY: number
 }

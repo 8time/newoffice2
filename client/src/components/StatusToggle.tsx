@@ -28,13 +28,11 @@ const StatusRow = styled.div`
   flex-wrap: wrap;
 `
 
-type StatusType = 'present' | 'away' | 'focus' | 'break'
+type StatusType = 'present' | 'away'
 
 const STATUS_CONFIG: Record<StatusType, { label: string; color: string; bg: string }> = {
   present: { label: '🟢 在席中',  color: '#44cc77', bg: 'rgba(68,204,119,0.15)' },
   away:    { label: '🔴 離席中',  color: '#ff6b35', bg: 'rgba(255,107,53,0.15)' },
-  focus:   { label: '🟡 集中中',  color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
-  break:   { label: '⏸️ 休憩中', color: '#60a5fa', bg: 'rgba(96,165,250,0.15)' },
 }
 
 const StatusButton = styled.button<{ active: boolean; color: string; bg: string }>`
@@ -248,7 +246,6 @@ export default function StatusToggle() {
               color={cfg.color}
               bg={cfg.bg}
               onClick={() => handleClick(key)}
-              title={key === 'focus' ? '集中モード（話しかけ不可）' : key === 'break' ? '休憩中' : undefined}
             >
               {cfg.label}
             </StatusButton>

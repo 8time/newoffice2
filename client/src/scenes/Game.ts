@@ -136,6 +136,9 @@ export default class Game extends Phaser.Scene {
       this.network = data.network
     }
 
+    // 右クリックでブラウザ標準メニューを出さない（看板/設置物の右クリック削除に必要）
+    this.input.mouse?.disableContextMenu()
+
     createCharacterAnims(this.anims)
 
     // 新しい背景画像を配置
@@ -301,18 +304,23 @@ export default class Game extends Phaser.Scene {
     this.network.onItemUserRemoved(this.handleItemUserRemoved, this)
     this.network.onChatMessageAdded(this.handleChatMessageAdded, this)
 
-    // Map Builder setup
+    // Map Builder setup（設置物はサーバ権威の同期状態。schemaのonAdd等で生成される）
     this.builderGroup = this.physics.add.staticGroup()
     this.physics.add.collider(this.myPlayer, this.builderGroup)
-    this.loadBuilderItemsFromStore()
     this.rebuildMeetingRoomEntrances()
 
     phaserEvents.on(Event.BUILDER_ENTER, this.enterBuilderMode, this)
     phaserEvents.on(Event.BUILDER_EXIT, this.exitBuilderMode, this)
-    phaserEvents.on(Event.BUILDER_IMPORT, this.reloadBuilderItems, this)
-    phaserEvents.on(Event.BUILDER_CLEAR, this.clearAllBuilderSprites, this)
+    phaserEvents.on(Event.BUILDER_IMPORT, this.handleBuilderImport, this)
+    phaserEvents.on(Event.BUILDER_CLEAR, this.handleBuilderClear, this)
     phaserEvents.on(Event.BUILDER_PICK_MEETING_ENTRANCE, this.startPickingMeetingEntrance, this)
     phaserEvents.on(Event.MEETING_ROOM_EXIT, this.exitMeetingRoom, this)
+
+    // 設置物の全員同期（サーバ→Phaser）
+    phaserEvents.on(Event.BUILDER_ITEM_ADDED, this.handleBuilderItemAdded, this)
+    phaserEvents.on(Event.BUILDER_ITEM_REMOVED, this.handleBuilderItemRemoved, this)
+    phaserEvents.on(Event.BUILDER_ITEM_MOVED, this.handleBuilderItemMoved, this)
+    phaserEvents.on(Event.MEETING_ENTRANCE_CHANGED, this.handleMeetingEntranceChanged, this)
 
     // Jukebox event listeners
     phaserEvents.on(Event.JUKEBOX_PLAY, this.handleJukeboxPlay, this)
@@ -343,6 +351,10 @@ export default class Game extends Phaser.Scene {
       phaserEvents.off('network-jukebox-sync', this.handleNetworkJukeboxSync, this)
       phaserEvents.off(Event.BUILDER_PICK_MEETING_ENTRANCE, this.startPickingMeetingEntrance, this)
       phaserEvents.off(Event.MEETING_ROOM_EXIT, this.exitMeetingRoom, this)
+      phaserEvents.off(Event.BUILDER_ITEM_ADDED, this.handleBuilderItemAdded, this)
+      phaserEvents.off(Event.BUILDER_ITEM_REMOVED, this.handleBuilderItemRemoved, this)
+      phaserEvents.off(Event.BUILDER_ITEM_MOVED, this.handleBuilderItemMoved, this)
+      phaserEvents.off(Event.MEETING_ENTRANCE_CHANGED, this.handleMeetingEntranceChanged, this)
       phaserEvents.off(Event.SIGNBOARD_ADDED, this.handleSignboardAdded, this)
       phaserEvents.off(Event.SIGNBOARD_REMOVED, this.handleSignboardRemoved, this)
       phaserEvents.off(Event.SIGNBOARD_MOVED, this.handleSignboardMoved, this)
@@ -700,15 +712,52 @@ export default class Game extends Phaser.Scene {
     }
   }
 
-  private loadBuilderItemsFromStore() {
-    const items = store.getState().mapBuilder.placedItems
-    items.forEach((item) => this.spawnBuilderSprite(item, false))
+  // サーバから設置物が追加されたとき（自分の操作の反映を含む）
+  private handleBuilderItemAdded(item: PlacedItem) {
+    if (this.builderSpriteMap.has(item.id)) return
+    store.dispatch(addPlacedItem(item))
+    this.spawnBuilderSprite(item, this.isBuilderMode)
+    if (item.itemType === 'meetingroom') this.rebuildMeetingRoomEntrances()
   }
 
-  private reloadBuilderItems() {
-    this.clearAllBuilderSprites()
-    this.loadBuilderItemsFromStore()
+  private handleBuilderItemRemoved(id: string) {
+    const sprite = this.builderSpriteMap.get(id)
+    const wasMeeting = sprite?.getData('builderType') === 'meetingroom'
+    if (sprite) {
+      sprite.destroy()
+      this.builderSpriteMap.delete(id)
+    }
+    store.dispatch(removePlacedItem(id))
+    if (wasMeeting) this.rebuildMeetingRoomEntrances()
+  }
+
+  private handleBuilderItemMoved(data: { id: string; x: number; y: number }) {
+    const sprite = this.builderSpriteMap.get(data.id)
+    if (sprite) {
+      sprite.setPosition(data.x, data.y)
+      sprite.setDepth(data.y)
+      ;(sprite.body as Phaser.Physics.Arcade.StaticBody)?.reset(data.x, data.y)
+    }
+    store.dispatch(updatePlacedItemPosition({ id: data.id, x: data.x, y: data.y }))
+    if (sprite?.getData('builderType') === 'meetingroom') this.rebuildMeetingRoomEntrances()
+  }
+
+  private handleMeetingEntranceChanged(data: { x: number; y: number }) {
+    store.dispatch(setMeetingRoomEntrance(data.x < 0 ? null : { x: data.x, y: data.y }))
     this.rebuildMeetingRoomEntrances()
+  }
+
+  // インポート（JSONから一括復元）: 受け取った設置物をサーバへ送信し全員へ反映
+  private handleBuilderImport(payload: { items: PlacedItem[]; entrance: { x: number; y: number } | null }) {
+    this.network.clearBuilderItems()
+    payload.items.forEach((item) => this.network.addBuilderItem(item))
+    this.network.setMeetingEntrance(payload.entrance ? payload.entrance.x : -1, payload.entrance ? payload.entrance.y : -1)
+  }
+
+  // 全消去（全員に反映）
+  private handleBuilderClear() {
+    this.network.clearBuilderItems()
+    this.network.setMeetingEntrance(-1, -1)
   }
 
   private getMeetingRooms() {
@@ -791,27 +840,15 @@ export default class Game extends Phaser.Scene {
 
     sprite.on('dragend', () => {
       ;(sprite.body as Phaser.Physics.Arcade.StaticBody).reset(sprite.x, sprite.y)
-      store.dispatch(
-        updatePlacedItemPosition({
-          id: sprite.getData('builderId'),
-          x: sprite.x,
-          y: sprite.y,
-        })
-      )
-      if (sprite.getData('builderType') === 'meetingroom') {
-        this.rebuildMeetingRoomEntrances()
-      }
+      // 移動はサーバ経由で全員に同期（エコーで store も更新される）
+      this.network.moveBuilderItem(sprite.getData('builderId'), sprite.x, sprite.y)
     })
 
     sprite.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (pointer.rightButtonDown()) {
         const id = sprite.getData('builderId') as string
-        store.dispatch(removePlacedItem(id))
-        this.builderSpriteMap.delete(id)
-        sprite.destroy()
-        if (sprite.getData('builderType') === 'meetingroom') {
-          this.rebuildMeetingRoomEntrances()
-        }
+        // 削除はサーバ経由で全員に同期（onRemoveでスプライト破棄）
+        this.network.removeBuilderItem(id)
       }
     })
   }
@@ -885,11 +922,8 @@ export default class Game extends Phaser.Scene {
         direction: palette.direction,
       }
 
-      store.dispatch(addPlacedItem(newItem))
-      this.spawnBuilderSprite(newItem, true)
-      if (newItem.itemType === 'meetingroom') {
-        this.rebuildMeetingRoomEntrances()
-      }
+      // 設置はサーバ経由で全員に同期（onAddでスプライト生成）
+      this.network.addBuilderItem(newItem)
     }
     this.input.on('pointerdown', this.builderPointerHandler)
   }
@@ -921,12 +955,6 @@ export default class Game extends Phaser.Scene {
       sprite.removeAllListeners('dragend')
       sprite.removeAllListeners('pointerdown')
     })
-  }
-
-  private clearAllBuilderSprites() {
-    this.builderSpriteMap.forEach((sprite) => sprite.destroy())
-    this.builderSpriteMap.clear()
-    this.rebuildMeetingRoomEntrances()
   }
 
   // ─── ミーティングルーム入口指定モード ───────────────────────────────────────
@@ -967,8 +995,8 @@ export default class Game extends Phaser.Scene {
       const wp = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
       const sx = Math.round(wp.x / TILE_SIZE) * TILE_SIZE
       const sy = Math.round(wp.y / TILE_SIZE) * TILE_SIZE
-      store.dispatch(setMeetingRoomEntrance({ x: sx, y: sy }))
-      this.rebuildMeetingRoomEntrances()
+      // 入口設定はサーバ経由で全員に同期
+      this.network.setMeetingEntrance(sx, sy)
       this.stopPickingMeetingEntrance()
     }
     this.input.on('pointerdown', this.pickingEntranceClickHandler)

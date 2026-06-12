@@ -14,12 +14,12 @@ import {
   toggleBuilderMode,
   setSelectedPaletteIndex,
   clearAllItems,
-  importItems,
-  setMeetingRoomEntrance,
   PALETTE_ITEMS,
   PlacedItem,
 } from '../stores/MapBuilderStore'
 import { phaserEvents, Event } from '../events/EventCenter'
+import phaserGame from '../PhaserGame'
+import Game from '../scenes/Game'
 
 // ─── Styled Components ───────────────────────────────────────────────────────
 
@@ -175,6 +175,7 @@ export default function MapBuilder() {
     if (placedItems.length === 0) return
     if (!window.confirm(`配置済みのアイテム ${placedItems.length} 個を全て削除しますか？`)) return
     dispatch(clearAllItems())
+    // サーバ経由で全員の設置物を削除
     phaserEvents.emit(Event.BUILDER_CLEAR)
   }
 
@@ -197,8 +198,8 @@ export default function MapBuilder() {
       try {
         const items = JSON.parse(ev.target?.result as string) as PlacedItem[]
         if (!Array.isArray(items)) throw new Error('invalid format')
-        dispatch(importItems(items))
-        phaserEvents.emit(Event.BUILDER_IMPORT)
+        // サーバ経由で全員に反映（store はサーバからのエコーで更新される）
+        phaserEvents.emit(Event.BUILDER_IMPORT, { items, entrance: meetingRoomEntrance })
       } catch {
         alert('JSONファイルの読み込みに失敗しました。')
       }
@@ -262,8 +263,8 @@ export default function MapBuilder() {
           size="small"
           startIcon={<MeetingRoomIcon fontSize="small" />}
           onClick={() => {
-            dispatch(setMeetingRoomEntrance(null))
-            phaserEvents.emit(Event.BUILDER_IMPORT)
+            // サーバ経由で全員の入口設定を解除
+            ;(phaserGame.scene.keys.game as Game)?.network?.setMeetingEntrance(-1, -1)
           }}
           disabled={!meetingRoomEntrance}
         >
