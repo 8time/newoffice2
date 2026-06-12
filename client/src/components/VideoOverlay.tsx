@@ -373,42 +373,44 @@ export default function VideoOverlay() {
         <PeerVideosContainer ref={peerContainerRef} />
       </Overlay>
 
-      {/* 画面下部中央コントロールバー */}
-      {videoConnected && (
-        <ScreenShareBar>
-          <ControlItem>
-            <ScreenShareBtn isActive={videoState.isSharingScreen} onClick={handleToggleScreen}>
-              {videoState.isSharingScreen ? <StopScreenShareIcon /> : <ScreenShareIcon />}
-            </ScreenShareBtn>
-            <ScreenShareLabel isActive={videoState.isSharingScreen}>
-              {videoState.isSharingScreen ? '共有停止' : '画面共有'}
-            </ScreenShareLabel>
-          </ControlItem>
+      {/* 画面下部中央コントロールバー（ログイン後は常時表示） */}
+      <ScreenShareBar>
+        <ControlItem>
+          <ScreenShareBtn
+            isActive={videoState.isSharingScreen}
+            onClick={videoConnected ? handleToggleScreen : undefined}
+            style={{ opacity: videoConnected ? 1 : 0.35, cursor: videoConnected ? 'pointer' : 'not-allowed' }}
+          >
+            {videoState.isSharingScreen ? <StopScreenShareIcon /> : <ScreenShareIcon />}
+          </ScreenShareBtn>
+          <ScreenShareLabel isActive={videoState.isSharingScreen}>
+            {videoState.isSharingScreen ? '共有停止' : '画面共有'}
+          </ScreenShareLabel>
+        </ControlItem>
 
-          <ControlItem>
-            <ScreenShareBtn onClick={() => dispatch(openSignboardDialog())}>
-              <SignpostIcon />
-            </ScreenShareBtn>
-            <ScreenShareLabel>看板を設置</ScreenShareLabel>
-          </ControlItem>
+        <ControlItem>
+          <ScreenShareBtn onClick={() => dispatch(openSignboardDialog())}>
+            <SignpostIcon />
+          </ScreenShareBtn>
+          <ScreenShareLabel>看板を設置</ScreenShareLabel>
+        </ControlItem>
 
-          <ControlItem>
-            <ScreenShareBtn isActive={isBuilderMode} onClick={handleBuilderToggle}>
-              <MapIcon />
-            </ScreenShareBtn>
-            <ScreenShareLabel isActive={isBuilderMode}>
-              {isBuilderMode ? 'ビルダー終了' : 'マップビルダー'}
-            </ScreenShareLabel>
-          </ControlItem>
+        <ControlItem>
+          <ScreenShareBtn isActive={isBuilderMode} onClick={handleBuilderToggle}>
+            <MapIcon />
+          </ScreenShareBtn>
+          <ScreenShareLabel isActive={isBuilderMode}>
+            {isBuilderMode ? 'ビルダー終了' : 'マップビルダー'}
+          </ScreenShareLabel>
+        </ControlItem>
 
-          <ControlItem>
-            <ScreenShareBtn onClick={handleInvite}>
-              <PersonAddIcon />
-            </ScreenShareBtn>
-            <ScreenShareLabel>招待</ScreenShareLabel>
-          </ControlItem>
-        </ScreenShareBar>
-      )}
+        <ControlItem>
+          <ScreenShareBtn onClick={handleInvite}>
+            <PersonAddIcon />
+          </ScreenShareBtn>
+          <ScreenShareLabel>招待</ScreenShareLabel>
+        </ControlItem>
+      </ScreenShareBar>
     </>
   )
 }

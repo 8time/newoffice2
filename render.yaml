@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: newoffice2
+    env: node
+    buildCommand: npm install --legacy-peer-deps && cd types && npm install --legacy-peer-deps && cd ../client && npm install --legacy-peer-deps && npm run build && cd ../server && npm install --legacy-peer-deps
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
