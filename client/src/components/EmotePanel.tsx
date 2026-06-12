@@ -9,7 +9,7 @@ const EMOTES = ['👍', '😂', '❓', '🎉', '👏', '😮', '❤️', '🙏']
 const Wrapper = styled.div`
   position: fixed;
   bottom: 24px;
-  left: 50%;
+  left: calc((100vw - 525px) / 2);
   transform: translateX(-50%);
   z-index: 200;
   display: flex;
