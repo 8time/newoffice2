@@ -1117,6 +1117,8 @@ export default class Game extends Phaser.Scene {
 
     this.disableKeys()
     this.myPlayer.body.velocity.set(0, 0)
+    // 在室IDを全員に同期（同じ部屋の人同士が映像接続される）
+    this.network.updateMeetingRoomId(room.id)
     store.dispatch(setActiveMeetingRoom(room))
     phaserEvents.emit(Event.MEETING_ROOM_ENTER, room)
   }
@@ -1133,6 +1135,8 @@ export default class Game extends Phaser.Scene {
     this.activeMeetingRoomId = undefined
     this.meetingRoomReturn = undefined
     this.enableKeys()
+    // 在室IDをクリア（退室を全員に同期）
+    this.network.updateMeetingRoomId('')
     store.dispatch(clearActiveMeetingRoom())
 
     // 退出直後の再入室を防ぐクールダウン（1秒）

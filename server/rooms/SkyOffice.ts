@@ -22,6 +22,28 @@ import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
 const ATTENDANCE_FILE = path.join(__dirname, '../../attendance.json')
 const SIGNBOARDS_FILE = path.join(__dirname, '../../signboards.json')
 const BUILDER_FILE = path.join(__dirname, '../../builder.json')
+const WHITEBOARDS_FILE = path.join(__dirname, '../../meeting-whiteboards.json')
+
+// ─── ミーティングルームのホワイトボード永続化 ────────────────────────────────
+
+function loadWhiteboards(): Record<string, unknown> {
+  try {
+    if (fs.existsSync(WHITEBOARDS_FILE)) {
+      return JSON.parse(fs.readFileSync(WHITEBOARDS_FILE, 'utf-8'))
+    }
+  } catch {}
+  return {}
+}
+
+function saveWhiteboards(snapshots: Map<string, unknown>) {
+  try {
+    const obj: Record<string, unknown> = {}
+    snapshots.forEach((payload, roomId) => { obj[roomId] = payload })
+    fs.writeFileSync(WHITEBOARDS_FILE, JSON.stringify(obj), 'utf-8')
+  } catch (e) {
+    console.error('[Whiteboards] 保存失敗:', e)
+  }
+}
 
 // ─── マップビルダー設置物の永続化 ──────────────────────────────────────────────
 
@@ -158,6 +180,7 @@ export class SkyOffice extends Room<OfficeState> {
   private description: string
   private password: string | null = null
   private meetingWhiteboardSnapshots = new Map<string, unknown>()
+  private whiteboardSaveTimer?: NodeJS.Timeout
   private currentJukeboxState = {
     index: -1,
     status: 'stopped',
@@ -181,6 +204,16 @@ export class SkyOffice extends Room<OfficeState> {
     this.setMetadata({ name, description, hasPassword })
 
     this.setState(new OfficeState())
+
+    // ミーティングルームのホワイトボードを永続化ファイルから復元
+    const savedWhiteboards = loadWhiteboards()
+    Object.entries(savedWhiteboards).forEach(([roomId, payload]) => {
+      this.meetingWhiteboardSnapshots.set(roomId, payload)
+    })
+    const wbCount = Object.keys(savedWhiteboards).length
+    if (wbCount > 0) {
+      console.log(`[Whiteboards] ${wbCount} 件のホワイトボードを復元しました`)
+    }
 
     // 看板データを永続化ファイルから復元
     const savedSignboards = loadSignboards()
@@ -355,6 +388,7 @@ export class SkyOffice extends Room<OfficeState> {
       Message.MEETING_WHITEBOARD_SYNC,
       (client, message: { roomId: string; payload: unknown }) => {
         this.meetingWhiteboardSnapshots.set(message.roomId, message.payload)
+        this.scheduleWhiteboardSave()
         this.broadcast(
           Message.MEETING_WHITEBOARD_SYNC,
           { roomId: message.roomId, payload: message.payload, clientId: client.sessionId },
@@ -383,6 +417,14 @@ export class SkyOffice extends Room<OfficeState> {
         }
       }
     )
+
+    // ミーティングルーム入退室（在室IDを全員に同期）
+    this.onMessage(Message.UPDATE_MEETING_ROOM_ID, (client, message: { meetingRoomId: string }) => {
+      const player = this.state.players.get(client.sessionId)
+      if (player) {
+        player.meetingRoomId = message.meetingRoomId || ''
+      }
+    })
 
     // 看板を設置（全員に同期）
     this.onMessage(
@@ -528,6 +570,15 @@ export class SkyOffice extends Room<OfficeState> {
     })
   }
 
+  // ホワイトボードは描画中に高頻度で更新されるため、3秒デバウンスでまとめて保存
+  private scheduleWhiteboardSave() {
+    if (this.whiteboardSaveTimer) return
+    this.whiteboardSaveTimer = setTimeout(() => {
+      saveWhiteboards(this.meetingWhiteboardSnapshots)
+      this.whiteboardSaveTimer = undefined
+    }, 3000)
+  }
+
   async onAuth(client: Client, options: { password: string | null }) {
     if (this.password) {
       const validPassword = await bcrypt.compare(options.password, this.password)
@@ -570,6 +621,13 @@ export class SkyOffice extends Room<OfficeState> {
     this.state.whiteboards.forEach((whiteboard) => {
       if (whiteboardRoomIds.has(whiteboard.roomId)) whiteboardRoomIds.delete(whiteboard.roomId)
     })
+
+    // 保留中のホワイトボード保存を確実に書き出す
+    if (this.whiteboardSaveTimer) {
+      clearTimeout(this.whiteboardSaveTimer)
+      this.whiteboardSaveTimer = undefined
+    }
+    saveWhiteboards(this.meetingWhiteboardSnapshots)
 
     console.log('room', this.roomId, 'disposing...')
     this.dispatcher.stop()

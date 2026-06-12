@@ -11,6 +11,7 @@ export interface IPlayer extends Schema {
   isAudioMuted: boolean
   status: string       // 'present' | 'away'
   awayMessage: string  // 離席理由
+  meetingRoomId: string // 入室中のミーティングルームID（空なら未入室）
 }
 
 export interface IComputer extends Schema {

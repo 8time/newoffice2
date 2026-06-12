@@ -20,6 +20,7 @@ export class Player extends Schema implements IPlayer {
   @type('boolean') isAudioMuted = false
   @type('string') status = 'present'      // 'present' | 'away'
   @type('string') awayMessage = ''         // 離席理由
+  @type('string') meetingRoomId = ''       // 入室中のミーティングルームID（空なら未入室）
 }
 
 export class Computer extends Schema implements IComputer {

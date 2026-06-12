@@ -18,6 +18,7 @@ import Game from '../scenes/Game'
 
 import { useAppDispatch, useAppSelector } from '../hooks'
 import { MessageType, FileAttachment, setFocused, setShowChat, pushFileMessage } from '../stores/ChatStore'
+import { playChatSound } from '../util/sound'
 
 // ─── 吹き出し色パレット（3色ループ） ─────────────────────────────────────────
 // 話者が現れた順に割り当て、4人目から①に戻る
@@ -606,6 +607,22 @@ export default function Chat() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages, showChat])
+
+  // 新着チャット（テキスト/ファイル）で控えめな通知音。初回ロードと入退室通知は鳴らさない
+  const prevMsgCountRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (prevMsgCountRef.current === null) {
+      prevMsgCountRef.current = chatMessages.length
+      return
+    }
+    if (chatMessages.length > prevMsgCountRef.current) {
+      const last = chatMessages[chatMessages.length - 1]
+      if (last && last.messageType !== MessageType.PLAYER_JOINED && last.messageType !== MessageType.PLAYER_LEFT) {
+        playChatSound()
+      }
+    }
+    prevMsgCountRef.current = chatMessages.length
+  }, [chatMessages])
 
   return (
     <Backdrop>

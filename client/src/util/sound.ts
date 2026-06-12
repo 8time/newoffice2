@@ -43,3 +43,8 @@ export function playKnockSound() {
 export function playEmoteSound() {
   beep(660, 880, 0.15, 0.15)
 }
+
+/** チャット投稿の控えめな通知音（短く小さい） */
+export function playChatSound() {
+  beep(560, 640, 0.06, 0.05)
+}

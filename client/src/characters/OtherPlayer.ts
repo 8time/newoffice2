@@ -15,6 +15,7 @@ export default class OtherPlayer extends Player {
   _currentStatus = 'present'
   isVideoOff = false
   isAudioMuted = false
+  meetingRoomId = ''
 
   constructor(
     scene: Phaser.Scene,
@@ -83,6 +84,12 @@ export default class OtherPlayer extends Player {
       case 'videoConnected':
         if (typeof value === 'boolean') {
           this.videoConnected = value
+        }
+        break
+
+      case 'meetingRoomId':
+        if (typeof value === 'string') {
+          this.meetingRoomId = value
         }
         break
 
@@ -204,10 +211,12 @@ export default class OtherPlayer extends Player {
     if (this.myPlayer) {
       const dist = Phaser.Math.Distance.Between(this.x, this.y, this.myPlayer.x, this.myPlayer.y)
       const proximityRange = 120 // ビデオチャットが開始する距離（px）
-      const inMeetingRoom = this.x < 610 && this.y > 515 && this.myPlayer.x < 610 && this.myPlayer.y > 515
+      // 同じミーティングルームに入っている者同士は距離に関わらず接続する
+      const myMeetingRoomId = (this.scene as any).activeMeetingRoomId as string | undefined
+      const sameMeetingRoom = !!myMeetingRoomId && this.meetingRoomId === myMeetingRoomId
 
-      if (dist <= proximityRange || inMeetingRoom) {
-        // 接近 または 会議室エリア内 → ビデオ接続
+      if (dist <= proximityRange || sameMeetingRoom) {
+        // 接近 または 同じ会議室 → ビデオ接続
         this.makeCall(this.myPlayer, (this.scene as any).network?.webRTC)
         
         // 近くにいるプレイヤーとして登録（マイク自動ON）
@@ -221,9 +230,9 @@ export default class OtherPlayer extends Player {
       } else {
         // 離脱 → 切断
         if (this.connected && this.connectionBufferTime >= 750) {
-          // 会議室内は特別なため除外
-          if (this.x < 610 && this.y > 515 && this.myPlayer.x < 610 && this.myPlayer.y > 515) {
-            // 会議室エリア内は何もしない
+          // 同じミーティングルーム内は切断しない
+          if (sameMeetingRoom) {
+            // 何もしない
           } else {
             phaserEvents.emit(Event.PLAYER_DISCONNECTED, this.playerId)
             this.connectionBufferTime = 0

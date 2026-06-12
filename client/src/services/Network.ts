@@ -421,6 +421,10 @@ export default class Network {
     this.room?.send(Message.UPDATE_STATUS, { status, awayMessage })
   }
 
+  updateMeetingRoomId(meetingRoomId: string) {
+    this.room?.send(Message.UPDATE_MEETING_ROOM_ID, { meetingRoomId })
+  }
+
   sendMeetingWhiteboardUpdate(roomId: string, payload: unknown) {
     this.room?.send(Message.MEETING_WHITEBOARD_SYNC, { roomId, payload })
   }
