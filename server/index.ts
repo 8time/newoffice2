@@ -20,8 +20,13 @@ import fs from 'fs'
 import path from 'path'
 
 // クライアントのビルドファイル（dist）を静的配信
-// npm start が "cd server && ..." なので process.cwd() は server/ になる。__dirname 基準で解決する。
-const CLIENT_DIST = path.join(__dirname, '..', 'client', 'dist')
+// ts-node(__dirname=server/)・コンパイル済みJS(__dirname=server/lib/)・CWD違いに対応
+const CLIENT_DIST = [
+  path.join(__dirname, '..', 'client', 'dist'),        // ts-node: server/index.ts
+  path.join(__dirname, '..', '..', 'client', 'dist'),  // compiled: server/lib/index.js
+  path.join(process.cwd(), 'client', 'dist'),          // cwd = project root
+].find(p => fs.existsSync(p)) || path.join(__dirname, '..', 'client', 'dist')
+console.log(`[Static] Serving client from: ${CLIENT_DIST}`)
 app.use(express.static(CLIENT_DIST))
 
 
