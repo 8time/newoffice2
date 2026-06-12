@@ -4,6 +4,7 @@ import cors from 'cors'
 import { Server, LobbyRoom } from 'colyseus'
 import { monitor } from '@colyseus/monitor'
 import { RoomType } from '../types/Rooms'
+import { spawn, ChildProcess } from 'child_process'
 
 // import socialRoutes from "@colyseus/social/express"
 
@@ -133,3 +134,41 @@ app.get('*', (req, res, next) => {
 
 gameServer.listen(port)
 console.log(`Listening on ws://localhost:${port}`)
+
+// GEMINI_API_KEY が設定されている場合はbotを自動起動
+if (process.env.GEMINI_API_KEY) {
+  let botProcess: ChildProcess | null = null
+
+  const startBots = () => {
+    console.log('[Bots] AUTOMATA agents starting...')
+    botProcess = spawn(
+      process.execPath,
+      ['-r', 'ts-node/register', 'bots/bot-runner.ts', `ws://localhost:${port}`],
+      {
+        env: {
+          ...process.env,
+          TS_NODE_PROJECT: path.join(__dirname, 'tsconfig.server.json'),
+          TS_NODE_TRANSPILE_ONLY: 'true',
+        },
+        cwd: __dirname,
+        stdio: 'inherit',
+      }
+    )
+    botProcess.on('error', (err) => console.error('[Bots] spawn error:', err))
+    botProcess.on('exit', (code, signal) => {
+      console.log(`[Bots] exited: code=${code} signal=${signal}`)
+      if (signal !== 'SIGTERM' && signal !== 'SIGINT') {
+        console.log('[Bots] Restarting in 30s...')
+        setTimeout(startBots, 30000)
+      }
+    })
+  }
+
+  // Colyseusが準備できるまで5秒待ってからbot起動
+  setTimeout(startBots, 5000)
+
+  process.on('SIGTERM', () => { botProcess?.kill('SIGTERM') })
+  process.on('SIGINT', () => { botProcess?.kill('SIGTERM') })
+} else {
+  console.log('[Bots] GEMINI_API_KEY not set — bot auto-start skipped')
+}
