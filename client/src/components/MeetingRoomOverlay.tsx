@@ -893,6 +893,7 @@ function CollaborativeWhiteboard({ roomId }: { roomId: string }) {
   const filesRef = useRef<Record<string, any>>({})
 
   const initialData = useMemo(() => {
+    // 図形はデフォルトで角丸ではなく直角にする
     try {
       const saved = localStorage.getItem(storageKey)
       if (saved) {
@@ -900,10 +901,10 @@ function CollaborativeWhiteboard({ roomId }: { roomId: string }) {
         if (parsed.files && typeof parsed.files === 'object') {
           filesRef.current = { ...parsed.files }
         }
-        return parsed
+        return { ...parsed, appState: { ...parsed.appState, currentItemRoundness: 'sharp' } }
       }
     } catch {}
-    return { elements: [], appState: { viewBackgroundColor: '#fffaf0' }, files: {} }
+    return { elements: [], appState: { viewBackgroundColor: '#fffaf0', currentItemRoundness: 'sharp' }, files: {} }
   }, [storageKey])
 
   useEffect(() => {
@@ -912,11 +913,13 @@ function CollaborativeWhiteboard({ roomId }: { roomId: string }) {
       applyingRemote.current = true
       if (payload.files && typeof payload.files === 'object') {
         filesRef.current = { ...filesRef.current, ...payload.files }
+        // 画像はupdateSceneのfilesでは反映されないため、addFilesで明示的に追加する
+        const fileArr = Object.values(filesRef.current)
+        if (fileArr.length > 0) apiRef.current.addFiles(fileArr)
       }
       apiRef.current.updateScene({
         elements: payload.elements || [],
         appState: payload.appState || {},
-        files: filesRef.current,
       })
       try { localStorage.setItem(storageKey, JSON.stringify({ ...payload, files: filesRef.current })) } catch {}
       window.requestAnimationFrame(() => { applyingRemote.current = false })
@@ -941,6 +944,11 @@ function CollaborativeWhiteboard({ roomId }: { roomId: string }) {
 
   const handleChange = (elements: readonly any[], appState: any, newFiles: any) => {
     if (applyingRemote.current) return
+    // onChangeのfiles引数は不安定なため、APIからも確実に画像ファイルを取得して同期する
+    const apiFiles = apiRef.current?.getFiles?.()
+    if (apiFiles && typeof apiFiles === 'object') {
+      filesRef.current = { ...filesRef.current, ...apiFiles }
+    }
     if (newFiles && typeof newFiles === 'object' && Object.keys(newFiles).length > 0) {
       filesRef.current = { ...filesRef.current, ...newFiles }
     }
@@ -961,6 +969,9 @@ function CollaborativeWhiteboard({ roomId }: { roomId: string }) {
         apiRef.current = api
       }}
       onChange={handleChange}
+      // マウント時にフォーカスを取得しないとテキストツール等でキー入力が効かない
+      autoFocus
+      handleKeyboardGlobally
       UIOptions={{
         tools: { image: true },
         canvasActions: {
