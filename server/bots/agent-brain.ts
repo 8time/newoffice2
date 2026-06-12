@@ -1,5 +1,10 @@
-import { GeminiClient } from './gemini-client'
 import { KeibaData } from './keiba-data'
+
+export interface LLMClient {
+  generate(prompt: string, maxTokens?: number, temperature?: number): Promise<{ text: string; tokenCount: number }>
+  quotaExhausted: boolean
+  getStats(): { totalRequests: number; totalTokens: number; queueLength: number }
+}
 import {
   AgentAction, Perception, MemoryEntry, PersonalityTemplate,
   ActiveDebate, MAX_MEMORY_ENTRIES, AREAS,
@@ -21,7 +26,7 @@ export class AgentBrain {
 
   constructor(
     personality: PersonalityTemplate,
-    private gemini: GeminiClient,
+    private gemini: LLMClient,
     private keibaData: KeibaData,
   ) {
     this.personality = personality

@@ -6,7 +6,8 @@ import { execSync } from 'child_process'
 import { CollisionGrid, loadCollisionGrid } from './pathfinding'
 import { KeibaData, KEIBA_ROOT } from './keiba-data'
 import { GeminiClient } from './gemini-client'
-import { AgentBrain } from './agent-brain'
+import { OllamaClient } from './ollama-client'
+import { AgentBrain, LLMClient } from './agent-brain'
 import { DebateManager } from './debate-manager'
 import { TickScheduler } from './tick-scheduler'
 import { buildRoster } from './agent-personalities'
@@ -263,7 +264,7 @@ class AutonomousAgent {
 }
 
 // ── State sync for prediction board API ──────────────────────────────
-function syncState(agents: AutonomousAgent[], debateManager: DebateManager, gemini: GeminiClient, mission: string) {
+function syncState(agents: AutonomousAgent[], debateManager: DebateManager, gemini: LLMClient, mission: string) {
   const predictions = agents.map(a => ({
     name: a.personality.name,
     role: a.personality.role,
@@ -302,30 +303,41 @@ function buildRaceSummary(data: KeibaData): RaceSummary | null {
 
 // ── Main ─────────────────────────────────────────────────────────────
 async function main() {
-  const serverUrl = process.argv[2] || 'ws://localhost:2567'
-  const agentCount = parseInt(process.argv[3] || process.argv.find(a => /^\d+$/.test(a)) || '3', 10)
+  // --ollama フラグを別途解析 (process.argv[2] がURLとして誤認されないよう)
+  const args = process.argv.slice(2)
+  const useOllama = args.includes('--ollama')
+  const serverUrl = args.find(a => a.startsWith('ws://') || a.startsWith('wss://')) || 'ws://localhost:2567'
+  const agentCount = parseInt(args.find(a => /^\d+$/.test(a)) || '3', 10)
 
   console.log('=== AUTOMATA Keiba AI Agents ===')
   console.log(`Server: ${serverUrl}`)
-  console.log(`Agents: ${agentCount}\n`)
+  console.log(`Agents: ${agentCount}`)
+  console.log(`LLM: ${useOllama ? 'Ollama (local)' : 'Gemini API'}\n`)
 
   const keibaData = new KeibaData()
   keibaData.load()
   const grid = loadCollisionGrid()
 
-  // Load Gemini API key
-  let apiKey = process.env.GEMINI_API_KEY || ''
-  if (!apiKey) {
-    const envPath = path.join(KEIBA_ROOT, '.env')
-    if (fs.existsSync(envPath)) {
-      const match = fs.readFileSync(envPath, 'utf-8').match(/GEMINI_API_KEY="?([^"\n\r]+)"?/)
-      if (match) apiKey = match[1].trim()
+  let llm: LLMClient
+  if (useOllama) {
+    console.log(`[Ollama] Using local model: ${process.env.OLLAMA_MODEL || 'gemma3:12b'}\n`)
+    llm = new OllamaClient()
+  } else {
+    // Load Gemini API key
+    let apiKey = process.env.GEMINI_API_KEY || ''
+    if (!apiKey) {
+      const envPath = path.join(KEIBA_ROOT, '.env')
+      if (fs.existsSync(envPath)) {
+        const match = fs.readFileSync(envPath, 'utf-8').match(/GEMINI_API_KEY="?([^"\n\r]+)"?/)
+        if (match) apiKey = match[1].trim()
+      }
     }
+    if (!apiKey) { console.error('GEMINI_API_KEY not found'); process.exit(1) }
+    console.log('[Gemini] API key loaded\n')
+    llm = new GeminiClient(apiKey)
   }
-  if (!apiKey) { console.error('GEMINI_API_KEY not found'); process.exit(1) }
-  console.log('[Gemini] API key loaded\n')
 
-  const gemini = new GeminiClient(apiKey)
+  const gemini = llm
   const debateManager = new DebateManager()
   const knowledge = new KnowledgeStore(__dirname)
   const missionState: MissionState = { mission: '', raceId: null, dataReady: false, raceSummary: '' }
