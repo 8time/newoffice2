@@ -22,6 +22,7 @@ import { ItemType } from '../../../types/Items'
 
 import store from '../stores'
 import { setFocused, setShowChat } from '../stores/ChatStore'
+import { requestDeleteSignboard } from '../stores/SignboardStore'
 import { setPlayState, playSongByIndex, setCurrentSong } from '../stores/JukeboxStore'
 import {
   addPlacedItem,
@@ -53,6 +54,7 @@ export default class Game extends Phaser.Scene {
 
   // 看板（全員同期）
   private signboardMap = new Map<string, Phaser.GameObjects.Container>()
+  private scaleUpdateTimers = new Map<string, number>()
   // 看板プレースモード（クリック位置で設置）
   private isPlacingSignboard = false
   private signboardPlacingData: { text: string; image: string; url: string; bgColor: string; textColor: string; scale: number } | null = null
@@ -327,6 +329,7 @@ export default class Game extends Phaser.Scene {
     phaserEvents.on(Event.SIGNBOARD_ADDED, this.handleSignboardAdded, this)
     phaserEvents.on(Event.SIGNBOARD_REMOVED, this.handleSignboardRemoved, this)
     phaserEvents.on(Event.SIGNBOARD_MOVED, this.handleSignboardMoved, this)
+    phaserEvents.on(Event.SIGNBOARD_SCALED, this.handleSignboardScaled, this)
     phaserEvents.on(Event.SIGNBOARD_PLACE, this.handleSignboardPlace, this)
     phaserEvents.on(Event.EMOTE_RECEIVED, this.handleEmote, this)
 
@@ -342,6 +345,7 @@ export default class Game extends Phaser.Scene {
       phaserEvents.off(Event.SIGNBOARD_ADDED, this.handleSignboardAdded, this)
       phaserEvents.off(Event.SIGNBOARD_REMOVED, this.handleSignboardRemoved, this)
       phaserEvents.off(Event.SIGNBOARD_MOVED, this.handleSignboardMoved, this)
+      phaserEvents.off(Event.SIGNBOARD_SCALED, this.handleSignboardScaled, this)
       phaserEvents.off(Event.SIGNBOARD_PLACE, this.handleSignboardPlace, this)
       phaserEvents.off(Event.EMOTE_RECEIVED, this.handleEmote, this)
     })
@@ -594,7 +598,8 @@ export default class Game extends Phaser.Scene {
       container.setData('moved', false)
       if (pointer.rightButtonDown()) {
         container.setData('suppressClick', true)
-        this.network.removeSignboard(data.id)
+        // 削除確認ダイアログをReact側に依頼
+        store.dispatch(requestDeleteSignboard({ id: data.id, x: pointer.x, y: pointer.y }))
       } else {
         container.setData('suppressClick', false)
       }
@@ -613,6 +618,19 @@ export default class Game extends Phaser.Scene {
       this.network.updateSignboard(data.id, bx, by)
     })
 
+    // ホイールでリアルタイムスケール変更（デバウンス500msで全員に同期）
+    container.on('wheel', (_ptr: unknown, _dx: number, deltaY: number) => {
+      const cur = container.scaleX
+      const next = Math.min(3, Math.max(0.3, cur - deltaY * 0.001))
+      container.setScale(next)
+      const prev = this.scaleUpdateTimers.get(data.id)
+      if (prev !== undefined) window.clearTimeout(prev)
+      this.scaleUpdateTimers.set(data.id, window.setTimeout(() => {
+        this.network.updateSignboardScale(data.id, next)
+        this.scaleUpdateTimers.delete(data.id)
+      }, 500))
+    })
+
     container.on('pointerup', () => {
       if (container.getData('moved') || container.getData('suppressClick')) return
       if (data.url) window.open(data.url, '_blank', 'noopener,noreferrer')
@@ -629,6 +647,11 @@ export default class Game extends Phaser.Scene {
     const offsetY = container.getData('offsetY') as number
     container.setPosition(data.x - cardW / 2, data.y - cardH - offsetY)
     container.setDepth(data.y)
+  }
+
+  private handleSignboardScaled(data: { id: string; scale: number }) {
+    const container = this.signboardMap.get(data.id)
+    if (container) container.setScale(data.scale)
   }
 
   // ─── Map Builder ────────────────────────────────────────────────────────────

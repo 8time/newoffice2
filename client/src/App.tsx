@@ -16,6 +16,7 @@ import JukeboxDialog from './components/JukeboxDialog'
 import PredictionBoardDialog from './components/PredictionBoardDialog'
 import SignboardDialog from './components/SignboardDialog'
 import KnockNotification from './components/KnockNotification'
+import SignboardDeleteConfirm from './components/SignboardDeleteConfirm'
 import EmotePanel from './components/EmotePanel'
 import VideoOverlay from './components/VideoOverlay'
 import OnlineUsers from './components/OnlineUsers'
@@ -187,6 +188,9 @@ function App() {
 
       {/* ノック通知（常時待機） */}
       {loggedIn && <KnockNotification />}
+
+      {/* 看板削除確認ダイアログ */}
+      {loggedIn && <SignboardDeleteConfirm />}
 
       {/* エモートパネル（画面下中央） */}
       {loggedIn && !activeMeetingRoom && <EmotePanel />}

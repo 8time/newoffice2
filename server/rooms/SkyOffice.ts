@@ -293,12 +293,13 @@ export class SkyOffice extends Room<OfficeState> {
       }
     })
 
-    // 看板を移動（全員に同期）
-    this.onMessage(Message.UPDATE_SIGNBOARD, (client, message: { id: string; x: number; y: number }) => {
+    // 看板を移動・スケール変更（全員に同期）
+    this.onMessage(Message.UPDATE_SIGNBOARD, (client, message: { id: string; x?: number; y?: number; scale?: number }) => {
       const sign = this.state.signboards.get(message.id)
       if (sign) {
-        sign.x = message.x
-        sign.y = message.y
+        if (message.x !== undefined) sign.x = message.x
+        if (message.y !== undefined) sign.y = message.y
+        if (message.scale !== undefined) sign.scale = Math.min(3, Math.max(0.3, message.scale))
       }
     })
 
