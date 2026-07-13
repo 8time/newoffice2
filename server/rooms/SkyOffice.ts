@@ -37,10 +37,25 @@ function loadWhiteboards(): Record<string, unknown> {
   return {}
 }
 
+// 削除済み要素は同期のたびに増え続けるため、24時間以上前に更新されたものは
+// ディスク保存時に間引く（他クライアントへの反映はメモリ上のreconcileで完結済み）
+const DELETED_ELEMENT_TTL_MS = 24 * 60 * 60 * 1000
+
+function pruneStaleDeletedElements(payload: any): unknown {
+  if (!payload || typeof payload !== 'object' || !Array.isArray(payload.elements)) return payload
+  const now = Date.now()
+  const elements = payload.elements.filter((el: any) => {
+    if (!el || !el.isDeleted) return true
+    const updated = typeof el.updated === 'number' ? el.updated : now
+    return now - updated < DELETED_ELEMENT_TTL_MS
+  })
+  return { ...payload, elements }
+}
+
 function saveWhiteboards(snapshots: Map<string, unknown>) {
   try {
     const obj: Record<string, unknown> = {}
-    snapshots.forEach((payload, roomId) => { obj[roomId] = payload })
+    snapshots.forEach((payload, roomId) => { obj[roomId] = pruneStaleDeletedElements(payload) })
     fs.writeFileSync(WHITEBOARDS_FILE, JSON.stringify(obj), 'utf-8')
   } catch (e) {
     console.error('[Whiteboards] 保存失敗:', e)
@@ -453,9 +468,17 @@ export class SkyOffice extends Room<OfficeState> {
     // 着席中/離席中ステータス更新
     this.onMessage(
       Message.MEETING_WHITEBOARD_SYNC,
-      (client, message: { roomId: string; payload: unknown }) => {
-        this.meetingWhiteboardSnapshots.set(message.roomId, message.payload)
+      (client, message: { roomId: string; payload: any }) => {
+        if (!message.roomId || !message.payload) return
+        // クライアントは画像(files)を未送信分の差分のみ送ってくる。
+        // スナップショットは常に全量を持つ必要があるため、既存のfilesとマージして保存する。
+        const prev = this.meetingWhiteboardSnapshots.get(message.roomId) as any
+        const prevFiles = (prev && typeof prev === 'object' && prev.files) || {}
+        const incomingFiles = (message.payload.files && typeof message.payload.files === 'object') ? message.payload.files : {}
+        const mergedPayload = { ...message.payload, files: { ...prevFiles, ...incomingFiles } }
+        this.meetingWhiteboardSnapshots.set(message.roomId, mergedPayload)
         this.scheduleWhiteboardSave()
+        // 他クライアントへは差分payloadのまま転送する（受信側は既に過去のfilesを保持している）
         this.broadcast(
           Message.MEETING_WHITEBOARD_SYNC,
           { roomId: message.roomId, payload: message.payload, clientId: client.sessionId },

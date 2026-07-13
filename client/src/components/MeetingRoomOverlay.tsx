@@ -12,7 +12,7 @@ import ExitToAppIcon from '@mui/icons-material/ExitToApp'
 import PeopleIcon from '@mui/icons-material/People'
 import ChatIcon from '@mui/icons-material/Chat'
 import PanToolIcon from '@mui/icons-material/PanTool'
-import { Excalidraw } from '@excalidraw/excalidraw'
+import { Excalidraw, reconcileElements } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
 
 import phaserGame from '../PhaserGame'
@@ -951,6 +951,11 @@ function CollaborativeWhiteboard({ roomId }: { roomId: string }) {
 
   // 画像ファイルを累積管理
   const filesRef = useRef<Record<string, any>>({})
+  // すでにサーバーへ送信済み（またはサーバー/他クライアント由来で既知）のfileId。
+  // これに含まれる画像はbase64を再送しない。
+  const sentFileIds = useRef<Set<string>>(new Set())
+  // 前回送信以降に新規追加された未送信ファイル（次回バッチでまとめて送る）
+  const pendingNewFiles = useRef<Record<string, any>>({})
 
   const initialData = useMemo(() => {
     // 図形はデフォルトで角丸ではなく直角にする
@@ -960,6 +965,8 @@ function CollaborativeWhiteboard({ roomId }: { roomId: string }) {
         const parsed = JSON.parse(saved)
         if (parsed.files && typeof parsed.files === 'object') {
           filesRef.current = { ...parsed.files }
+          // ローカルキャッシュにある画像はサーバーにも既にある想定なので送信済み扱い
+          Object.keys(parsed.files).forEach((id) => sentFileIds.current.add(id))
         }
         return { ...parsed, appState: { ...parsed.appState, currentItemRoundness: 'sharp' } }
       }
@@ -973,15 +980,25 @@ function CollaborativeWhiteboard({ roomId }: { roomId: string }) {
       applyingRemote.current = true
       if (payload.files && typeof payload.files === 'object') {
         filesRef.current = { ...filesRef.current, ...payload.files }
+        Object.keys(payload.files).forEach((id) => sentFileIds.current.add(id))
         // 画像はupdateSceneのfilesでは反映されないため、addFilesで明示的に追加する
-        const fileArr = Object.values(filesRef.current)
+        const fileArr = Object.values(payload.files)
         if (fileArr.length > 0) apiRef.current.addFiles(fileArr)
       }
+      // 全置換ではなく、id/version/versionNonceで両者をマージする
+      // （Excalidraw公式コラボ実装と同じreconcileElementsを使用。同時編集で片方の描画が消えるのを防ぐ）
+      const localElements = apiRef.current.getSceneElementsIncludingDeleted()
+      const reconciled = reconcileElements(localElements, payload.elements || [], apiRef.current.getAppState())
       apiRef.current.updateScene({
-        elements: payload.elements || [],
+        elements: reconciled,
         appState: payload.appState || {},
       })
-      try { localStorage.setItem(storageKey, JSON.stringify({ ...payload, files: filesRef.current })) } catch {}
+      try {
+        localStorage.setItem(
+          storageKey,
+          JSON.stringify({ elements: reconciled, appState: payload.appState || {}, files: filesRef.current })
+        )
+      } catch {}
       window.requestAnimationFrame(() => { applyingRemote.current = false })
     }
     phaserEvents.on(PhaserEvent.MEETING_WHITEBOARD_REMOTE_UPDATE, handler)
@@ -996,7 +1013,12 @@ function CollaborativeWhiteboard({ roomId }: { roomId: string }) {
     pendingPayload.current = payload
     if (sendTimer.current) return
     sendTimer.current = window.setTimeout(() => {
-      if (pendingPayload.current) getNetwork()?.sendMeetingWhiteboardUpdate(roomId, pendingPayload.current)
+      if (pendingPayload.current) {
+        getNetwork()?.sendMeetingWhiteboardUpdate(roomId, pendingPayload.current)
+        // 今回送信した画像はsent済みとして記録し、以後は再送しない
+        Object.keys(pendingPayload.current.files || {}).forEach((id) => sentFileIds.current.add(id))
+        pendingNewFiles.current = {}
+      }
       pendingPayload.current = null
       sendTimer.current = undefined
     }, 160)
@@ -1012,13 +1034,25 @@ function CollaborativeWhiteboard({ roomId }: { roomId: string }) {
     if (newFiles && typeof newFiles === 'object' && Object.keys(newFiles).length > 0) {
       filesRef.current = { ...filesRef.current, ...newFiles }
     }
+    // 未送信の画像だけを今回バッチに積む（送信済みのbase64は二度と載せない）
+    Object.entries(filesRef.current).forEach(([id, file]) => {
+      if (!sentFileIds.current.has(id)) pendingNewFiles.current[id] = file
+    })
+
+    // 要素はreconcileElementsで同時編集を解消するため、常に全量を送ってよい
     const payload = {
       elements,
       appState: { viewBackgroundColor: appState.viewBackgroundColor, theme: appState.theme, gridSize: appState.gridSize },
-      files: filesRef.current,
+      files: pendingNewFiles.current,
       updatedAt: Date.now(),
     }
-    try { localStorage.setItem(storageKey, JSON.stringify(payload)) } catch {}
+    // ローカルキャッシュには画像を全量含めて保存する（再読み込み時に復元するため）
+    try {
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({ elements, appState: payload.appState, files: filesRef.current })
+      )
+    } catch {}
     scheduleSync(payload)
   }
 
