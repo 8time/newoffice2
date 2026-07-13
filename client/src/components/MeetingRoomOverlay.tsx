@@ -704,9 +704,50 @@ function DocumentEditor({ roomId }: { roomId: string }) {
     try { return localStorage.getItem(storageKey) || '' } catch { return '' }
   })
 
+  const sendTimer = useRef<number>()
+  const pendingContent = useRef<string | null>(null)
+
+  const flushSync = useCallback(() => {
+    if (sendTimer.current) {
+      window.clearTimeout(sendTimer.current)
+      sendTimer.current = undefined
+    }
+    if (pendingContent.current !== null) {
+      getNetwork()?.sendMeetingDocUpdate(roomId, pendingContent.current)
+      pendingContent.current = null
+    }
+  }, [roomId])
+
+  const scheduleSync = (val: string) => {
+    pendingContent.current = val
+    if (sendTimer.current) return
+    sendTimer.current = window.setTimeout(() => {
+      if (pendingContent.current !== null) getNetwork()?.sendMeetingDocUpdate(roomId, pendingContent.current)
+      pendingContent.current = null
+      sendTimer.current = undefined
+    }, 300)
+  }
+
+  useEffect(() => {
+    const handler = (remoteRoomId: string, remoteContent: string) => {
+      if (remoteRoomId !== roomId) return
+      // 自分が入力中（フォーカス中）のときはリモート更新で上書きしない
+      if (document.activeElement === taRef.current) return
+      setContent(remoteContent)
+      try { localStorage.setItem(storageKey, remoteContent) } catch {}
+    }
+    phaserEvents.on(PhaserEvent.MEETING_DOC_REMOTE_UPDATE, handler)
+    getNetwork()?.requestMeetingDocSnapshot(roomId)
+    return () => {
+      phaserEvents.off(PhaserEvent.MEETING_DOC_REMOTE_UPDATE, handler)
+      flushSync()
+    }
+  }, [roomId, storageKey, flushSync])
+
   const save = (val: string) => {
     setContent(val)
     try { localStorage.setItem(storageKey, val) } catch {}
+    scheduleSync(val)
   }
 
   const insertLinePrefix = (prefix: string) => {
@@ -735,6 +776,7 @@ function DocumentEditor({ roomId }: { roomId: string }) {
           ref={taRef}
           value={content}
           onChange={(e) => save(e.target.value)}
+          onBlur={flushSync}
           placeholder={'ここにメモや議事録を入力...\n\n例：\n○議題タイトル\n　内容や決定事項をここに書く\n\n■アクションアイテム\n　担当者・期限を記入'}
           spellCheck={false}
         />
@@ -774,7 +816,25 @@ function WhiteboardWithDoc({ roomId }: { roomId: string }) {
   const persistTabs = useCallback((next: WBTab[]) => {
     setTabs(next)
     saveTabs(roomId, next)
+    getNetwork()?.sendMeetingTabsUpdate(roomId, next)
   }, [roomId])
+
+  useEffect(() => {
+    const handler = (remoteRoomId: string, remoteTabs: WBTab[]) => {
+      if (remoteRoomId !== roomId) return
+      // タブ名編集中は上書きしない
+      if (editingId) return
+      if (!Array.isArray(remoteTabs) || remoteTabs.length === 0) return
+      setTabs(remoteTabs)
+      saveTabs(roomId, remoteTabs)
+      setActiveTabId((prev) => (remoteTabs.some((t) => t.id === prev) ? prev : remoteTabs[0].id))
+    }
+    phaserEvents.on(PhaserEvent.MEETING_TABS_REMOTE_UPDATE, handler)
+    getNetwork()?.requestMeetingTabsSnapshot(roomId)
+    return () => {
+      phaserEvents.off(PhaserEvent.MEETING_TABS_REMOTE_UPDATE, handler)
+    }
+  }, [roomId, editingId])
 
   const addTab = () => {
     const id = `tab_${Date.now()}`

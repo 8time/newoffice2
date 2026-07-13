@@ -37,6 +37,8 @@ export enum Event {
   MEETING_ROOM_ENTER = 'meeting-room-enter',
   MEETING_ROOM_EXIT = 'meeting-room-exit',
   MEETING_WHITEBOARD_REMOTE_UPDATE = 'meeting-whiteboard-remote-update',
+  MEETING_DOC_REMOTE_UPDATE = 'meeting-doc-remote-update',
+  MEETING_TABS_REMOTE_UPDATE = 'meeting-tabs-remote-update',
   // 看板（全員同期）
   SIGNBOARD_ADDED = 'signboard-added',
   SIGNBOARD_REMOVED = 'signboard-removed',

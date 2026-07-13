@@ -23,6 +23,8 @@ const ATTENDANCE_FILE = path.join(__dirname, '../../attendance.json')
 const SIGNBOARDS_FILE = path.join(__dirname, '../../signboards.json')
 const BUILDER_FILE = path.join(__dirname, '../../builder.json')
 const WHITEBOARDS_FILE = path.join(__dirname, '../../meeting-whiteboards.json')
+const MEETING_DOCS_FILE = path.join(__dirname, '../../meeting-docs.json')
+const MEETING_TABS_FILE = path.join(__dirname, '../../meeting-tabs.json')
 
 // ─── ミーティングルームのホワイトボード永続化 ────────────────────────────────
 
@@ -42,6 +44,48 @@ function saveWhiteboards(snapshots: Map<string, unknown>) {
     fs.writeFileSync(WHITEBOARDS_FILE, JSON.stringify(obj), 'utf-8')
   } catch (e) {
     console.error('[Whiteboards] 保存失敗:', e)
+  }
+}
+
+// ─── ミーティングルームの議事録メモ永続化 ──────────────────────────────────────
+
+function loadMeetingDocs(): Record<string, string> {
+  try {
+    if (fs.existsSync(MEETING_DOCS_FILE)) {
+      return JSON.parse(fs.readFileSync(MEETING_DOCS_FILE, 'utf-8'))
+    }
+  } catch {}
+  return {}
+}
+
+function saveMeetingDocs(snapshots: Map<string, string>) {
+  try {
+    const obj: Record<string, string> = {}
+    snapshots.forEach((content, roomId) => { obj[roomId] = content })
+    fs.writeFileSync(MEETING_DOCS_FILE, JSON.stringify(obj), 'utf-8')
+  } catch (e) {
+    console.error('[MeetingDocs] 保存失敗:', e)
+  }
+}
+
+// ─── ミーティングルームのタブ構成永続化 ────────────────────────────────────────
+
+function loadMeetingTabs(): Record<string, unknown> {
+  try {
+    if (fs.existsSync(MEETING_TABS_FILE)) {
+      return JSON.parse(fs.readFileSync(MEETING_TABS_FILE, 'utf-8'))
+    }
+  } catch {}
+  return {}
+}
+
+function saveMeetingTabs(snapshots: Map<string, unknown>) {
+  try {
+    const obj: Record<string, unknown> = {}
+    snapshots.forEach((tabs, roomId) => { obj[roomId] = tabs })
+    fs.writeFileSync(MEETING_TABS_FILE, JSON.stringify(obj), 'utf-8')
+  } catch (e) {
+    console.error('[MeetingTabs] 保存失敗:', e)
   }
 }
 
@@ -181,6 +225,9 @@ export class SkyOffice extends Room<OfficeState> {
   private password: string | null = null
   private meetingWhiteboardSnapshots = new Map<string, unknown>()
   private whiteboardSaveTimer?: NodeJS.Timeout
+  private meetingDocSnapshots = new Map<string, string>()
+  private docSaveTimer?: NodeJS.Timeout
+  private meetingTabsSnapshots = new Map<string, unknown>()
   private currentJukeboxState = {
     index: -1,
     status: 'stopped',
@@ -213,6 +260,26 @@ export class SkyOffice extends Room<OfficeState> {
     const wbCount = Object.keys(savedWhiteboards).length
     if (wbCount > 0) {
       console.log(`[Whiteboards] ${wbCount} 件のホワイトボードを復元しました`)
+    }
+
+    // ミーティングルームの議事録メモを永続化ファイルから復元
+    const savedDocs = loadMeetingDocs()
+    Object.entries(savedDocs).forEach(([roomId, content]) => {
+      this.meetingDocSnapshots.set(roomId, content)
+    })
+    const docCount = Object.keys(savedDocs).length
+    if (docCount > 0) {
+      console.log(`[MeetingDocs] ${docCount} 件のメモを復元しました`)
+    }
+
+    // ミーティングルームのタブ構成を永続化ファイルから復元
+    const savedTabs = loadMeetingTabs()
+    Object.entries(savedTabs).forEach(([roomId, tabs]) => {
+      this.meetingTabsSnapshots.set(roomId, tabs)
+    })
+    const tabsCount = Object.keys(savedTabs).length
+    if (tabsCount > 0) {
+      console.log(`[MeetingTabs] ${tabsCount} 件のタブ構成を復元しました`)
     }
 
     // 看板データを永続化ファイルから復元
@@ -407,6 +474,65 @@ export class SkyOffice extends Room<OfficeState> {
       }
     )
 
+    // ミーティングルームの議事録メモ同期
+    this.onMessage(
+      Message.MEETING_DOC_SYNC,
+      (client, message: { roomId: string; content: string }) => {
+        if (!message.roomId || typeof message.content !== 'string') return
+        const content = message.content.slice(0, 100000)
+        this.meetingDocSnapshots.set(message.roomId, content)
+        this.scheduleDocSave()
+        this.broadcast(
+          Message.MEETING_DOC_SYNC,
+          { roomId: message.roomId, content },
+          { except: client }
+        )
+      }
+    )
+
+    this.onMessage(
+      Message.REQUEST_MEETING_DOC_SNAPSHOT,
+      (client, message: { roomId: string }) => {
+        const content = this.meetingDocSnapshots.get(message.roomId)
+        if (content !== undefined) {
+          client.send(Message.MEETING_DOC_SYNC, { roomId: message.roomId, content })
+        }
+      }
+    )
+
+    // ミーティングルームのタブ構成同期
+    this.onMessage(
+      Message.MEETING_TABS_SYNC,
+      (client, message: { roomId: string; tabs: unknown }) => {
+        if (!message.roomId || !Array.isArray(message.tabs)) return
+        const tabs = (message.tabs as any[])
+          .slice(0, 30)
+          .map((t) => ({
+            id: String(t?.id ?? '').slice(0, 100),
+            name: String(t?.name ?? '').slice(0, 100),
+            color: typeof t?.color === 'string' ? t.color.slice(0, 20) : undefined,
+          }))
+          .filter((t) => t.id)
+        this.meetingTabsSnapshots.set(message.roomId, tabs)
+        saveMeetingTabs(this.meetingTabsSnapshots)
+        this.broadcast(
+          Message.MEETING_TABS_SYNC,
+          { roomId: message.roomId, tabs },
+          { except: client }
+        )
+      }
+    )
+
+    this.onMessage(
+      Message.REQUEST_MEETING_TABS_SNAPSHOT,
+      (client, message: { roomId: string }) => {
+        const tabs = this.meetingTabsSnapshots.get(message.roomId)
+        if (tabs !== undefined) {
+          client.send(Message.MEETING_TABS_SYNC, { roomId: message.roomId, tabs })
+        }
+      }
+    )
+
     this.onMessage(
       Message.UPDATE_STATUS,
       (client, message: { status: string; awayMessage: string }) => {
@@ -579,6 +705,15 @@ export class SkyOffice extends Room<OfficeState> {
     }, 3000)
   }
 
+  // 議事録メモも入力のたびに送られてくるため、3秒デバウンスでまとめて保存
+  private scheduleDocSave() {
+    if (this.docSaveTimer) return
+    this.docSaveTimer = setTimeout(() => {
+      saveMeetingDocs(this.meetingDocSnapshots)
+      this.docSaveTimer = undefined
+    }, 3000)
+  }
+
   async onAuth(client: Client, options: { password: string | null }) {
     if (this.password) {
       const validPassword = await bcrypt.compare(options.password, this.password)
@@ -628,6 +763,13 @@ export class SkyOffice extends Room<OfficeState> {
       this.whiteboardSaveTimer = undefined
     }
     saveWhiteboards(this.meetingWhiteboardSnapshots)
+
+    // 保留中の議事録メモ保存を確実に書き出す
+    if (this.docSaveTimer) {
+      clearTimeout(this.docSaveTimer)
+      this.docSaveTimer = undefined
+    }
+    saveMeetingDocs(this.meetingDocSnapshots)
 
     console.log('room', this.roomId, 'disposing...')
     this.dispatcher.stop()

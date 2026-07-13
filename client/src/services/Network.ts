@@ -278,6 +278,14 @@ export default class Network {
       phaserEvents.emit(Event.MEETING_WHITEBOARD_REMOTE_UPDATE, roomId, payload)
     })
 
+    this.room.onMessage(Message.MEETING_DOC_SYNC, ({ roomId, content }) => {
+      phaserEvents.emit(Event.MEETING_DOC_REMOTE_UPDATE, roomId, content)
+    })
+
+    this.room.onMessage(Message.MEETING_TABS_SYNC, ({ roomId, tabs }) => {
+      phaserEvents.emit(Event.MEETING_TABS_REMOTE_UPDATE, roomId, tabs)
+    })
+
     this.room.onMessage(Message.JUKEBOX_SYNC, (message) => {
       phaserEvents.emit('network-jukebox-sync', message)
     })
@@ -431,6 +439,22 @@ export default class Network {
 
   requestMeetingWhiteboardSnapshot(roomId: string) {
     this.room?.send(Message.REQUEST_MEETING_WHITEBOARD_SNAPSHOT, { roomId })
+  }
+
+  sendMeetingDocUpdate(roomId: string, content: string) {
+    this.room?.send(Message.MEETING_DOC_SYNC, { roomId, content })
+  }
+
+  requestMeetingDocSnapshot(roomId: string) {
+    this.room?.send(Message.REQUEST_MEETING_DOC_SNAPSHOT, { roomId })
+  }
+
+  sendMeetingTabsUpdate(roomId: string, tabs: unknown) {
+    this.room?.send(Message.MEETING_TABS_SYNC, { roomId, tabs })
+  }
+
+  requestMeetingTabsSnapshot(roomId: string) {
+    this.room?.send(Message.REQUEST_MEETING_TABS_SNAPSHOT, { roomId })
   }
 
   addSignboard(data: { x: number; y: number; text: string; image: string; url: string; bgColor?: string; textColor?: string; scale?: number }) {
