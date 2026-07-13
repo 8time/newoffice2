@@ -479,10 +479,11 @@ export class SkyOffice extends Room<OfficeState> {
         this.meetingWhiteboardSnapshots.set(message.roomId, mergedPayload)
         this.scheduleWhiteboardSave()
         // 他クライアントへは差分payloadのまま転送する（受信側は既に過去のfilesを保持している）
-        this.broadcast(
+        this.broadcastToMeetingRoom(
+          message.roomId,
           Message.MEETING_WHITEBOARD_SYNC,
           { roomId: message.roomId, payload: message.payload, clientId: client.sessionId },
-          { except: client }
+          client
         )
       }
     )
@@ -505,10 +506,11 @@ export class SkyOffice extends Room<OfficeState> {
         const content = message.content.slice(0, 100000)
         this.meetingDocSnapshots.set(message.roomId, content)
         this.scheduleDocSave()
-        this.broadcast(
+        this.broadcastToMeetingRoom(
+          message.roomId,
           Message.MEETING_DOC_SYNC,
           { roomId: message.roomId, content },
-          { except: client }
+          client
         )
       }
     )
@@ -538,10 +540,11 @@ export class SkyOffice extends Room<OfficeState> {
           .filter((t) => t.id)
         this.meetingTabsSnapshots.set(message.roomId, tabs)
         saveMeetingTabs(this.meetingTabsSnapshots)
-        this.broadcast(
+        this.broadcastToMeetingRoom(
+          message.roomId,
           Message.MEETING_TABS_SYNC,
           { roomId: message.roomId, tabs },
-          { except: client }
+          client
         )
       }
     )
@@ -716,6 +719,27 @@ export class SkyOffice extends Room<OfficeState> {
       this.state.meetingEntranceX = message.x
       this.state.meetingEntranceY = message.y
       saveBuilder(this.state)
+    })
+  }
+
+  // 会議室（ホワイトボード／メモ／タブ）の同期メッセージを、その会議室にいる参加者にだけ配信する。
+  // roomIdが "board_" で始まる場合はマップ上の設置ホワイトボードとみなし、
+  // そのホワイトボードに接続中(connectedUser)のクライアントにだけ配信する。
+  private broadcastToMeetingRoom(roomId: string, type: number, payload: unknown, exceptClient?: Client) {
+    if (roomId.startsWith('board_')) {
+      const whiteboardId = roomId.slice('board_'.length)
+      const whiteboard = this.state.whiteboards.get(whiteboardId)
+      if (!whiteboard) return
+      this.clients.forEach((cli) => {
+        if (cli === exceptClient) return
+        if (whiteboard.connectedUser.has(cli.sessionId)) cli.send(type, payload)
+      })
+      return
+    }
+    this.clients.forEach((cli) => {
+      if (cli === exceptClient) return
+      const player = this.state.players.get(cli.sessionId)
+      if (player && player.meetingRoomId === roomId) cli.send(type, payload)
     })
   }
 
