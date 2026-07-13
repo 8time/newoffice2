@@ -882,19 +882,16 @@ export default function MeetingRoomOverlay() {
     return () => clearTimeout(timer)
   }, [activeRoom, videoConnected, videoState.isVideoOff, videoState.hasStream])
 
-  // 入室後に接続したピアの映像も取り込む（webrtc-video-source を監視して移動）
+  // 入室後に新しく接続したピアの映像も自動的にこのコンテナへ追加されるよう、
+  // マウント先としてWebRTCに登録する（以前はwebrtc-video-sourceをMutationObserverで監視していた）
   useEffect(() => {
     if (!activeRoom) return
     const peerTarget = peerContainerRef.current
     if (!peerTarget) return
     getWebRTC()?.mountPeerVideos(peerTarget)
-    const srcGrid = document.getElementById('webrtc-video-source')
-    if (!srcGrid) return
-    const observer = new MutationObserver(() => {
-      while (srcGrid.firstChild) peerTarget.appendChild(srcGrid.firstChild)
-    })
-    observer.observe(srcGrid, { childList: true })
-    return () => observer.disconnect()
+    return () => {
+      getWebRTC()?.unmountPeerVideos(peerTarget)
+    }
   }, [activeRoom, videoConnected])
 
   // 相手のカメラカードに挙手バッジを表示（WebRTCがDOMを直接構築しているため直接操作する）

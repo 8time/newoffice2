@@ -7,6 +7,8 @@ import { useAppSelector, useAppDispatch } from '../hooks'
 import { closeWhiteboardDialog } from '../stores/WhiteboardStore'
 import CollaborativeWhiteboard, { ExcalidrawGlobal } from './CollaborativeWhiteboard'
 
+// 右側の余白541px = 常時表示される右サイドバー幅525px + 余白16px
+// （HelperButtonGroupのright: 541pxと同じ値。以前は180pxでサイドバーの下に一部が隠れていた）
 const Backdrop = styled.div`
   position: fixed;
   top: 0;
@@ -14,7 +16,7 @@ const Backdrop = styled.div`
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  padding: 16px 180px 16px 16px;
+  padding: 16px 541px 16px 16px;
   width: 100%;
   height: 100%;
 `

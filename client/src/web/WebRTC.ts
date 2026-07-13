@@ -69,13 +69,23 @@ export default class WebRTC {
     this.applyVideoFallback(this.myVideo, this.isVideoOff)
   }
 
+  // マウント先を登録すると、以後addVideoStreamで新規に追加されるピア映像も
+  // このコンテナへ直接appendされる（従来のMutationObserverでの後追い監視が不要になる）
+  private activeMountTarget: HTMLElement | null = null
+
   mountPeerVideos(container: HTMLElement) {
+    this.activeMountTarget = container
     this.peers.forEach(({ wrapper }) => {
       if (wrapper.parentElement !== container) container.appendChild(wrapper)
     })
     this.onCalledPeers.forEach(({ wrapper }) => {
       if (wrapper.parentElement !== container) container.appendChild(wrapper)
     })
+  }
+
+  // 呼び出し元がアンマウントされる際に登録を解除する（他の画面のmountPeerVideosと競合しないように）
+  unmountPeerVideos(container: HTMLElement) {
+    if (this.activeMountTarget === container) this.activeMountTarget = null
   }
 
   // ピアビデオの受け皿（WebRTCのDOMアペンド先 → VideoOverlayのMutationObserverが監視）
@@ -343,7 +353,9 @@ export default class WebRTC {
       video.play()
     })
     const wrapper = video.parentElement
-    if (this.videoGrid && wrapper) this.videoGrid.append(wrapper)
+    // マウント先が登録されていればそこへ直接追加し、なければ従来の受け皿ノードへ追加する
+    const appendTarget = this.activeMountTarget || this.videoGrid
+    if (appendTarget && wrapper) appendTarget.append(wrapper)
     this.notifyVideoState()
   }
 
