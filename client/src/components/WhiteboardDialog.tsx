@@ -5,6 +5,7 @@ import CloseIcon from '@mui/icons-material/Close'
 
 import { useAppSelector, useAppDispatch } from '../hooks'
 import { closeWhiteboardDialog } from '../stores/WhiteboardStore'
+import CollaborativeWhiteboard, { ExcalidrawGlobal } from './CollaborativeWhiteboard'
 
 const Backdrop = styled.div`
   position: fixed;
@@ -41,20 +42,16 @@ const WhiteboardWrapper = styled.div`
   border-radius: 25px;
   overflow: hidden;
   margin-right: 25px;
-
-  iframe {
-    width: 100%;
-    height: 100%;
-    background: #fff;
-  }
+  background: #fff;
 `
 
 export default function WhiteboardDialog() {
-  const whiteboardUrl = useAppSelector((state) => state.whiteboard.whiteboardUrl)
+  const whiteboardId = useAppSelector((state) => state.whiteboard.whiteboardId)
   const dispatch = useAppDispatch()
 
   return (
     <Backdrop>
+      <ExcalidrawGlobal />
       <Wrapper>
         <IconButton
           aria-label="close dialog"
@@ -63,9 +60,9 @@ export default function WhiteboardDialog() {
         >
           <CloseIcon />
         </IconButton>
-        {whiteboardUrl && (
+        {whiteboardId && (
           <WhiteboardWrapper>
-            <iframe title="white board" src={whiteboardUrl} />
+            <CollaborativeWhiteboard roomId={`board_${whiteboardId}`} />
           </WhiteboardWrapper>
         )}
       </Wrapper>
