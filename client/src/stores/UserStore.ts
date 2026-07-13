@@ -22,6 +22,7 @@ export const userSlice = createSlice({
     myStatus: 'present' as 'present' | 'away' | 'focus' | 'break',
     myAwayMessage: '',
     playerStatusMap: new Map<string, { status: string; awayMessage: string }>(),
+    playerHandRaisedMap: new Map<string, boolean>(),
     avatarName: 'adam',
     playerName: '',
   },
@@ -71,6 +72,12 @@ export const userSlice = createSlice({
     removePlayerStatus: (state, action: PayloadAction<string>) => {
       state.playerStatusMap.delete(sanitizeId(action.payload))
     },
+    setPlayerHandRaised: (state, action: PayloadAction<{ id: string; handRaised: boolean }>) => {
+      state.playerHandRaisedMap.set(sanitizeId(action.payload.id), action.payload.handRaised)
+    },
+    removePlayerHandRaised: (state, action: PayloadAction<string>) => {
+      state.playerHandRaisedMap.delete(sanitizeId(action.payload))
+    },
     setAvatarName: (state, action: PayloadAction<string>) => {
       state.avatarName = action.payload
     },
@@ -91,6 +98,8 @@ export const {
   setMyStatus,
   setPlayerStatus,
   removePlayerStatus,
+  setPlayerHandRaised,
+  removePlayerHandRaised,
   setAvatarName,
   setPlayerName,
 } = userSlice.actions

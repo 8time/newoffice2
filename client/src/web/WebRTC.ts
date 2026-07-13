@@ -328,6 +328,9 @@ export default class WebRTC {
         if (this.replaceInvalidId(key) === peerId) {
           isVideoOff = p.isVideoOff
           isAudioMuted = p.isAudioMuted
+          // 挙手バッジ表示のため、Reduxのplayer(hand raised)マップと突き合わせられるよう実際のsessionIdを紐付けておく
+          const wrapperEl = video.parentElement
+          if (wrapperEl) wrapperEl.dataset.sessionId = key
         }
       })
     }

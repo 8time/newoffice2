@@ -1090,6 +1090,7 @@ export default function MeetingRoomOverlay() {
   const myPlayerName = useAppSelector((state) => state.user.playerName) || 'あなた'
   const myAvatarName = useAppSelector((state) => state.user.avatarName) || 'adam'
   const videoConnected = useAppSelector((state) => state.user.videoConnected)
+  const playerHandRaisedMap = useAppSelector((state) => state.user.playerHandRaisedMap)
 
   const peerContainerRef = useRef<HTMLDivElement>(null)
   const [videoState, setVideoState] = useState<VideoState>({
@@ -1142,12 +1143,41 @@ export default function MeetingRoomOverlay() {
     return () => observer.disconnect()
   }, [activeRoom, videoConnected])
 
+  // 相手のカメラカードに挙手バッジを表示（WebRTCがDOMを直接構築しているため直接操作する）
+  useEffect(() => {
+    const container = peerContainerRef.current
+    if (!container) return
+    const wrappers = container.querySelectorAll<HTMLDivElement>('.peer-video-wrapper[data-session-id]')
+    wrappers.forEach((wrapper) => {
+      const peerSessionId = wrapper.dataset.sessionId
+      const raised = !!(peerSessionId && playerHandRaisedMap.get(peerSessionId))
+      let badge = wrapper.querySelector<HTMLDivElement>('.peer-hand-badge')
+      if (raised) {
+        if (!badge) {
+          badge = document.createElement('div')
+          badge.className = 'peer-hand-badge'
+          badge.innerText = '✋'
+          badge.style.position = 'absolute'
+          badge.style.top = '8px'
+          badge.style.left = '10px'
+          badge.style.fontSize = '22px'
+          badge.style.zIndex = '10'
+          badge.style.filter = 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))'
+          wrapper.appendChild(badge)
+        }
+      } else if (badge) {
+        badge.remove()
+      }
+    })
+  }, [playerHandRaisedMap, activeRoom])
+
   if (!activeRoom) return null
 
   const myName = myPlayerName
-  const members = Array.from(playerNameMap.values())
+  const members = Array.from(playerNameMap.entries())
 
   const leaveRoom = () => {
+    setHandRaised(false)
     dispatch(clearActiveMeetingRoom())
     phaserEvents.emit(PhaserEvent.MEETING_ROOM_EXIT)
   }
@@ -1201,10 +1231,11 @@ export default function MeetingRoomOverlay() {
       {/* 参加者パネル */}
       <MembersPanel open={showMembers}>
         <PanelTitle>参加者 ({members.length}人)</PanelTitle>
-        {members.map((name) => (
-          <MemberItem key={name}>
+        {members.map(([memberSessionId, name]) => (
+          <MemberItem key={memberSessionId}>
             <GreenDot />
             {name}
+            {playerHandRaisedMap.get(memberSessionId) && ' ✋'}
           </MemberItem>
         ))}
       </MembersPanel>
@@ -1242,7 +1273,14 @@ export default function MeetingRoomOverlay() {
         {/* 手を挙げる・参加者 */}
         <BarGroup>
           <Tooltip title={handRaised ? '手を下ろす' : '手を挙げる'}>
-            <CtrlBtn isOff={handRaised} onClick={() => setHandRaised((v) => !v)}>
+            <CtrlBtn
+              isOff={handRaised}
+              onClick={() => {
+                const next = !handRaised
+                setHandRaised(next)
+                getNetwork()?.raiseHand(next)
+              }}
+            >
               <PanToolIcon />
               <span className="clabel">手を挙げる</span>
             </CtrlBtn>

@@ -6,7 +6,15 @@ import { ItemType } from '../../../types/Items'
 import WebRTC from '../web/WebRTC'
 import { phaserEvents, Event } from '../events/EventCenter'
 import store from '../stores'
-import { setSessionId, setPlayerNameMap, removePlayerNameMap, setPlayerStatus, removePlayerStatus } from '../stores/UserStore'
+import {
+  setSessionId,
+  setPlayerNameMap,
+  removePlayerNameMap,
+  setPlayerStatus,
+  removePlayerStatus,
+  setPlayerHandRaised,
+  removePlayerHandRaised,
+} from '../stores/UserStore'
 import {
   setLobbyJoined,
   setJoinedRoomData,
@@ -126,6 +134,11 @@ export default class Network {
               awayMessage: player.awayMessage,
             }))
           }
+
+          // 挙手状態の変化をストアに反映
+          if (field === 'handRaised') {
+            store.dispatch(setPlayerHandRaised({ id: key, handRaised: player.handRaised }))
+          }
         })
       }
     }
@@ -138,6 +151,7 @@ export default class Network {
       store.dispatch(pushPlayerLeftMessage(player.name))
       store.dispatch(removePlayerNameMap(key))
       store.dispatch(removePlayerStatus(key))
+      store.dispatch(removePlayerHandRaised(key))
     }
 
     // new instance added to the computers MapSchema
@@ -431,6 +445,10 @@ export default class Network {
 
   updateMeetingRoomId(meetingRoomId: string) {
     this.room?.send(Message.UPDATE_MEETING_ROOM_ID, { meetingRoomId })
+  }
+
+  raiseHand(handRaised: boolean) {
+    this.room?.send(Message.RAISE_HAND, { handRaised })
   }
 
   sendMeetingWhiteboardUpdate(roomId: string, payload: unknown) {

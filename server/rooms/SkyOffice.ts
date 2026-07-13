@@ -575,6 +575,16 @@ export class SkyOffice extends Room<OfficeState> {
       const player = this.state.players.get(client.sessionId)
       if (player) {
         player.meetingRoomId = message.meetingRoomId || ''
+        // 入室・退室のたびに挙手状態はリセットする
+        player.handRaised = false
+      }
+    })
+
+    // 挙手のトグル（会議室にいる間のみ有効）
+    this.onMessage(Message.RAISE_HAND, (client, message: { handRaised: boolean }) => {
+      const player = this.state.players.get(client.sessionId)
+      if (player && player.meetingRoomId) {
+        player.handRaised = !!message.handRaised
       }
     })
 

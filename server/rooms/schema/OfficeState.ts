@@ -21,6 +21,7 @@ export class Player extends Schema implements IPlayer {
   @type('string') status = 'present'      // 'present' | 'away'
   @type('string') awayMessage = ''         // 離席理由
   @type('string') meetingRoomId = ''       // 入室中のミーティングルームID（空なら未入室）
+  @type('boolean') handRaised = false      // 会議室で手を挙げているか
 }
 
 export class Computer extends Schema implements IComputer {
