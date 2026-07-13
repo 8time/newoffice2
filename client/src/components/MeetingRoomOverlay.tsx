@@ -1091,6 +1091,8 @@ export default function MeetingRoomOverlay() {
   const myAvatarName = useAppSelector((state) => state.user.avatarName) || 'adam'
   const videoConnected = useAppSelector((state) => state.user.videoConnected)
   const playerHandRaisedMap = useAppSelector((state) => state.user.playerHandRaisedMap)
+  const playerMeetingRoomMap = useAppSelector((state) => state.user.playerMeetingRoomMap)
+  const playerAudioMutedMap = useAppSelector((state) => state.user.playerAudioMutedMap)
 
   const peerContainerRef = useRef<HTMLDivElement>(null)
   const [videoState, setVideoState] = useState<VideoState>({
@@ -1174,7 +1176,11 @@ export default function MeetingRoomOverlay() {
   if (!activeRoom) return null
 
   const myName = myPlayerName
-  const members = Array.from(playerNameMap.entries())
+  // この会議室に入室中の他プレイヤーのみを参加者として扱う（オフィス全体の人数ではない）
+  const otherMembersInRoom = Array.from(playerNameMap.entries()).filter(
+    ([memberSessionId]) => playerMeetingRoomMap.get(memberSessionId) === activeRoom.id
+  )
+  const members = [[sessionId, myName] as [string, string], ...otherMembersInRoom]
 
   const leaveRoom = () => {
     setHandRaised(false)
@@ -1231,13 +1237,20 @@ export default function MeetingRoomOverlay() {
       {/* 参加者パネル */}
       <MembersPanel open={showMembers}>
         <PanelTitle>参加者 ({members.length}人)</PanelTitle>
-        {members.map(([memberSessionId, name]) => (
-          <MemberItem key={memberSessionId}>
-            <GreenDot />
-            {name}
-            {playerHandRaisedMap.get(memberSessionId) && ' ✋'}
-          </MemberItem>
-        ))}
+        {members.map(([memberSessionId, name]) => {
+          const isMe = memberSessionId === sessionId
+          const isMuted = isMe ? videoState.isAudioMuted : !!playerAudioMutedMap.get(memberSessionId)
+          const isHandRaised = isMe ? handRaised : !!playerHandRaisedMap.get(memberSessionId)
+          return (
+            <MemberItem key={memberSessionId}>
+              <GreenDot />
+              {isMuted && '🔇 '}
+              {name}
+              {isMe && '（自分）'}
+              {isHandRaised && ' ✋'}
+            </MemberItem>
+          )
+        })}
       </MembersPanel>
 
       {/* 下部コントロールバー */}

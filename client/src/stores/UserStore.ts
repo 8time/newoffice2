@@ -23,6 +23,8 @@ export const userSlice = createSlice({
     myAwayMessage: '',
     playerStatusMap: new Map<string, { status: string; awayMessage: string }>(),
     playerHandRaisedMap: new Map<string, boolean>(),
+    playerMeetingRoomMap: new Map<string, string>(),
+    playerAudioMutedMap: new Map<string, boolean>(),
     avatarName: 'adam',
     playerName: '',
   },
@@ -78,6 +80,18 @@ export const userSlice = createSlice({
     removePlayerHandRaised: (state, action: PayloadAction<string>) => {
       state.playerHandRaisedMap.delete(sanitizeId(action.payload))
     },
+    setPlayerMeetingRoomId: (state, action: PayloadAction<{ id: string; meetingRoomId: string }>) => {
+      state.playerMeetingRoomMap.set(sanitizeId(action.payload.id), action.payload.meetingRoomId)
+    },
+    removePlayerMeetingRoomId: (state, action: PayloadAction<string>) => {
+      state.playerMeetingRoomMap.delete(sanitizeId(action.payload))
+    },
+    setPlayerAudioMuted: (state, action: PayloadAction<{ id: string; isAudioMuted: boolean }>) => {
+      state.playerAudioMutedMap.set(sanitizeId(action.payload.id), action.payload.isAudioMuted)
+    },
+    removePlayerAudioMuted: (state, action: PayloadAction<string>) => {
+      state.playerAudioMutedMap.delete(sanitizeId(action.payload))
+    },
     setAvatarName: (state, action: PayloadAction<string>) => {
       state.avatarName = action.payload
     },
@@ -100,6 +114,10 @@ export const {
   removePlayerStatus,
   setPlayerHandRaised,
   removePlayerHandRaised,
+  setPlayerMeetingRoomId,
+  removePlayerMeetingRoomId,
+  setPlayerAudioMuted,
+  removePlayerAudioMuted,
   setAvatarName,
   setPlayerName,
 } = userSlice.actions

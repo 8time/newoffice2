@@ -14,6 +14,10 @@ import {
   removePlayerStatus,
   setPlayerHandRaised,
   removePlayerHandRaised,
+  setPlayerMeetingRoomId,
+  removePlayerMeetingRoomId,
+  setPlayerAudioMuted,
+  removePlayerAudioMuted,
 } from '../stores/UserStore'
 import {
   setLobbyJoined,
@@ -139,6 +143,16 @@ export default class Network {
           if (field === 'handRaised') {
             store.dispatch(setPlayerHandRaised({ id: key, handRaised: player.handRaised }))
           }
+
+          // 入室中のミーティングルームIDの変化をストアに反映
+          if (field === 'meetingRoomId') {
+            store.dispatch(setPlayerMeetingRoomId({ id: key, meetingRoomId: player.meetingRoomId }))
+          }
+
+          // マイクミュート状態の変化をストアに反映
+          if (field === 'isAudioMuted') {
+            store.dispatch(setPlayerAudioMuted({ id: key, isAudioMuted: player.isAudioMuted }))
+          }
         })
       }
     }
@@ -152,6 +166,8 @@ export default class Network {
       store.dispatch(removePlayerNameMap(key))
       store.dispatch(removePlayerStatus(key))
       store.dispatch(removePlayerHandRaised(key))
+      store.dispatch(removePlayerMeetingRoomId(key))
+      store.dispatch(removePlayerAudioMuted(key))
     }
 
     // new instance added to the computers MapSchema
