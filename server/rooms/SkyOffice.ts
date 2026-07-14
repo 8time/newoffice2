@@ -470,15 +470,26 @@ export class SkyOffice extends Room<OfficeState> {
       Message.MEETING_WHITEBOARD_SYNC,
       (client, message: { roomId: string; payload: any }) => {
         if (!message.roomId || !message.payload) return
-        // クライアントは画像(files)を未送信分の差分のみ送ってくる。
-        // スナップショットは常に全量を持つ必要があるため、既存のfilesとマージして保存する。
+        // クライアントは画像(files)だけでなく要素(elements)も「前回同期以降に変化した分」だけを
+        // 差分で送ってくる。スナップショットは常に全量を持つ必要があるため、
+        // 既存のfiles・elementsの両方とidベースでマージして保存する。
         const prev = this.meetingWhiteboardSnapshots.get(message.roomId) as any
         const prevFiles = (prev && typeof prev === 'object' && prev.files) || {}
+        const prevElements: any[] = (prev && typeof prev === 'object' && Array.isArray(prev.elements)) ? prev.elements : []
         const incomingFiles = (message.payload.files && typeof message.payload.files === 'object') ? message.payload.files : {}
-        const mergedPayload = { ...message.payload, files: { ...prevFiles, ...incomingFiles } }
+        const incomingElements: any[] = Array.isArray(message.payload.elements) ? message.payload.elements : []
+
+        const mergedElementsMap = new Map<string, any>(prevElements.map((el) => [el.id, el]))
+        incomingElements.forEach((el) => { if (el && el.id) mergedElementsMap.set(el.id, el) })
+
+        const mergedPayload = {
+          ...message.payload,
+          elements: Array.from(mergedElementsMap.values()),
+          files: { ...prevFiles, ...incomingFiles },
+        }
         this.meetingWhiteboardSnapshots.set(message.roomId, mergedPayload)
         this.scheduleWhiteboardSave()
-        // 他クライアントへは差分payloadのまま転送する（受信側は既に過去のfilesを保持している）
+        // 他クライアントへは差分payloadのまま転送する（受信側は既に過去のfiles・elementsを保持している）
         this.broadcastToMeetingRoom(
           message.roomId,
           Message.MEETING_WHITEBOARD_SYNC,

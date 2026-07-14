@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react'
 import { createGlobalStyle } from 'styled-components'
-import { Excalidraw, reconcileElements } from '@excalidraw/excalidraw'
+import { Excalidraw, reconcileElements, CaptureUpdateAction } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
 
 import phaserGame from '../PhaserGame'
@@ -123,10 +123,16 @@ function getNetwork() {
 
 export default function CollaborativeWhiteboard({ roomId }: { roomId: string }) {
   const apiRef = useRef<any>(null)
-  const applyingRemote = useRef(false)
   const pendingPayload = useRef<any>(null)
   const sendTimer = useRef<number>()
   const storageKey = `${STORAGE_PREFIX}${roomId}`
+
+  // 各要素の「最後にサーバーと同期がとれたバージョン」。id -> version。
+  // 送信時はこれと差分がある要素だけを送り、受信時はリモートが採用された要素をここに記録する。
+  // これによりエコー（受け取ったばかりの内容を自分の変更として送り返してしまうこと）を防ぐ。
+  // 以前はrequestAnimationFrameで解除する真偽値フラグを使っていたが、Excalidrawの
+  // onChangeはthrottleされておりrAFより後に発火することがあるため確実に機能しなかった。
+  const lastSyncedVersions = useRef<Map<string, number>>(new Map())
 
   // 画像ファイルを累積管理
   const filesRef = useRef<Record<string, any>>({})
@@ -156,7 +162,6 @@ export default function CollaborativeWhiteboard({ roomId }: { roomId: string }) 
   useEffect(() => {
     const handler = (remoteRoomId: string, payload: any) => {
       if (remoteRoomId !== roomId || !apiRef.current) return
-      applyingRemote.current = true
       if (payload.files && typeof payload.files === 'object') {
         filesRef.current = { ...filesRef.current, ...payload.files }
         Object.keys(payload.files).forEach((id) => sentFileIds.current.add(id))
@@ -166,11 +171,25 @@ export default function CollaborativeWhiteboard({ roomId }: { roomId: string }) 
       }
       // 全置換ではなく、id/version/versionNonceで両者をマージする
       // （Excalidraw公式コラボ実装と同じreconcileElementsを使用。同時編集で片方の描画が消えるのを防ぐ）
+      const remoteElements = payload.elements || []
       const localElements = apiRef.current.getSceneElementsIncludingDeleted()
-      const reconciled = reconcileElements(localElements, payload.elements || [], apiRef.current.getAppState())
+      const reconciled = reconcileElements(localElements, remoteElements, apiRef.current.getAppState())
+
+      // リモートの内容が採用された要素だけを「同期済み」として記録する。
+      // ローカルの方が新しくreconcile側がローカルを残した要素は、まだ自分からサーバーへ
+      // 送っていない（送信待ちの）可能性があるため、ここではマークしない。
+      const remoteVersionById = new Map(remoteElements.map((el: any) => [el.id, el.version]))
+      reconciled.forEach((el: any) => {
+        if (remoteVersionById.get(el.id) === el.version) {
+          lastSyncedVersions.current.set(el.id, el.version)
+        }
+      })
+
+      // captureUpdate: NEVER を指定し、リモート由来の変更が自分のUndo履歴に積まれないようにする
       apiRef.current.updateScene({
         elements: reconciled,
         appState: payload.appState || {},
+        captureUpdate: CaptureUpdateAction.NEVER,
       })
       try {
         localStorage.setItem(
@@ -178,7 +197,6 @@ export default function CollaborativeWhiteboard({ roomId }: { roomId: string }) 
           JSON.stringify({ elements: reconciled, appState: payload.appState || {}, files: filesRef.current })
         )
       } catch {}
-      window.requestAnimationFrame(() => { applyingRemote.current = false })
     }
     phaserEvents.on(PhaserEvent.MEETING_WHITEBOARD_REMOTE_UPDATE, handler)
     getNetwork()?.requestMeetingWhiteboardSnapshot(roomId)
@@ -194,7 +212,10 @@ export default function CollaborativeWhiteboard({ roomId }: { roomId: string }) 
     sendTimer.current = window.setTimeout(() => {
       if (pendingPayload.current) {
         getNetwork()?.sendMeetingWhiteboardUpdate(roomId, pendingPayload.current)
-        // 今回送信した画像はsent済みとして記録し、以後は再送しない
+        // 今回送信した要素・画像は同期済みとして記録し、リモートからのエコーで再送しない
+        ;(pendingPayload.current.elements || []).forEach((el: any) => {
+          lastSyncedVersions.current.set(el.id, el.version)
+        })
         Object.keys(pendingPayload.current.files || {}).forEach((id) => sentFileIds.current.add(id))
         pendingNewFiles.current = {}
       }
@@ -204,7 +225,6 @@ export default function CollaborativeWhiteboard({ roomId }: { roomId: string }) 
   }
 
   const handleChange = (elements: readonly any[], appState: any, newFiles: any) => {
-    if (applyingRemote.current) return
     // onChangeのfiles引数は不安定なため、APIからも確実に画像ファイルを取得して同期する
     const apiFiles = apiRef.current?.getFiles?.()
     if (apiFiles && typeof apiFiles === 'object') {
@@ -218,20 +238,31 @@ export default function CollaborativeWhiteboard({ roomId }: { roomId: string }) 
       if (!sentFileIds.current.has(id)) pendingNewFiles.current[id] = file
     })
 
-    // 要素はreconcileElementsで同時編集を解消するため、常に全量を送ってよい
-    const payload = {
-      elements,
-      appState: { viewBackgroundColor: appState.viewBackgroundColor, theme: appState.theme, gridSize: appState.gridSize },
-      files: pendingNewFiles.current,
-      updatedAt: Date.now(),
-    }
-    // ローカルキャッシュには画像を全量含めて保存する（再読み込み時に復元するため）
+    // 前回サーバーと同期がとれたバージョンから変化した要素だけを送る。
+    // これにより「リモート更新を受けてupdateSceneした結果、onChangeが再発火して
+    // 同じ内容を送り返してしまう」エコーを防ぐ（変化なしなら空になり送信対象から外れる）。
+    const changedElements = elements.filter(
+      (el: any) => lastSyncedVersions.current.get(el.id) !== el.version
+    )
+
+    // ローカルキャッシュには画像・全要素を保存する（再読み込み時に復元するため）
+    const appStateToSync = { viewBackgroundColor: appState.viewBackgroundColor, theme: appState.theme, gridSize: appState.gridSize }
     try {
       localStorage.setItem(
         storageKey,
-        JSON.stringify({ elements, appState: payload.appState, files: filesRef.current })
+        JSON.stringify({ elements, appState: appStateToSync, files: filesRef.current })
       )
     } catch {}
+
+    // 変化した要素も新規画像もなければ送信しない（エコー・無駄な送信の防止）
+    if (changedElements.length === 0 && Object.keys(pendingNewFiles.current).length === 0) return
+
+    const payload = {
+      elements: changedElements,
+      appState: appStateToSync,
+      files: pendingNewFiles.current,
+      updatedAt: Date.now(),
+    }
     scheduleSync(payload)
   }
 
