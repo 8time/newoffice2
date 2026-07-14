@@ -112,6 +112,7 @@ const WhiteboardArea = styled.div`
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  position: relative;
 `
 
 /* ──── タブバー ──────────────────────────────────────────────────────────── */
@@ -205,6 +206,22 @@ const AddTabBtn = styled.button`
     background: rgba(0,0,0,0.12);
     color: #333;
   }
+`
+
+// 他の人がタブを切り替えたことを一時的に知らせるバナー
+const SwitchNoticeBar = styled.div`
+  position: absolute;
+  top: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(20, 20, 35, 0.9);
+  color: #fff;
+  font-size: 14px;
+  padding: 8px 20px;
+  border-radius: 20px;
+  z-index: 20;
+  pointer-events: none;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
 `
 
 const WhiteboardPane = styled.div`
@@ -697,6 +714,9 @@ function WhiteboardWithDoc({ roomId }: { roomId: string }) {
   const [activeTabId, setActiveTabId] = useState<string>(tabs[0]?.id ?? 'tab_default')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
+  // 他の人がタブを切り替えたことを一時的に知らせる通知（「◯◯さんが議題2に切り替えました」）
+  const [switchNotice, setSwitchNotice] = useState<string | null>(null)
+  const switchNoticeTimer = useRef<number>()
 
   const [docWidth, setDocWidth] = useState(420)
   const dragging = useRef(false)
@@ -728,20 +748,46 @@ function WhiteboardWithDoc({ roomId }: { roomId: string }) {
     }
   }, [roomId, editingId])
 
+  // 「今みんなが見ているタブ」をサーバーに送る（自分の操作による切り替え時に呼ぶ）
+  const switchTab = useCallback((id: string) => {
+    setActiveTabId(id)
+    getNetwork()?.sendMeetingActiveTabUpdate(roomId, id)
+  }, [roomId])
+
+  // 他の人のタブ切り替えを受信し、自分の画面も追従させる
+  useEffect(() => {
+    const handler = (remoteRoomId: string, tabId: string, byName: string) => {
+      if (remoteRoomId !== roomId || !tabId) return
+      setActiveTabId(tabId)
+      if (byName) {
+        const tabName = tabs.find((t) => t.id === tabId)?.name || tabId
+        setSwitchNotice(`${byName}さんが${tabName}に切り替えました`)
+        if (switchNoticeTimer.current) window.clearTimeout(switchNoticeTimer.current)
+        switchNoticeTimer.current = window.setTimeout(() => setSwitchNotice(null), 2500)
+      }
+    }
+    phaserEvents.on(PhaserEvent.MEETING_ACTIVE_TAB_REMOTE_UPDATE, handler)
+    getNetwork()?.requestMeetingActiveTab(roomId)
+    return () => {
+      phaserEvents.off(PhaserEvent.MEETING_ACTIVE_TAB_REMOTE_UPDATE, handler)
+      if (switchNoticeTimer.current) window.clearTimeout(switchNoticeTimer.current)
+    }
+  }, [roomId, tabs])
+
   const addTab = () => {
     const id = `tab_${Date.now()}`
     const name = `議題${tabs.length + 1}`
     const color = TAB_COLORS[tabs.length % TAB_COLORS.length]
     const next = [...tabs, { id, name, color }]
     persistTabs(next)
-    setActiveTabId(id)
+    switchTab(id)
   }
 
   const removeTab = (id: string) => {
     if (tabs.length <= 1) return
     const next = tabs.filter((t) => t.id !== id)
     persistTabs(next)
-    if (activeTabId === id) setActiveTabId(next[0].id)
+    if (activeTabId === id) switchTab(next[0].id)
   }
 
   const startEdit = (tab: WBTab) => {
@@ -786,13 +832,14 @@ function WhiteboardWithDoc({ roomId }: { roomId: string }) {
 
   return (
     <>
+      {switchNotice && <SwitchNoticeBar>{switchNotice}</SwitchNoticeBar>}
       <TabBarWrap>
         {tabs.map((tab) => (
           <TabItem
             key={tab.id}
             active={tab.id === activeTabId}
             $tabColor={tab.color}
-            onClick={() => { if (editingId !== tab.id) setActiveTabId(tab.id) }}
+            onClick={() => { if (editingId !== tab.id) switchTab(tab.id) }}
             onDoubleClick={() => startEdit(tab)}
           >
             {editingId === tab.id ? (

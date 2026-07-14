@@ -243,6 +243,8 @@ export class SkyOffice extends Room<OfficeState> {
   private meetingDocSnapshots = new Map<string, string>()
   private docSaveTimer?: NodeJS.Timeout
   private meetingTabsSnapshots = new Map<string, unknown>()
+  // 会議室ID → 現在みんなが見ているタブID（全員で同じ板を見るため。永続化はしない）
+  private meetingActiveTabs = new Map<string, string>()
   private currentJukeboxState = {
     index: -1,
     status: 'stopped',
@@ -566,6 +568,33 @@ export class SkyOffice extends Room<OfficeState> {
         const tabs = this.meetingTabsSnapshots.get(message.roomId)
         if (tabs !== undefined) {
           client.send(Message.MEETING_TABS_SYNC, { roomId: message.roomId, tabs })
+        }
+      }
+    )
+
+    // 会議室で「今みんなが見ているタブ」を同期（全員が同じ板を見るため）
+    this.onMessage(
+      Message.MEETING_ACTIVE_TAB_SYNC,
+      (client, message: { roomId: string; tabId: string }) => {
+        if (!message.roomId || typeof message.tabId !== 'string') return
+        const tabId = message.tabId.slice(0, 100)
+        this.meetingActiveTabs.set(message.roomId, tabId)
+        const byName = this.state.players.get(client.sessionId)?.name || ''
+        this.broadcastToMeetingRoom(
+          message.roomId,
+          Message.MEETING_ACTIVE_TAB_SYNC,
+          { roomId: message.roomId, tabId, byName },
+          client
+        )
+      }
+    )
+
+    this.onMessage(
+      Message.REQUEST_MEETING_ACTIVE_TAB,
+      (client, message: { roomId: string }) => {
+        const tabId = this.meetingActiveTabs.get(message.roomId)
+        if (tabId !== undefined) {
+          client.send(Message.MEETING_ACTIVE_TAB_SYNC, { roomId: message.roomId, tabId, byName: '' })
         }
       }
     )

@@ -309,6 +309,10 @@ export default class Network {
       phaserEvents.emit(Event.MEETING_TABS_REMOTE_UPDATE, roomId, tabs)
     })
 
+    this.room.onMessage(Message.MEETING_ACTIVE_TAB_SYNC, ({ roomId, tabId, byName }) => {
+      phaserEvents.emit(Event.MEETING_ACTIVE_TAB_REMOTE_UPDATE, roomId, tabId, byName)
+    })
+
     this.room.onMessage(Message.JUKEBOX_SYNC, (message) => {
       phaserEvents.emit('network-jukebox-sync', message)
     })
@@ -482,6 +486,14 @@ export default class Network {
 
   requestMeetingTabsSnapshot(roomId: string) {
     this.room?.send(Message.REQUEST_MEETING_TABS_SNAPSHOT, { roomId })
+  }
+
+  sendMeetingActiveTabUpdate(roomId: string, tabId: string) {
+    this.room?.send(Message.MEETING_ACTIVE_TAB_SYNC, { roomId, tabId })
+  }
+
+  requestMeetingActiveTab(roomId: string) {
+    this.room?.send(Message.REQUEST_MEETING_ACTIVE_TAB, { roomId })
   }
 
   addSignboard(data: { x: number; y: number; text: string; image: string; url: string; bgColor?: string; textColor?: string; scale?: number }) {
