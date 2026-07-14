@@ -25,6 +25,7 @@ export const userSlice = createSlice({
     playerHandRaisedMap: new Map<string, boolean>(),
     playerMeetingRoomMap: new Map<string, string>(),
     playerAudioMutedMap: new Map<string, boolean>(),
+    playerScreenSharingMap: new Map<string, boolean>(),
     avatarName: 'adam',
     playerName: '',
   },
@@ -92,6 +93,12 @@ export const userSlice = createSlice({
     removePlayerAudioMuted: (state, action: PayloadAction<string>) => {
       state.playerAudioMutedMap.delete(sanitizeId(action.payload))
     },
+    setPlayerScreenSharing: (state, action: PayloadAction<{ id: string; isScreenSharing: boolean }>) => {
+      state.playerScreenSharingMap.set(sanitizeId(action.payload.id), action.payload.isScreenSharing)
+    },
+    removePlayerScreenSharing: (state, action: PayloadAction<string>) => {
+      state.playerScreenSharingMap.delete(sanitizeId(action.payload))
+    },
     setAvatarName: (state, action: PayloadAction<string>) => {
       state.avatarName = action.payload
     },
@@ -118,6 +125,8 @@ export const {
   removePlayerMeetingRoomId,
   setPlayerAudioMuted,
   removePlayerAudioMuted,
+  setPlayerScreenSharing,
+  removePlayerScreenSharing,
   setAvatarName,
   setPlayerName,
 } = userSlice.actions

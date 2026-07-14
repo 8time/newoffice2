@@ -115,6 +115,40 @@ const WhiteboardArea = styled.div`
   position: relative;
 `
 
+/* ──── 画面共有／ホワイトボード切り替えバー ─────────────────────────────── */
+const ScreenShareToggleBar = styled.div`
+  display: flex;
+  gap: 4px;
+  background: #2a2a2a;
+  padding: 8px 16px;
+  flex-shrink: 0;
+`
+
+const ScreenShareToggleBtn = styled.button<{ active: boolean }>`
+  padding: 8px 20px;
+  border-radius: 8px;
+  border: 2px solid ${({ active }) => (active ? '#42a5f5' : 'transparent')};
+  background: ${({ active }) => (active ? '#1e3a5f' : 'transparent')};
+  color: #eee;
+  font-size: 14px;
+  font-weight: ${({ active }) => (active ? '700' : '400')};
+  cursor: pointer;
+
+  &:hover { background: #1e3a5f; }
+`
+
+const ScreenShareView = styled.div`
+  flex: 1;
+  min-height: 0;
+  background: #111;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+
+  video { max-width: 100%; max-height: 100%; }
+`
+
 /* ──── タブバー ──────────────────────────────────────────────────────────── */
 
 const TabBarWrap = styled.div`
@@ -892,13 +926,16 @@ export default function MeetingRoomOverlay() {
   const playerHandRaisedMap = useAppSelector((state) => state.user.playerHandRaisedMap)
   const playerMeetingRoomMap = useAppSelector((state) => state.user.playerMeetingRoomMap)
   const playerAudioMutedMap = useAppSelector((state) => state.user.playerAudioMutedMap)
+  const playerScreenSharingMap = useAppSelector((state) => state.user.playerScreenSharingMap)
 
   const peerContainerRef = useRef<HTMLDivElement>(null)
+  const screenShareContainerRef = useRef<HTMLDivElement>(null)
   const [videoState, setVideoState] = useState<VideoState>({
     isAudioMuted: false, isVideoOff: false, isSharingScreen: false, hasStream: false,
   })
   const [handRaised, setHandRaised] = useState(false)
   const [showMembers, setShowMembers] = useState(false)
+  const [showScreenShareView, setShowScreenShareView] = useState(false)
 
   useEffect(() => {
     const rtc = getWebRTC()
@@ -969,13 +1006,43 @@ export default function MeetingRoomOverlay() {
     })
   }, [playerHandRaisedMap, activeRoom])
 
+  // この会議室に入室中の他プレイヤーのみを参加者として扱う（オフィス全体の人数ではない）
+  const otherMembersInRoom = activeRoom
+    ? Array.from(playerNameMap.entries()).filter(
+        ([memberSessionId]) => playerMeetingRoomMap.get(memberSessionId) === activeRoom.id
+      )
+    : []
+
+  // 会議室内で画面共有中の相手（自分以外）
+  const remoteScreenSharerId = otherMembersInRoom.find(([sid]) => playerScreenSharingMap.get(sid))?.[0] ?? null
+  const remoteScreenSharerName = remoteScreenSharerId ? (playerNameMap.get(remoteScreenSharerId) || '相手') : null
+  const isSomeoneSharing = !!remoteScreenSharerId || videoState.isSharingScreen
+
+  // 誰かが共有を始めたら自動で共有画面ビューに切り替え、共有が終わったらホワイトボードへ戻す
+  useEffect(() => {
+    setShowScreenShareView(isSomeoneSharing)
+  }, [isSomeoneSharing])
+
+  // 相手の共有画面を大きな表示エリアへ移動する（既存のピア映像要素をreparentするだけ）
+  useEffect(() => {
+    if (!remoteScreenSharerId || !showScreenShareView) return
+    const container = screenShareContainerRef.current
+    if (!container) return
+    getWebRTC()?.mountScreenShareVideo(remoteScreenSharerId, container)
+    return () => {
+      getWebRTC()?.unmountScreenShareVideo(remoteScreenSharerId)
+    }
+  }, [remoteScreenSharerId, showScreenShareView])
+
+  // 自分が共有中のときは自分の画面プレビューを表示する
+  useEffect(() => {
+    if (!videoState.isSharingScreen || !showScreenShareView || remoteScreenSharerId) return
+    getWebRTC()?.attachLocalScreenPreview('meeting-screen-share-self-mount')
+  }, [videoState.isSharingScreen, showScreenShareView, remoteScreenSharerId])
+
   if (!activeRoom) return null
 
   const myName = myPlayerName
-  // この会議室に入室中の他プレイヤーのみを参加者として扱う（オフィス全体の人数ではない）
-  const otherMembersInRoom = Array.from(playerNameMap.entries()).filter(
-    ([memberSessionId]) => playerMeetingRoomMap.get(memberSessionId) === activeRoom.id
-  )
   const members = [[sessionId, myName] as [string, string], ...otherMembersInRoom]
 
   const leaveRoom = () => {
@@ -998,9 +1065,29 @@ export default function MeetingRoomOverlay() {
     <Shell>
       {handRaised && <HandBadge>✋ 手を挙げています</HandBadge>}
 
-      {/* 左上：ドキュメント＋ホワイトボード */}
+      {/* 左上：ドキュメント＋ホワイトボード、または共有画面 */}
       <WhiteboardArea>
-        <WhiteboardWithDoc roomId={activeRoom.id} />
+        {isSomeoneSharing && (
+          <ScreenShareToggleBar>
+            <ScreenShareToggleBtn active={!showScreenShareView} onClick={() => setShowScreenShareView(false)}>
+              ホワイトボード
+            </ScreenShareToggleBtn>
+            <ScreenShareToggleBtn active={showScreenShareView} onClick={() => setShowScreenShareView(true)}>
+              🖥️ 共有画面（{remoteScreenSharerName ? `${remoteScreenSharerName}さん` : '自分'}）
+            </ScreenShareToggleBtn>
+          </ScreenShareToggleBar>
+        )}
+        {showScreenShareView ? (
+          <ScreenShareView>
+            {remoteScreenSharerId ? (
+              <div ref={screenShareContainerRef} style={{ width: '100%', height: '100%' }} />
+            ) : (
+              <div id="meeting-screen-share-self-mount" style={{ width: '100%', height: '100%' }} />
+            )}
+          </ScreenShareView>
+        ) : (
+          <WhiteboardWithDoc roomId={activeRoom.id} />
+        )}
       </WhiteboardArea>
 
       {/* 右上：カメラ列（縦積み） */}

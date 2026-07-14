@@ -88,6 +88,49 @@ export default class WebRTC {
     if (this.activeMountTarget === container) this.activeMountTarget = null
   }
 
+  // ─── 画面共有の大きな表示（会議室） ────────────────────────────────────────
+
+  // 画面共有トラックは既存のピア映像要素（wrapper）にreplaceTrackで差し替わっているだけなので、
+  // 新しいvideo要素を作らず、既存のwrapperを大きな表示用コンテナへ移動する。
+  mountScreenShareVideo(peerSessionId: string, container: HTMLElement) {
+    const sanitizedId = this.replaceInvalidId(peerSessionId)
+    const peer = this.peers.get(sanitizedId) || this.onCalledPeers.get(sanitizedId)
+    if (peer && peer.wrapper.parentElement !== container) {
+      peer.wrapper.style.width = '100%'
+      peer.wrapper.style.height = '100%'
+      container.appendChild(peer.wrapper)
+    }
+  }
+
+  // 通常のカメラ列（登録済みのマウント先）へ映像を戻す
+  unmountScreenShareVideo(peerSessionId: string) {
+    const sanitizedId = this.replaceInvalidId(peerSessionId)
+    const peer = this.peers.get(sanitizedId) || this.onCalledPeers.get(sanitizedId)
+    if (peer && this.activeMountTarget && peer.wrapper.parentElement !== this.activeMountTarget) {
+      peer.wrapper.style.width = ''
+      peer.wrapper.style.height = ''
+      this.activeMountTarget.appendChild(peer.wrapper)
+    }
+  }
+
+  // 自分が画面共有中のとき、自分のプレビューを表示する（通常のmyVideoはカメラのままなので別要素を使う）
+  attachLocalScreenPreview(containerId: string) {
+    const mount = document.getElementById(containerId)
+    if (!mount || !this.screenStream) return
+    let video = mount.querySelector('video') as HTMLVideoElement | null
+    if (!video) {
+      video = document.createElement('video')
+      video.style.width = '100%'
+      video.style.height = '100%'
+      video.style.objectFit = 'contain'
+      video.muted = true
+      mount.appendChild(video)
+    }
+    video.srcObject = this.screenStream
+    video.playsInline = true
+    video.play().catch(() => undefined)
+  }
+
   // ピアビデオの受け皿（WebRTCのDOMアペンド先 → VideoOverlayのMutationObserverが監視）
   private get videoGrid() {
     return document.getElementById('webrtc-video-source')
@@ -443,6 +486,22 @@ export default class WebRTC {
 
   // ─── 画面共有 ────────────────────────────────────────────────────────────────
 
+  // 接続中の全ピア（自分からcallした相手・相手からcallされた相手の両方）の映像トラックを差し替える。
+  // 以前はthis.peers（自分からcallした相手）にしか適用しておらず、相手から先に呼ばれた場合は
+  // 画面共有が一切届かなかった（片方向のみ成功する不具合）。
+  private replaceVideoTrackForAllPeers(track: MediaStreamTrack | null) {
+    const applyTo = (map: Map<string, { call: Peer.MediaConnection; video: HTMLVideoElement; wrapper: HTMLDivElement }>) => {
+      map.forEach(({ call }) => {
+        const sender = (call.peerConnection as RTCPeerConnection)
+          .getSenders()
+          .find((s) => s.track?.kind === 'video')
+        if (sender) sender.replaceTrack(track)
+      })
+    }
+    applyTo(this.peers)
+    applyTo(this.onCalledPeers)
+  }
+
   async startScreenShare() {
     if (this.isSharingScreen) return
     try {
@@ -454,18 +513,14 @@ export default class WebRTC {
 
       // 接続中の全ピアに画面共有ストリームを送信
       const screenTrack = this.screenStream.getVideoTracks()[0]
-      this.peers.forEach(({ call }) => {
-        const sender = (call.peerConnection as RTCPeerConnection)
-          .getSenders()
-          .find((s) => s.track?.kind === 'video')
-        if (sender) sender.replaceTrack(screenTrack)
-      })
+      this.replaceVideoTrackForAllPeers(screenTrack)
 
       screenTrack.onended = () => {
         this.stopScreenShare()
       }
 
       this.updateButtonLabels()
+      this.network.updateScreenSharing(true)
       this.notifyVideoState()
     } catch (err) {
       console.error('[WebRTC] 画面共有開始失敗:', err)
@@ -473,21 +528,17 @@ export default class WebRTC {
   }
 
   stopScreenShare() {
-    if (!this.isSharingScreen || !this.myStream) return
+    if (!this.isSharingScreen) return
     this.isSharingScreen = false
 
-    // カメラストリームに戻す
-    const cameraTrack = this.myStream.getVideoTracks()[0]
-    this.peers.forEach(({ call }) => {
-      const sender = (call.peerConnection as RTCPeerConnection)
-        .getSenders()
-        .find((s) => s.track?.kind === 'video')
-      if (sender && cameraTrack) sender.replaceTrack(cameraTrack)
-    })
+    // カメラストリームに戻す（カメラ未取得の場合はトラックなしに戻す）
+    const cameraTrack = this.myStream?.getVideoTracks()[0] ?? null
+    this.replaceVideoTrackForAllPeers(cameraTrack)
 
     this.screenStream?.getTracks().forEach((t) => t.stop())
     this.screenStream = undefined
     this.updateButtonLabels()
+    this.network.updateScreenSharing(false)
     this.notifyVideoState()
   }
 

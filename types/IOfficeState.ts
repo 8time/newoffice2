@@ -13,6 +13,7 @@ export interface IPlayer extends Schema {
   awayMessage: string  // 離席理由
   meetingRoomId: string // 入室中のミーティングルームID（空なら未入室）
   handRaised: boolean   // 会議室で手を挙げているか
+  isScreenSharing: boolean // 画面共有中か
 }
 
 export interface IComputer extends Schema {

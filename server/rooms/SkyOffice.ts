@@ -427,6 +427,11 @@ export class SkyOffice extends Room<OfficeState> {
       }
     })
 
+    this.onMessage(Message.UPDATE_SCREEN_SHARING, (client, message: { isScreenSharing: boolean }) => {
+      const player = this.state.players.get(client.sessionId)
+      if (player) player.isScreenSharing = !!message.isScreenSharing
+    })
+
     this.onMessage(Message.READY_TO_CONNECT, (client) => {
       const player = this.state.players.get(client.sessionId)
       if (player) player.readyToConnect = true

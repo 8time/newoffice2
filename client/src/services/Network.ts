@@ -18,6 +18,8 @@ import {
   removePlayerMeetingRoomId,
   setPlayerAudioMuted,
   removePlayerAudioMuted,
+  setPlayerScreenSharing,
+  removePlayerScreenSharing,
 } from '../stores/UserStore'
 import {
   setLobbyJoined,
@@ -152,6 +154,11 @@ export default class Network {
           if (field === 'isAudioMuted') {
             store.dispatch(setPlayerAudioMuted({ id: key, isAudioMuted: player.isAudioMuted }))
           }
+
+          // 画面共有状態の変化をストアに反映
+          if (field === 'isScreenSharing') {
+            store.dispatch(setPlayerScreenSharing({ id: key, isScreenSharing: player.isScreenSharing }))
+          }
         })
       }
     }
@@ -167,6 +174,7 @@ export default class Network {
       store.dispatch(removePlayerHandRaised(key))
       store.dispatch(removePlayerMeetingRoomId(key))
       store.dispatch(removePlayerAudioMuted(key))
+      store.dispatch(removePlayerScreenSharing(key))
     }
 
     // new instance added to the computers MapSchema
@@ -403,6 +411,10 @@ export default class Network {
   // method to send media status to Colyseus server
   updateMediaStatus(isVideoOff: boolean, isAudioMuted: boolean) {
     this.room?.send(Message.UPDATE_MEDIA_STATUS, { isVideoOff, isAudioMuted })
+  }
+
+  updateScreenSharing(isScreenSharing: boolean) {
+    this.room?.send(Message.UPDATE_SCREEN_SHARING, { isScreenSharing })
   }
 
   // method to send ready-to-connect signal to Colyseus server
