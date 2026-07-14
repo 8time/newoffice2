@@ -417,6 +417,11 @@ export default class Network {
     this.room?.send(Message.UPDATE_SCREEN_SHARING, { isScreenSharing })
   }
 
+  // 他プレイヤーの同期済み状態を参照する（WebRTC側でカメラOFF/画面共有の表示判定に使う）
+  getPlayerState(sessionId: string): IPlayer | undefined {
+    return this.room?.state.players.get(sessionId)
+  }
+
   // method to send ready-to-connect signal to Colyseus server
   readyToConnect() {
     this.room?.send(Message.READY_TO_CONNECT)

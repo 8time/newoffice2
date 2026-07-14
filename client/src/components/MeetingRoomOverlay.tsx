@@ -1073,7 +1073,7 @@ export default function MeetingRoomOverlay() {
               ホワイトボード
             </ScreenShareToggleBtn>
             <ScreenShareToggleBtn active={showScreenShareView} onClick={() => setShowScreenShareView(true)}>
-              🖥️ 共有画面（{remoteScreenSharerName ? `${remoteScreenSharerName}さん` : '自分'}）
+              🖥️ 共有画面（{remoteScreenSharerName || '自分'}）
             </ScreenShareToggleBtn>
           </ScreenShareToggleBar>
         )}

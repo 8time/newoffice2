@@ -95,18 +95,29 @@ export default class WebRTC {
   mountScreenShareVideo(peerSessionId: string, container: HTMLElement) {
     const sanitizedId = this.replaceInvalidId(peerSessionId)
     const peer = this.peers.get(sanitizedId) || this.onCalledPeers.get(sanitizedId)
-    if (peer && peer.wrapper.parentElement !== container) {
+    if (!peer) return
+    if (peer.wrapper.parentElement !== container) {
       peer.wrapper.style.width = '100%'
       peer.wrapper.style.height = '100%'
       container.appendChild(peer.wrapper)
     }
+    // カメラOFFのアバターが被さっていると共有画面が見えないため、必ず映像を表示する
+    this.applyVideoFallback(peer.video, false)
+    // 共有画面は切り取らずに全体を見せる（カメラ映像のcoverだと端が切れる）
+    peer.video.style.objectFit = 'contain'
+    peer.video.style.transform = 'none' // カメラ用の左右反転を解除
   }
 
   // 通常のカメラ列（登録済みのマウント先）へ映像を戻す
   unmountScreenShareVideo(peerSessionId: string) {
     const sanitizedId = this.replaceInvalidId(peerSessionId)
     const peer = this.peers.get(sanitizedId) || this.onCalledPeers.get(sanitizedId)
-    if (peer && this.activeMountTarget && peer.wrapper.parentElement !== this.activeMountTarget) {
+    if (!peer) return
+    peer.video.style.objectFit = 'cover'
+    peer.video.style.transform = 'scaleX(-1)'
+    const isVideoOff = this.network.getPlayerState(peerSessionId)?.isVideoOff ?? false
+    this.applyVideoFallback(peer.video, this.isPeerVideoHidden(peerSessionId, isVideoOff))
+    if (this.activeMountTarget && peer.wrapper.parentElement !== this.activeMountTarget) {
       peer.wrapper.style.width = ''
       peer.wrapper.style.height = ''
       this.activeMountTarget.appendChild(peer.wrapper)
@@ -158,14 +169,36 @@ export default class WebRTC {
     phaserEvents.on(Event.PLAYER_UPDATED, this.handlePlayerUpdated, this)
   }
 
+  // 相手が画面共有中かどうか（sessionIdベース）。画面共有はカメラのvideoトラックを
+  // 差し替える形で届くため、相手がカメラOFFだとアバターのフォールバックが被さって
+  // 共有画面が見えなくなる。共有中はカメラのON/OFFに関わらず映像を表示する必要がある。
+  private peerScreenSharing = new Set<string>()
+
+  private isPeerVideoHidden(sessionId: string, isVideoOff: boolean) {
+    return isVideoOff && !this.peerScreenSharing.has(sessionId)
+  }
+
   private handlePlayerUpdated(field: string, value: any, key: string) {
+    if (field === 'isScreenSharing') {
+      const sanitizedId = this.replaceInvalidId(key)
+      const peer = this.peers.get(sanitizedId) || this.onCalledPeers.get(sanitizedId)
+      if (value) this.peerScreenSharing.add(key)
+      else this.peerScreenSharing.delete(key)
+      if (peer) {
+        // 共有開始時は必ず映像を出し、共有終了時は相手のカメラ状態に従って戻す
+        const isVideoOff = this.network.getPlayerState(key)?.isVideoOff ?? false
+        this.applyVideoFallback(peer.video, this.isPeerVideoHidden(key, isVideoOff))
+      }
+      return
+    }
+
     if (field === 'isVideoOff') {
       console.log(`[WebRTC] Peer ${key} camera toggled to: ${value}`)
       const sanitizedId = this.replaceInvalidId(key)
       const peer = this.peers.get(sanitizedId) || this.onCalledPeers.get(sanitizedId)
       if (peer) {
         console.log(`[WebRTC] Applying video fallback for peer ${sanitizedId}`)
-        this.applyVideoFallback(peer.video, value as boolean)
+        this.applyVideoFallback(peer.video, this.isPeerVideoHidden(key, value as boolean))
       } else {
         console.warn(`[WebRTC] Peer ${sanitizedId} not found in maps!`)
       }
@@ -374,6 +407,7 @@ export default class WebRTC {
 
     let isVideoOff = false
     let isAudioMuted = false
+    let peerSessionId = ''
     // @ts-ignore
     if (this.network?.room) {
       // @ts-ignore
@@ -381,6 +415,8 @@ export default class WebRTC {
         if (this.replaceInvalidId(key) === peerId) {
           isVideoOff = p.isVideoOff
           isAudioMuted = p.isAudioMuted
+          peerSessionId = key
+          if (p.isScreenSharing) this.peerScreenSharing.add(key)
           // 挙手バッジ表示のため、Reduxのplayer(hand raised)マップと突き合わせられるよう実際のsessionIdを紐付けておく
           const wrapperEl = video.parentElement
           if (wrapperEl) wrapperEl.dataset.sessionId = key
@@ -388,8 +424,8 @@ export default class WebRTC {
       })
     }
 
-    // カメラがOFFの場合のアバター画像を表示
-    this.applyVideoFallback(video, isVideoOff)
+    // カメラOFFならアバターを表示する。ただし相手が画面共有中は共有映像を隠さない
+    this.applyVideoFallback(video, this.isPeerVideoHidden(peerSessionId, isVideoOff))
     this.updatePeerStatusIcons(peerId, isVideoOff, isAudioMuted)
 
     video.addEventListener('loadedmetadata', () => {
