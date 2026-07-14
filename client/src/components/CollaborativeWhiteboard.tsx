@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react'
 import { createGlobalStyle } from 'styled-components'
-import { Excalidraw, reconcileElements, CaptureUpdateAction } from '@excalidraw/excalidraw'
+import { Excalidraw, CaptureUpdateAction } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
 
 import phaserGame from '../PhaserGame'
@@ -125,6 +125,41 @@ const LOCAL_SAVE_INTERVAL_MS = 1000
 function getNetwork() {
   const game = phaserGame.scene.keys.game as Game
   return game?.network
+}
+
+// ─── 要素のマージ（自前実装） ─────────────────────────────────────────────────
+// Excalidrawが公開しているreconcileElementsは使えない。あれは内部で
+// validateFractionalIndices(shouldThrow: DEV) を呼んでおり、要素の並び順キー（index）が
+// 重複していると開発モードで例外を投げてしまう。
+// ところがindexの重複は複数人利用では日常的に起きる：各クライアントは自分の最初の要素に
+// 独立して "a0" を振るため、それらをサーバーがidでマージした瞬間に必ず衝突する。
+// 例外が出ると受信ハンドラごと停止し、相手の描画が一切反映されない。しかもこの検証は
+// 1分間スロットルされるため「たまに同期する/たまにしない」という不安定な症状になる。
+//
+// そこで衝突判定だけを自前で行う（ルールは公式と同一：versionが大きい方を採用し、
+// 同点ならversionNonceが小さい方を採用する）。indexの正規化はupdateScene側が行ってくれる。
+function mergeElements(localElements: readonly any[], remoteElements: readonly any[]): any[] {
+  const localById = new Map<string, any>(localElements.map((el) => [el.id, el]))
+  const merged: any[] = []
+  const taken = new Set<string>()
+
+  for (const remote of remoteElements) {
+    if (!remote?.id || taken.has(remote.id)) continue
+    const local = localById.get(remote.id)
+    const keepLocal =
+      !!local &&
+      (local.version > remote.version ||
+        (local.version === remote.version && local.versionNonce < remote.versionNonce))
+    merged.push(keepLocal ? local : remote)
+    taken.add(remote.id)
+  }
+  for (const local of localElements) {
+    if (!taken.has(local.id)) {
+      merged.push(local)
+      taken.add(local.id)
+    }
+  }
+  return merged
 }
 
 // ─── 画像のHTTP転送 ───────────────────────────────────────────────────────────
@@ -274,11 +309,10 @@ export default function CollaborativeWhiteboard({ roomId }: { roomId: string }) 
           })
         }
       }
-      // 全置換ではなく、id/version/versionNonceで両者をマージする
-      // （Excalidraw公式コラボ実装と同じreconcileElementsを使用。同時編集で片方の描画が消えるのを防ぐ）
+      // 全置換ではなく、id/version/versionNonceで両者をマージする（同時編集で片方の描画が消えるのを防ぐ）
       const remoteElements = payload.elements || []
       const localElements = apiRef.current.getSceneElementsIncludingDeleted()
-      const reconciled = reconcileElements(localElements, remoteElements, apiRef.current.getAppState())
+      const reconciled = mergeElements(localElements, remoteElements)
 
       // リモートの内容が採用された要素だけを「同期済み」として記録する。
       // ローカルの方が新しくreconcile側がローカルを残した要素は、まだ自分からサーバーへ
@@ -403,6 +437,10 @@ export default function CollaborativeWhiteboard({ roomId }: { roomId: string }) 
       initialData={initialData}
       excalidrawAPI={(api) => {
         apiRef.current = api
+        // 開発時のみ、E2Eテストからシーンの中身を検証できるように公開する
+        if (import.meta.env.DEV) {
+          ;(window as any).__excalidrawApiForTest = api
+        }
       }}
       onChange={handleChange}
       // マウント時にフォーカスを取得しないとテキストツール等でキー入力が効かない

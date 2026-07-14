@@ -791,10 +791,14 @@ export class SkyOffice extends Room<OfficeState> {
       })
       return
     }
+    // ホワイトボードやメモのチャンネルIDは "<会議室ID>__<タブID>" 形式でタブごとに分かれるが、
+    // プレイヤーが持つmeetingRoomIdは会議室IDだけ。完全一致で比較すると誰にも配信されなくなるため、
+    // "__" より前の会議室IDで在室判定する。
+    const meetingRoomId = roomId.split('__')[0]
     this.clients.forEach((cli) => {
       if (cli === exceptClient) return
       const player = this.state.players.get(cli.sessionId)
-      if (player && player.meetingRoomId === roomId) cli.send(type, payload)
+      if (player && player.meetingRoomId === meetingRoomId) cli.send(type, payload)
     })
   }
 

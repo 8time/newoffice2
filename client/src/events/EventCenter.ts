@@ -2,6 +2,11 @@ import Phaser from 'phaser'
 
 export const phaserEvents = new Phaser.Events.EventEmitter()
 
+// 開発時のみ、E2Eテストから同期イベントを観測できるように公開する
+if (import.meta.env.DEV) {
+  ;(window as any).__phaserEvents = phaserEvents
+}
+
 export enum Event {
   PLAYER_JOINED = 'player-joined',
   PLAYER_UPDATED = 'player-updated',

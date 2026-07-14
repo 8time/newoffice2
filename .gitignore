@@ -5,3 +5,4 @@ node_modules
 /server/lib
 signboards.json
 /server/uploads/
+_e2e_out/
