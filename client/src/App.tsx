@@ -17,6 +17,7 @@ import PredictionBoardDialog from './components/PredictionBoardDialog'
 import SignboardDialog from './components/SignboardDialog'
 import KnockNotification from './components/KnockNotification'
 import SignboardDeleteConfirm from './components/SignboardDeleteConfirm'
+import ExitConfirmDialog from './components/ExitConfirmDialog'
 import SignboardEditDialog from './components/SignboardEditDialog'
 import EmotePanel from './components/EmotePanel'
 import VideoOverlay from './components/VideoOverlay'
@@ -193,6 +194,9 @@ function App() {
 
       {/* 看板削除確認ダイアログ */}
       {loggedIn && <SignboardDeleteConfirm />}
+
+      {/* 退社確認ダイアログ */}
+      {loggedIn && <ExitConfirmDialog />}
 
       {/* 看板編集ダイアログ */}
       {loggedIn && editBoard && <SignboardEditDialog />}

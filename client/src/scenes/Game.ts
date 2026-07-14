@@ -33,6 +33,7 @@ import {
   setMeetingRoomEntrance,
 } from '../stores/MapBuilderStore'
 import { setActiveMeetingRoom, clearActiveMeetingRoom } from '../stores/MeetingRoomStore'
+import { openExitDialog } from '../stores/UiStore'
 import { NavKeys, Keyboard } from '../../../types/KeyboardState'
 import { phaserEvents, Event } from '../events/EventCenter'
 
@@ -92,6 +93,7 @@ export default class Game extends Phaser.Scene {
   private dragStartY = 0
   private isDragging = false
   private hasAskedExit = false
+  private exitZoneBounds?: Phaser.Geom.Rectangle
 
   constructor() {
     super('game')
@@ -243,6 +245,14 @@ export default class Game extends Phaser.Scene {
 
     const exitZone = this.add.zone(exitX, exitY, exitZoneWidth, exitZoneHeight)
     this.physics.add.existing(exitZone, true)
+    // 出口ゾーンの矩形を保持し、update()で「ゾーンを離れたか」を毎フレーム判定するのに使う
+    // （overlapコールバックのタイマーリセットだと、ゾーンに立ち続けている間ダイアログが再表示されてしまうため）
+    this.exitZoneBounds = new Phaser.Geom.Rectangle(
+      exitX - exitZoneWidth / 2,
+      exitY - exitZoneHeight / 2,
+      exitZoneWidth,
+      exitZoneHeight
+    )
 
     // ゾーンがどこにあるか見えやすいように、床に半透明のマーカーを描画
     const exitMarker = this.add.graphics()
@@ -1042,26 +1052,17 @@ export default class Game extends Phaser.Scene {
 
   private handleExitZone() {
     if (this.hasAskedExit) return
-    
-    // 一度尋ねたら、再度尋ねないようにフラグを立てる
+
+    // 一度尋ねたら、ゾーンを離れるまで再度尋ねないようにフラグを立てる
+    // （フラグの解除はupdate()でゾーンとの重なりが外れたときに行う。10秒タイマーは使わない）
     this.hasAskedExit = true
-    
+
     // キャラクターの移動をピタッと止める
     this.myPlayer.body.setVelocity(0, 0)
-    
-    // 描画が止まらないよう少し遅らせてconfirmを出す
-    setTimeout(() => {
-      if (window.confirm('退社しますか？')) {
-        // 退出する場合はページをリロード（最初の画面に戻る）
-        window.location.reload()
-      } else {
-        // 退出しない場合、少しの間（10秒）は再度聞かれないようにする。
-        // これにより入り口付近を自由に歩けるようになる。
-        setTimeout(() => {
-          this.hasAskedExit = false
-        }, 10000)
-      }
-    }, 50)
+
+    // window.confirm()はメインスレッドをブロックし、その間に離されたキーのkeyupが
+    // Phaserに届かずキー入力が固着する不具合があったため、Reactの非ブロッキングダイアログに置き換えた
+    store.dispatch(openExitDialog())
   }
 
   // function to add new player to the otherPlayer group
@@ -1197,7 +1198,13 @@ export default class Game extends Phaser.Scene {
     if (this.myPlayer && this.network) {
       this.playerSelector.update(this.myPlayer, this.cursors)
       this.myPlayer.update(this.playerSelector, this.cursors, this.keyE, this.keyR, this.network)
-      
+
+      // 出口ゾーンを実際に離れたら、再度尋ねられるようフラグを戻す
+      if (this.hasAskedExit && this.exitZoneBounds) {
+        const stillInZone = Phaser.Geom.Rectangle.Overlaps(this.myPlayer.getBounds(), this.exitZoneBounds)
+        if (!stillInZone) this.hasAskedExit = false
+      }
+
       // Yソートの適用 (プレイヤーとプレイヤーコンテナ)
       this.myPlayer.setDepth(this.myPlayer.y)
       if (this.myPlayer.playerContainer) {
