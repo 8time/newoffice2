@@ -19,6 +19,8 @@ import Game from '../scenes/Game'
 import { useAppDispatch, useAppSelector } from '../hooks'
 import { MessageType, FileAttachment, setFocused, setShowChat, pushFileMessage } from '../stores/ChatStore'
 import { playChatSound } from '../util/sound'
+import { resolveServerUrl } from '../services/serverUrl'
+import ChatMessageContent from './ChatMessageContent'
 
 // ─── 吹き出し色パレット（3色ループ） ─────────────────────────────────────────
 // 話者が現れた順に割り当て、4人目から①に戻る
@@ -247,6 +249,11 @@ const FilePreviewWrapper = styled.div`
     display: inline-block; background: #1e7e34; color: #fff;
     padding: 4px 10px; border-radius: 4px; font-size: 13px; margin-top: 4px;
   }
+
+  .pdf-preview {
+    width: 240px; height: 200px; border: 1px solid #ccc;
+    border-radius: 6px; background: #fff; display: block; margin-bottom: 6px;
+  }
 `
 
 const FullScreenViewer = styled.div`
@@ -398,9 +405,15 @@ function FilePreview({ file, textColor }: { file: FileAttachment; textColor: str
         </div>
       )}
       {isPDF && (
-        <a className="excel-badge" style={{ background: '#d32f2f' }} href={file.url} target="_blank" rel="noopener noreferrer">
-          PDFを開く（別タブ）
-        </a>
+        <>
+          {/* data: URLはブラウザが別タブで開けないため、サーバー配信のURLのときだけ埋め込む */}
+          {!file.url.startsWith('data:') && (
+            <iframe className="pdf-preview" src={file.url} title={file.name} />
+          )}
+          <a className="excel-badge" style={{ background: '#d32f2f' }} href={file.url} target="_blank" rel="noopener noreferrer">
+            PDFを開く（別タブ）
+          </a>
+        </>
       )}
       {isExcel && (
         <a className="excel-badge" href={file.url} target="_blank" rel="noopener noreferrer">
@@ -464,7 +477,7 @@ function Message({ chatMessage, messageType, file, colorIndex, myName, sessionId
             {messageType === MessageType.FILE_MESSAGE && file ? (
               <FilePreview file={file} textColor="#111" />
             ) : (
-              chatMessage.content
+              <ChatMessageContent content={chatMessage.content} />
             )}
           </Bubble>
           <MetaContainer isMine={isMine}>
@@ -482,31 +495,41 @@ function Message({ chatMessage, messageType, file, colorIndex, myName, sessionId
 // ドラッグ対象として有効なMIMEタイプ
 const DROPPABLE_TYPES = /^(image\/|video\/|audio\/|application\/pdf)/
 
-// 送信可能な最大ファイルサイズ（base64化で約1.37倍になる。サーバのmaxPayloadと整合させること）
-const MAX_FILE_SIZE = 25 * 1024 * 1024 // 25MB
+// 送信可能な最大ファイルサイズ（サーバーの /api/files の上限と揃えること）
+const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
 
-// ファイルをbase64 data URLとして読み込み、ローカル表示＋全員へ送信する。
-// blob: URL は生成元ブラウザでしか開けないため、相手に届けるには data URL 化が必須。
-function readAndSendFile(file: File, myName: string, dispatch: any) {
+// ファイルをサーバーへアップロードし、WebSocketにはURLだけを流す。
+// 以前はbase64のdata URLをWebSocketに乗せていたが、これには2つの問題があった：
+//   1. 数MBが1メッセージになり、転送中はチャットや移動など他の同期が全部詰まる
+//   2. ブラウザは data: URL へのトップレベル遷移をブロックするため、PDF等を
+//      「別タブで開く」ことがサイズに関係なく永久にできない
+async function readAndSendFile(file: File, myName: string, dispatch: any) {
   if (file.size > MAX_FILE_SIZE) {
     alert(`ファイルが大きすぎて送信できません（最大 ${MAX_FILE_SIZE / 1024 / 1024}MB）: ${file.name}`)
     return
   }
-  const reader = new FileReader()
-  reader.onload = () => {
+
+  const id = `file_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+  try {
+    const form = new FormData()
+    form.append('file', file, file.name)
+    const res = await fetch(resolveServerUrl('/api/files'), { method: 'POST', body: form })
+    if (!res.ok) throw new Error(`upload failed: ${res.status}`)
+    const json = await res.json()
+
     const attachment: FileAttachment = {
       name: file.name,
-      type: file.type || 'application/octet-stream',
-      url: reader.result as string,
+      type: file.type || json.type || 'application/octet-stream',
+      url: resolveServerUrl(json.url),
       size: file.size,
     }
-    // 一意IDを付与し、受信側での重複表示を防ぐ
-    const id = `file_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
     dispatch(pushFileMessage({ author: myName, file: attachment, id }))
     const game = phaserGame.scene.keys.game as Game
     game.network.sendFileMessage(attachment, id)
+  } catch (e) {
+    console.error('[Chat] ファイルのアップロードに失敗:', e)
+    alert(`ファイルの送信に失敗しました: ${file.name}`)
   }
-  reader.readAsDataURL(file)
 }
 
 function processDroppedFiles(files: FileList, myName: string, dispatch: any) {
