@@ -348,6 +348,9 @@ export default class Game extends Phaser.Scene {
     // クリックとドラッグを区別するための移動しきい値（看板の誤ドラッグ防止）
     this.input.dragDistanceThreshold = 6
 
+    // 何もない場所を右クリックすると、そのワールド座標を表示する（マップ調整・座標調べ用）
+    this.input.on('pointerdown', this.handleInspectCoordinate, this)
+
     // Signboard event listeners（全員同期）
     phaserEvents.on(Event.SIGNBOARD_ADDED, this.handleSignboardAdded, this)
     phaserEvents.on(Event.SIGNBOARD_REMOVED, this.handleSignboardRemoved, this)
@@ -359,6 +362,7 @@ export default class Game extends Phaser.Scene {
 
     this.events.once('destroy', () => {
       this.game.canvas.removeEventListener('contextmenu', this.preventCanvasContextMenu)
+      this.input.off('pointerdown', this.handleInspectCoordinate, this)
       phaserEvents.off(Event.JUKEBOX_PLAY, this.handleJukeboxPlay, this)
       phaserEvents.off(Event.JUKEBOX_PAUSE, this.handleJukeboxPause, this)
       phaserEvents.off(Event.JUKEBOX_STOP, this.handleJukeboxStop, this)
@@ -609,6 +613,7 @@ export default class Game extends Phaser.Scene {
     children.forEach((c) => container.add(c))
     container.setSize(cardW, cardH)
     container.setScale(signScale)
+    container.setData('signboardId', data.id)
     container.setData('cardW', cardW)
     container.setData('cardH', cardH)
     container.setData('offsetY', OFFSET_Y)
@@ -1054,6 +1059,60 @@ export default class Game extends Phaser.Scene {
     // set selected item and set up new dialog
     playerSelector.selectedItem = selectionItem
     selectionItem.onOverlapDialog()
+  }
+
+  // 何もない場所での右クリックで、その地点のワールド座標を表示する。
+  // 看板や設置物の上での右クリックは削除に使われているため、そこでは何もしない。
+  private handleInspectCoordinate(pointer: Phaser.Input.Pointer) {
+    if (!pointer.rightButtonDown()) return
+    // 看板の設置中・会議室入口の指定中は、右クリックがキャンセル操作なので邪魔しない
+    if (this.isPlacingSignboard || this.isPickingMeetingEntrance) return
+    // 看板・設置物の上なら、そちらの右クリック（削除）を優先する
+    const hit = this.input.hitTestPointer(pointer)
+    if (hit.some((go) => go.getData('builderId') || go.getData('signboardId'))) return
+
+    const wp = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
+    const x = Math.round(wp.x)
+    const y = Math.round(wp.y)
+    const tileX = Math.floor(wp.x / TILE_SIZE)
+    const tileY = Math.floor(wp.y / TILE_SIZE)
+
+    this.showCoordinateMarker(x, y, tileX, tileY)
+
+    // 座標をクリップボードへ入れて、そのままメモや設定に貼り付けられるようにする
+    navigator.clipboard?.writeText(`${x}, ${y}`).catch(() => undefined)
+  }
+
+  private showCoordinateMarker(x: number, y: number, tileX: number, tileY: number) {
+    const marker = this.add.container(x, y).setDepth(30000)
+
+    const cross = this.add.graphics()
+    cross.lineStyle(2, 0x00e5ff, 1)
+    cross.strokeCircle(0, 0, 7)
+    cross.lineBetween(-14, 0, -4, 0)
+    cross.lineBetween(4, 0, 14, 0)
+    cross.lineBetween(0, -14, 0, -4)
+    cross.lineBetween(0, 4, 0, 14)
+
+    const label = this.add.text(0, -22, `x: ${x}, y: ${y}\nタイル: ${tileX}, ${tileY}\n（コピーしました）`, {
+      fontSize: '13px',
+      color: '#ffffff',
+      backgroundColor: '#000000cc',
+      padding: { x: 6, y: 4 },
+      align: 'center',
+    })
+    label.setOrigin(0.5, 1)
+
+    marker.add([cross, label])
+
+    // 3秒かけてフェードアウトさせ、自動で消す
+    this.tweens.add({
+      targets: marker,
+      alpha: 0,
+      delay: 2200,
+      duration: 800,
+      onComplete: () => marker.destroy(),
+    })
   }
 
   private handleExitZone() {
