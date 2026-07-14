@@ -1,6 +1,7 @@
 import http from 'http'
 import express from 'express'
 import cors from 'cors'
+import multer from 'multer'
 import { Server, LobbyRoom } from 'colyseus'
 import { WebSocketTransport } from '@colyseus/ws-transport'
 import { monitor } from '@colyseus/monitor'
@@ -102,6 +103,92 @@ app.post('/api/mission', (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Failed to save mission' })
   }
+})
+
+// ─── ファイルアップロードAPI ──────────────────────────────────────────────────
+// ホワイトボードの画像・チャットの添付ファイルをHTTPで送受信するための置き場。
+// 大きなbase64をWebSocketに乗せるとメッセージの直列化と順番待ちで
+// オフィス全体の同期（移動・チャット含む）までラグが波及するため、
+// ファイル本体はHTTP・WebSocketにはURLだけ、という分担にする。
+
+const UPLOADS_DIR = path.join(__dirname, 'uploads')
+const UPLOADS_INDEX = path.join(UPLOADS_DIR, 'index.json')
+const MAX_UPLOAD_SIZE = 50 * 1024 * 1024 // 50MB
+
+interface UploadRecord {
+  name: string
+  type: string
+  size: number
+  created: number
+}
+
+function loadUploadIndex(): Record<string, UploadRecord> {
+  try {
+    if (fs.existsSync(UPLOADS_INDEX)) {
+      return JSON.parse(fs.readFileSync(UPLOADS_INDEX, 'utf-8'))
+    }
+  } catch {}
+  return {}
+}
+
+function saveUploadIndex(index: Record<string, UploadRecord>) {
+  try {
+    fs.writeFileSync(UPLOADS_INDEX, JSON.stringify(index), 'utf-8')
+  } catch (e) {
+    console.error('[Files] index保存失敗:', e)
+  }
+}
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_UPLOAD_SIZE },
+})
+
+app.post('/api/files', upload.single('file'), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'file is required' })
+    if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true })
+
+    const id = `f_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+    fs.writeFileSync(path.join(UPLOADS_DIR, id), req.file.buffer)
+
+    const index = loadUploadIndex()
+    index[id] = {
+      name: (req.file.originalname || 'file').slice(0, 300),
+      type: req.file.mimetype || 'application/octet-stream',
+      size: req.file.size,
+      created: Date.now(),
+    }
+    saveUploadIndex(index)
+
+    res.json({ id, url: `/files/${id}`, name: index[id].name, type: index[id].type, size: index[id].size })
+  } catch (e) {
+    console.error('[Files] アップロード失敗:', e)
+    res.status(500).json({ error: 'upload failed' })
+  }
+})
+
+app.get('/files/:id', (req, res) => {
+  const id = req.params.id
+  // idはサーバー生成の英数字のみ。パストラバーサルを防ぐため厳密に検証する
+  if (!/^[a-zA-Z0-9_]+$/.test(id)) return res.status(400).end()
+  const filePath = path.join(UPLOADS_DIR, id)
+  if (!fs.existsSync(filePath)) return res.status(404).end()
+
+  const meta = loadUploadIndex()[id]
+  const type = meta?.type || 'application/octet-stream'
+  // HTML/SVGをinlineで返すと保存ファイル経由のXSSが可能になるため必ずダウンロード扱いにする
+  const forceAttachment = /text\/html|image\/svg\+xml/i.test(type)
+  const encodedName = encodeURIComponent(meta?.name || id)
+
+  res.setHeader('Content-Type', type)
+  res.setHeader(
+    'Content-Disposition',
+    `${forceAttachment ? 'attachment' : 'inline'}; filename*=UTF-8''${encodedName}`
+  )
+  // idは一意で内容が変わらないため、強くキャッシュさせる（再入室時の画像再取得を無くす）
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+  res.sendFile(filePath)
 })
 
 // 知識DB API（馬データ・調査結果）
