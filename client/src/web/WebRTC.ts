@@ -92,36 +92,40 @@ export default class WebRTC {
 
   // 画面共有トラックは既存のピア映像要素（wrapper）にreplaceTrackで差し替わっているだけなので、
   // 新しいvideo要素を作らず、既存のwrapperを大きな表示用コンテナへ移動する。
+  // 相手の共有画面を大きく表示する。カメラ列にある相手のタイルは動かさずそのまま残し、
+  // 同じストリームを参照する別のvideo要素を大きい表示エリアに作る
+  // （以前はタイルごと移動していたため、カメラ列から相手のアイコンが消えていた）。
+  // 音声はカメラ列のタイル側が再生するので、こちらはミュートして二重再生を防ぐ。
   mountScreenShareVideo(peerSessionId: string, container: HTMLElement) {
     const sanitizedId = this.replaceInvalidId(peerSessionId)
     const peer = this.peers.get(sanitizedId) || this.onCalledPeers.get(sanitizedId)
     if (!peer) return
-    if (peer.wrapper.parentElement !== container) {
-      peer.wrapper.style.width = '100%'
-      peer.wrapper.style.height = '100%'
-      container.appendChild(peer.wrapper)
+    const stream = peer.video.srcObject as MediaStream | null
+    if (!stream) return
+
+    let video = container.querySelector('video') as HTMLVideoElement | null
+    if (!video) {
+      video = document.createElement('video')
+      video.style.width = '100%'
+      video.style.height = '100%'
+      video.style.objectFit = 'contain' // 共有画面は切り取らず全体を見せる
+      video.playsInline = true
+      video.muted = true
+      container.appendChild(video)
     }
-    // カメラOFFのアバターが被さっていると共有画面が見えないため、必ず映像を表示する
+    if (video.srcObject !== stream) video.srcObject = stream
+    video.play().catch(() => undefined)
+
+    // カメラOFFのアバターが被さっていると共有画面が見えないため、タイル側も映像を表示する
     this.applyVideoFallback(peer.video, false)
-    // 共有画面は切り取らずに全体を見せる（カメラ映像のcoverだと端が切れる）
-    peer.video.style.objectFit = 'contain'
-    peer.video.style.transform = 'none' // カメラ用の左右反転を解除
   }
 
-  // 通常のカメラ列（登録済みのマウント先）へ映像を戻す
   unmountScreenShareVideo(peerSessionId: string) {
     const sanitizedId = this.replaceInvalidId(peerSessionId)
     const peer = this.peers.get(sanitizedId) || this.onCalledPeers.get(sanitizedId)
     if (!peer) return
-    peer.video.style.objectFit = 'cover'
-    peer.video.style.transform = 'scaleX(-1)'
     const isVideoOff = this.network.getPlayerState(peerSessionId)?.isVideoOff ?? false
     this.applyVideoFallback(peer.video, this.isPeerVideoHidden(peerSessionId, isVideoOff))
-    if (this.activeMountTarget && peer.wrapper.parentElement !== this.activeMountTarget) {
-      peer.wrapper.style.width = ''
-      peer.wrapper.style.height = ''
-      this.activeMountTarget.appendChild(peer.wrapper)
-    }
   }
 
   // 自分が画面共有中のとき、自分のプレビューを表示する（通常のmyVideoはカメラのままなので別要素を使う）
@@ -209,10 +213,25 @@ export default class WebRTC {
     return userId.replace(/[^0-9a-z]/gi, 'G')
   }
 
+  // 今このタイミングで相手に送るべきストリーム。
+  // 画面共有中に新しく接続してきた相手にも、カメラではなく共有画面（と音声）が届くようにする。
+  private getOutboundStream(): MediaStream | undefined {
+    if (!this.myStream) return undefined
+    if (!this.isSharingScreen || !this.screenStream) return this.myStream
+
+    const video = this.screenStream.getVideoTracks()[0]
+    const audio =
+      this.mixedAudioDest?.stream.getAudioTracks()[0] ?? this.myStream.getAudioTracks()[0]
+    const tracks: MediaStreamTrack[] = []
+    if (video) tracks.push(video)
+    if (audio) tracks.push(audio)
+    return tracks.length > 0 ? new MediaStream(tracks) : this.myStream
+  }
+
   initialize() {
     this.myPeer.on('call', (call) => {
       if (!this.onCalledPeers.has(call.peer)) {
-        call.answer(this.myStream)
+        call.answer(this.getOutboundStream())
         const video = document.createElement('video')
 
         call.on('stream', (userVideoStream) => {
@@ -285,7 +304,7 @@ export default class WebRTC {
     if (this.myStream) {
       const sanitizedId = this.replaceInvalidId(userId)
       if (!this.peers.has(sanitizedId)) {
-        const call = this.myPeer.call(sanitizedId, this.myStream)
+        const call = this.myPeer.call(sanitizedId, this.getOutboundStream()!)
         const video = document.createElement('video')
 
         call.on('stream', (userVideoStream) => {
@@ -525,12 +544,12 @@ export default class WebRTC {
   // 接続中の全ピア（自分からcallした相手・相手からcallされた相手の両方）の映像トラックを差し替える。
   // 以前はthis.peers（自分からcallした相手）にしか適用しておらず、相手から先に呼ばれた場合は
   // 画面共有が一切届かなかった（片方向のみ成功する不具合）。
-  private replaceVideoTrackForAllPeers(track: MediaStreamTrack | null) {
+  private replaceTrackForAllPeers(kind: 'video' | 'audio', track: MediaStreamTrack | null) {
     const applyTo = (map: Map<string, { call: Peer.MediaConnection; video: HTMLVideoElement; wrapper: HTMLDivElement }>) => {
       map.forEach(({ call }) => {
         const sender = (call.peerConnection as RTCPeerConnection)
           .getSenders()
-          .find((s) => s.track?.kind === 'video')
+          .find((s) => s.track?.kind === kind)
         if (sender) sender.replaceTrack(track)
       })
     }
@@ -538,18 +557,70 @@ export default class WebRTC {
     applyTo(this.onCalledPeers)
   }
 
+  private replaceVideoTrackForAllPeers(track: MediaStreamTrack | null) {
+    this.replaceTrackForAllPeers('video', track)
+  }
+
+  // ─── 画面共有の音声 ───────────────────────────────────────────────────────────
+  // 共有した動画などの音声を相手に届けるための仕組み。
+  // WebRTCの音声送信枠(sender)は1本しかないため、画面の音声をそのまま入れるとマイクが消え、
+  // 逆にマイクのままだと画面の音声が届かない。そこでWebAudioでマイクと画面音声をミックスし、
+  // 1本のトラックにまとめてsenderに差し替える（再ネゴシエーション不要で確実に届く）。
+  private audioCtx?: AudioContext
+  private mixedAudioDest?: MediaStreamAudioDestinationNode
+
+  private buildMixedAudioTrack(screenStream: MediaStream): MediaStreamTrack | null {
+    const screenAudio = screenStream.getAudioTracks()[0]
+    if (!screenAudio) return null // 「音声を共有」にチェックが入っていない場合
+
+    try {
+      const Ctx = window.AudioContext || (window as any).webkitAudioContext
+      this.audioCtx = new Ctx()
+      this.mixedAudioDest = this.audioCtx.createMediaStreamDestination()
+
+      // 画面の音声
+      this.audioCtx
+        .createMediaStreamSource(new MediaStream([screenAudio]))
+        .connect(this.mixedAudioDest)
+
+      // 自分のマイク（ミュート中はトラックがdisabledなので無音として混ざる）
+      const micTrack = this.myStream?.getAudioTracks()[0]
+      if (micTrack) {
+        this.audioCtx
+          .createMediaStreamSource(new MediaStream([micTrack]))
+          .connect(this.mixedAudioDest)
+      }
+
+      return this.mixedAudioDest.stream.getAudioTracks()[0] ?? null
+    } catch (e) {
+      console.error('[WebRTC] 画面音声のミックスに失敗:', e)
+      return null
+    }
+  }
+
+  private teardownMixedAudio() {
+    this.mixedAudioDest = undefined
+    this.audioCtx?.close().catch(() => undefined)
+    this.audioCtx = undefined
+  }
+
   async startScreenShare() {
     if (this.isSharingScreen) return
     try {
+      // audio: true で「タブの音声も共有」を選べるようにする（動画の音を相手に届けるため）
       this.screenStream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
-        audio: false,
+        audio: true,
       })
       this.isSharingScreen = true
 
-      // 接続中の全ピアに画面共有ストリームを送信
+      // 接続中の全ピアに画面共有の映像を送信
       const screenTrack = this.screenStream.getVideoTracks()[0]
       this.replaceVideoTrackForAllPeers(screenTrack)
+
+      // 画面の音声があれば、マイクとミックスして音声トラックを差し替える
+      const mixedAudio = this.buildMixedAudioTrack(this.screenStream)
+      if (mixedAudio) this.replaceTrackForAllPeers('audio', mixedAudio)
 
       screenTrack.onended = () => {
         this.stopScreenShare()
@@ -570,6 +641,12 @@ export default class WebRTC {
     // カメラストリームに戻す（カメラ未取得の場合はトラックなしに戻す）
     const cameraTrack = this.myStream?.getVideoTracks()[0] ?? null
     this.replaceVideoTrackForAllPeers(cameraTrack)
+
+    // 音声をミックスから素のマイクへ戻す
+    if (this.mixedAudioDest) {
+      this.replaceTrackForAllPeers('audio', this.myStream?.getAudioTracks()[0] ?? null)
+      this.teardownMixedAudio()
+    }
 
     this.screenStream?.getTracks().forEach((t) => t.stop())
     this.screenStream = undefined

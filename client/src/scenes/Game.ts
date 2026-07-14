@@ -573,8 +573,12 @@ export default class Game extends Phaser.Scene {
     data: { id: string; x: number; y: number; text: string; url: string; image?: string; bgColor?: string; textColor?: string; scale?: number },
     texKey: string | null
   ) {
-    const PAD = 8
     const MAX_W = 160
+    // 画像だけの看板（文字なし）は、画像をそのまま貼りたいので枠も余白も付けない
+    const hasImage = !!(texKey && this.textures.exists(texKey))
+    const imageOnly = hasImage && !data.text
+    const PAD = imageOnly ? 0 : 8
+
     const children: Phaser.GameObjects.GameObject[] = []
     let contentW = 0
     let cursorY = PAD
@@ -607,19 +611,22 @@ export default class Game extends Phaser.Scene {
       cursorY += txt.height
     }
 
-    const cardW = Math.max(contentW + PAD * 2, 40)
+    const cardW = imageOnly ? contentW : Math.max(contentW + PAD * 2, 40)
     const cardH = cursorY + PAD
 
-    const bg = this.add.graphics()
-    bg.fillStyle(bgColorHex, 1)
-    bg.fillRoundedRect(0, 0, cardW, cardH, 8)
-    bg.lineStyle(2, data.url ? 0x1a6b2a : 0xb0a070, 1)
-    bg.strokeRoundedRect(0, 0, cardW, cardH, 8)
+    // 画像だけの看板には背景と枠を描かない（画像の周りにフチが出ないように）
+    const bg = imageOnly ? null : this.add.graphics()
+    if (bg) {
+      bg.fillStyle(bgColorHex, 1)
+      bg.fillRoundedRect(0, 0, cardW, cardH, 8)
+      bg.lineStyle(2, data.url ? 0x1a6b2a : 0xb0a070, 1)
+      bg.strokeRoundedRect(0, 0, cardW, cardH, 8)
+    }
 
     // プレイヤーの少し上に表示
     const OFFSET_Y = 24
     const container = this.add.container(data.x - cardW / 2, data.y - cardH - OFFSET_Y)
-    container.add(bg)
+    if (bg) container.add(bg)
     children.forEach((c) => container.add(c))
     container.setSize(cardW, cardH)
     container.setScale(signScale)
@@ -827,39 +834,11 @@ export default class Game extends Phaser.Scene {
     return [...fixedRooms, ...savedEntranceRooms, ...placedRooms]
   }
 
-  // 常設会議室の入口を見た目でわかるように床に描く（マーカーと名前）
-  private meetingRoomMarkers: Phaser.GameObjects.GameObject[] = []
-
-  private drawMeetingRoomMarker(room: { name: string; x: number; y: number; width: number; height: number }) {
-    const g = this.add.graphics()
-    g.fillStyle(0x4aa3ff, 0.25)
-    g.fillRoundedRect(room.x - room.width / 2, room.y - room.height / 2, room.width, room.height, 8)
-    g.lineStyle(2, 0x4aa3ff, 0.9)
-    g.strokeRoundedRect(room.x - room.width / 2, room.y - room.height / 2, room.width, room.height, 8)
-    g.setDepth(10)
-
-    const label = this.add
-      .text(room.x, room.y - room.height / 2 - 6, `🚪 ${room.name}`, {
-        fontSize: '14px',
-        color: '#ffffff',
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 3,
-      })
-      .setOrigin(0.5, 1)
-      .setDepth(11)
-
-    this.meetingRoomMarkers.push(g, label)
-  }
-
   private rebuildMeetingRoomEntrances() {
     if (!this.meetingRoomEntrances) return
     this.meetingRoomEntrances.clear(true, true)
-    this.meetingRoomMarkers.forEach((m) => m.destroy())
-    this.meetingRoomMarkers = []
 
-    const fixedIds = new Set(FIXED_MEETING_ROOMS.map((r) => r.id))
-
+    // 入口は見た目を持たない透明なゾーン。マップの絵の上に枠を重ねない
     this.getMeetingRooms().forEach((room) => {
       const zone = this.add.zone(room.x, room.y, room.width, room.height)
       zone.setData('meetingRoom', {
@@ -869,8 +848,6 @@ export default class Game extends Phaser.Scene {
       })
       this.physics.add.existing(zone, true)
       this.meetingRoomEntrances.add(zone)
-
-      if (fixedIds.has(room.id)) this.drawMeetingRoomMarker(room)
     })
   }
 

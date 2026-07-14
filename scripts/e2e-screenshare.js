@@ -22,7 +22,8 @@ async function open(browser, name) {
     viewport: { width: 1400, height: 900 },
   })
   const page = await ctx.newPage()
-  // getDisplayMediaをcanvas captureStreamで偽装（ヘッドレスでは本物が使えない）
+  // getDisplayMediaをcanvas captureStreamで偽装（ヘッドレスでは本物が使えない）。
+  // 「共有した動画の音声」を再現するため、映像に加えて音声トラック（1kHzの音）も付ける。
   await page.addInitScript(() => {
     navigator.mediaDevices.getDisplayMedia = async () => {
       const c = document.createElement('canvas')
@@ -36,7 +37,17 @@ async function open(browser, name) {
         g.fillRect(20 + (t % 560), 300, 40, 20)
         t += 8
       }, 100)
-      return c.captureStream(15)
+      const video = c.captureStream(15).getVideoTracks()[0]
+
+      const ctx = new AudioContext()
+      const osc = ctx.createOscillator()
+      osc.frequency.value = 1000
+      const dest = ctx.createMediaStreamDestination()
+      osc.connect(dest)
+      osc.start()
+      const audio = dest.stream.getAudioTracks()[0]
+
+      return new MediaStream([video, audio])
     }
   })
   await page.goto('http://localhost:5173')
@@ -109,10 +120,16 @@ async function main() {
   await enterRoom(B)
   await wait(1500)
 
-  // ─── 共有者Aはカメラをオフにしておく（アバターに隠される不具合の再現条件） ───
-  await A.evaluate(() => window.game.scene.keys.game.network.webRTC.toggleVideo())
+  // ─── 共有者AはカメラOFF・マイクもミュートにする ───
+  // マイクをミュートしておくことで、B側で聞こえる音は「画面共有の音声」だけになり、
+  // 共有音がちゃんと届いているかを厳密に判定できる。
+  await A.evaluate(() => {
+    const rtc = window.game.scene.keys.game.network.webRTC
+    rtc.toggleVideo()
+    rtc.setMuted(true)
+  })
   await wait(1000)
-  log(`Aのカメラ: OFF（この状態で共有すると、以前はB側でアバターに隠されていた）`)
+  log('Aのカメラ: OFF / マイク: ミュート（聞こえる音は画面共有の音声だけになる）')
 
   // ─── A → B の画面共有 ───
   log('\n== A → B の画面共有 ==')
@@ -134,6 +151,48 @@ async function main() {
       : '[FAIL] アバターが被さって共有画面が見えない')
     log(aShare.videoW > 0 ? `[PASS] 共有ストリームが実際に届いている (${aShare.videoW}x${aShare.videoH})` : '[FAIL] 映像トラックが来ていない')
   }
+
+  // ─── 共有した動画の音声が届いているか（B側で受信音の音量を実測する） ───
+  // Aはマイクをミュートしているので、音が聞こえるなら画面共有の音声が届いている証拠になる。
+  const level = await B.evaluate(async () => {
+    const w = document.querySelector('.peer-video-wrapper video')
+    const stream = w && w.srcObject
+    const track = stream && stream.getAudioTracks()[0]
+    if (!track) return { hasAudioTrack: false, rms: 0 }
+
+    const ctx = new AudioContext()
+    const src = ctx.createMediaStreamSource(new MediaStream([track]))
+    const analyser = ctx.createAnalyser()
+    analyser.fftSize = 2048
+    src.connect(analyser)
+    const buf = new Float32Array(analyser.fftSize)
+
+    let peak = 0
+    for (let i = 0; i < 40; i++) {
+      analyser.getFloatTimeDomainData(buf)
+      let sum = 0
+      for (let j = 0; j < buf.length; j++) sum += buf[j] * buf[j]
+      peak = Math.max(peak, Math.sqrt(sum / buf.length))
+      await new Promise((r) => setTimeout(r, 100))
+    }
+    ctx.close()
+    return { hasAudioTrack: true, rms: peak }
+  })
+  log(`   B側で受信した音声のレベル: ${JSON.stringify(level)}`)
+  log(level.hasAudioTrack && level.rms > 0.01
+    ? '[PASS] 共有した動画の音声がBに届いている（Aはマイクをミュート中なので共有音のみ）'
+    : '[FAIL] 共有音声が届いていない（無音）')
+
+  // ─── カメラ列から共有者のタイルが消えていないか ───
+  const columnTiles = await B.evaluate(() => {
+    const labels = [...document.querySelectorAll('.cam-label')].map((e) => e.textContent)
+    return { labels, peerTiles: document.querySelectorAll('.peer-video-wrapper').length }
+  })
+  log(`   B側のカメラ列: ${JSON.stringify(columnTiles.labels)}`)
+  log(columnTiles.labels.length >= 2
+    ? '[PASS] 共有中もカメラ列に自分と相手の両方が残っている'
+    : '[FAIL] カメラ列からタイルが消えている')
+
   await B.screenshot({ path: path.join(OUT_DIR, 'ss-01-B-sees-A-share.png') })
 
   await A.evaluate(() => window.game.scene.keys.game.network.webRTC.stopScreenShare())
