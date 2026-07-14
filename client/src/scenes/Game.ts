@@ -94,6 +94,8 @@ export default class Game extends Phaser.Scene {
   private isDragging = false
   private hasAskedExit = false
   private exitZoneBounds?: Phaser.Geom.Rectangle
+  // ゲームキャンバス上だけで右クリックメニューを抑止するためのハンドラ（bindしてリスナーの追加/削除で同一参照を使う）
+  private preventCanvasContextMenu = (e: MouseEvent) => e.preventDefault()
 
   constructor() {
     super('game')
@@ -138,8 +140,11 @@ export default class Game extends Phaser.Scene {
       this.network = data.network
     }
 
-    // 右クリックでブラウザ標準メニューを出さない（看板/設置物の右クリック削除に必要）
-    this.input.mouse?.disableContextMenu()
+    // 右クリックでブラウザ標準メニューを出さない（看板/設置物の右クリック削除に必要）。
+    // Phaserの input.mouse.disableContextMenu() は document.body 全体にリスナーを張ってしまい、
+    // チャット欄など画面上のReact UIでも右クリック（貼り付け等）が使えなくなるため、
+    // ゲームキャンバス要素だけにリスナーを限定する。
+    this.game.canvas.addEventListener('contextmenu', this.preventCanvasContextMenu)
 
     createCharacterAnims(this.anims)
 
@@ -353,6 +358,7 @@ export default class Game extends Phaser.Scene {
     phaserEvents.on(Event.EMOTE_RECEIVED, this.handleEmote, this)
 
     this.events.once('destroy', () => {
+      this.game.canvas.removeEventListener('contextmenu', this.preventCanvasContextMenu)
       phaserEvents.off(Event.JUKEBOX_PLAY, this.handleJukeboxPlay, this)
       phaserEvents.off(Event.JUKEBOX_PAUSE, this.handleJukeboxPause, this)
       phaserEvents.off(Event.JUKEBOX_STOP, this.handleJukeboxStop, this)
