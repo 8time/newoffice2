@@ -160,6 +160,8 @@ export default function LoginDialog() {
   })
   const [autoLogin, setAutoLogin] = useState<boolean>(() => localStorage.getItem('skyoffice_autoLogin_v3') === 'true')
   const [nameFieldEmpty, setNameFieldEmpty] = useState<boolean>(false)
+  // カメラ/マイクの自動取得を試し終えたか（成功・失敗どちらでもtrue）。自動ログインの待ち合わせに使う
+  const [mediaAttempted, setMediaAttempted] = useState<boolean>(false)
 
   // 追加: メディアストリームとデバイス一覧のステート
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
@@ -168,7 +170,11 @@ export default function LoginDialog() {
   const [selectedCameraId, setSelectedCameraId] = useState<string>('')
   const [selectedMicId, setSelectedMicId] = useState<string>('')
   const [isMicMuted, setIsMicMuted] = useState<boolean>(() => localStorage.getItem('skyoffice_micMuted') === 'true')
-  const [isVideoOff, setIsVideoOff] = useState<boolean>(() => localStorage.getItem('skyoffice_videoOff') === 'true')
+  // カメラは既定でOFF（毎回手で切るのが面倒なため）。一度ONにすれば次回はONで始まる。
+  const [isVideoOff, setIsVideoOff] = useState<boolean>(() => {
+    const saved = localStorage.getItem('skyoffice_videoOff')
+    return saved === null ? true : saved === 'true'
+  })
   const videoRef = React.useRef<HTMLVideoElement>(null)
 
   const toggleMic = () => {
@@ -200,7 +206,7 @@ export default function LoginDialog() {
   const roomDescription = useAppSelector((state) => state.room.roomDescription)
   const game = phaserGame.scene.keys.game as Game
 
-  const getMedia = async (cameraId?: string, micId?: string) => {
+  const getMedia = async (cameraId?: string, micId?: string, alertOnError = true) => {
     try {
       const constraints: MediaStreamConstraints = {
         video: cameraId ? { deviceId: { exact: cameraId } } : true,
@@ -251,7 +257,9 @@ export default function LoginDialog() {
         setSelectedMicId(micId)
       }
     } catch (err) {
-      window.alert('ウェブカムまたはマイクが見つからないか、許可がブロックされています')
+      if (alertOnError) {
+        window.alert('ウェブカムまたはマイクが見つからないか、許可がブロックされています')
+      }
     }
   }
 
@@ -288,22 +296,22 @@ export default function LoginDialog() {
     dispatch(setLoggedIn(true))
   }
 
-  // 自動ログインチェック
+  // 自動ログインチェック。
+  // カメラ/マイクの取得（成功・失敗どちらでも）が終わってから入室する。
+  // 取得を待たずに入室すると、ストリームがWebRTCへ渡されず映像が出ないまま始まってしまう。
   React.useEffect(() => {
-    if (roomJoined && autoLogin && name !== '') {
+    if (roomJoined && autoLogin && name !== '' && mediaAttempted) {
       joinRoom()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomJoined])
+  }, [roomJoined, mediaAttempted])
 
-  // 過去に許可されている場合は自動でデバイスを取得してプレビューを表示する
+  // 毎回「CONNECT WEBCAM」を押さなくて済むよう、開いた時点で自動的にカメラ/マイクへ接続する。
+  // カメラは既定でOFF・マイクはONの状態で始まる（トラックは取得するがvideoは無効化される）。
+  // 未許可なら1度だけブラウザの許可ダイアログが出る。拒否・デバイス無しでもアラートは出さず、
+  // 手動の「CONNECT WEBCAM」ボタンを残しておく。
   React.useEffect(() => {
-    const permissionName = 'microphone' as PermissionName
-    navigator.permissions?.query({ name: permissionName }).then((result) => {
-      if (result.state === 'granted') {
-        getMedia()
-      }
-    })
+    getMedia(undefined, undefined, false).finally(() => setMediaAttempted(true))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

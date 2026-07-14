@@ -38,6 +38,16 @@ import { NavKeys, Keyboard } from '../../../types/KeyboardState'
 import { phaserEvents, Event } from '../events/EventCenter'
 
 const TILE_SIZE = 32
+
+// マップ上に常設するミーティングルームの入口。
+// マップビルダーの設定に関係なく全ユーザーの画面に必ず表示され、
+// 同じidを共有するため、別々のユーザーが同じ入口から入れば同じ部屋で合流できる。
+const FIXED_MEETING_ROOMS = [
+  { id: 'meeting-room-1', name: '会議室1', x: 473, y: 440 },
+  { id: 'meeting-room-2', name: '会議室2', x: 717, y: 503 },
+]
+const FIXED_MEETING_ROOM_SIZE = { width: 96, height: 96 }
+
 export default class Game extends Phaser.Scene {
   network!: Network
   private cursors!: NavKeys
@@ -782,6 +792,13 @@ export default class Game extends Phaser.Scene {
   }
 
   private getMeetingRooms() {
+    // 常設の会議室（全ユーザー共通・マップビルダーの設定に依存しない）
+    const fixedRooms = FIXED_MEETING_ROOMS.map((room) => ({
+      ...room,
+      width: FIXED_MEETING_ROOM_SIZE.width,
+      height: FIXED_MEETING_ROOM_SIZE.height,
+    }))
+
     const entrance = store.getState().mapBuilder.meetingRoomEntrance
     const savedEntranceRooms = entrance
       ? [
@@ -807,12 +824,41 @@ export default class Game extends Phaser.Scene {
         height: 96,
       }))
 
-    return [...savedEntranceRooms, ...placedRooms]
+    return [...fixedRooms, ...savedEntranceRooms, ...placedRooms]
+  }
+
+  // 常設会議室の入口を見た目でわかるように床に描く（マーカーと名前）
+  private meetingRoomMarkers: Phaser.GameObjects.GameObject[] = []
+
+  private drawMeetingRoomMarker(room: { name: string; x: number; y: number; width: number; height: number }) {
+    const g = this.add.graphics()
+    g.fillStyle(0x4aa3ff, 0.25)
+    g.fillRoundedRect(room.x - room.width / 2, room.y - room.height / 2, room.width, room.height, 8)
+    g.lineStyle(2, 0x4aa3ff, 0.9)
+    g.strokeRoundedRect(room.x - room.width / 2, room.y - room.height / 2, room.width, room.height, 8)
+    g.setDepth(10)
+
+    const label = this.add
+      .text(room.x, room.y - room.height / 2 - 6, `🚪 ${room.name}`, {
+        fontSize: '14px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(11)
+
+    this.meetingRoomMarkers.push(g, label)
   }
 
   private rebuildMeetingRoomEntrances() {
     if (!this.meetingRoomEntrances) return
     this.meetingRoomEntrances.clear(true, true)
+    this.meetingRoomMarkers.forEach((m) => m.destroy())
+    this.meetingRoomMarkers = []
+
+    const fixedIds = new Set(FIXED_MEETING_ROOMS.map((r) => r.id))
 
     this.getMeetingRooms().forEach((room) => {
       const zone = this.add.zone(room.x, room.y, room.width, room.height)
@@ -823,6 +869,8 @@ export default class Game extends Phaser.Scene {
       })
       this.physics.add.existing(zone, true)
       this.meetingRoomEntrances.add(zone)
+
+      if (fixedIds.has(room.id)) this.drawMeetingRoomMarker(room)
     })
   }
 
