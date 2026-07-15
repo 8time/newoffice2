@@ -5,6 +5,7 @@ import { IRoomData, RoomType } from '../../../types/Rooms'
 import { ItemType } from '../../../types/Items'
 import WebRTC from '../web/WebRTC'
 import { phaserEvents, Event } from '../events/EventCenter'
+import { getClientId } from '../util/clientId'
 import store from '../stores'
 import {
   setSessionId,
@@ -83,13 +84,13 @@ export default class Network {
 
   // method to join the public lobby
   async joinOrCreatePublic() {
-    this.room = await this.client.joinOrCreate(RoomType.PUBLIC)
+    this.room = await this.client.joinOrCreate(RoomType.PUBLIC, { clientId: getClientId() })
     this.initialize()
   }
 
   // method to join a custom room
   async joinCustomById(roomId: string, password: string | null) {
-    this.room = await this.client.joinById(roomId, { password })
+    this.room = await this.client.joinById(roomId, { password, clientId: getClientId() })
     this.initialize()
   }
 
@@ -102,6 +103,7 @@ export default class Network {
       description: '',
       password,
       autoDispose: true,
+      clientId: getClientId(),
     })
     this.initialize()
   }
@@ -114,6 +116,7 @@ export default class Network {
       description,
       password,
       autoDispose,
+      clientId: getClientId(),
     })
     this.initialize()
   }

@@ -245,6 +245,8 @@ export class SkyOffice extends Room<OfficeState> {
   private meetingTabsSnapshots = new Map<string, unknown>()
   // 会議室ID → 現在みんなが見ているタブID（全員で同じ板を見るため。永続化はしない）
   private meetingActiveTabs = new Map<string, string>()
+  // sessionId → clientId（同じブラウザからの重複接続を検出して1キャラに保つため）
+  private clientIdBySession = new Map<string, string>()
   private currentJukeboxState = {
     index: -1,
     status: 'stopped',
@@ -834,6 +836,21 @@ export class SkyOffice extends Room<OfficeState> {
   }
 
   onJoin(client: Client, options: any) {
+    // 同じブラウザ(clientId)からの古い接続が残っていたら追い出す。
+    // リロードや再接続で古いセッションのキャラ（幽霊）が残り、複数キャラが
+    // ついてくるように見える問題を防ぐ（1ブラウザ=1キャラ）。
+    const clientId = options?.clientId
+    if (clientId) {
+      this.clients.forEach((other) => {
+        if (other.sessionId !== client.sessionId && this.clientIdBySession.get(other.sessionId) === clientId) {
+          if (this.state.players.has(other.sessionId)) this.state.players.delete(other.sessionId)
+          this.clientIdBySession.delete(other.sessionId)
+          try { other.leave(1000) } catch {}
+        }
+      })
+      this.clientIdBySession.set(client.sessionId, clientId)
+    }
+
     this.state.players.set(client.sessionId, new Player())
     client.send(Message.SEND_ROOM_DATA, {
       id: this.roomId,
@@ -845,6 +862,7 @@ export class SkyOffice extends Room<OfficeState> {
   onLeave(client: Client, consented: boolean) {
     // 退社記録
     recordCheckOut(client.sessionId)
+    this.clientIdBySession.delete(client.sessionId)
 
     if (this.state.players.has(client.sessionId)) {
       this.state.players.delete(client.sessionId)

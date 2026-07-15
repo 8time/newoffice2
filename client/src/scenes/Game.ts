@@ -1160,6 +1160,12 @@ export default class Game extends Phaser.Scene {
 
   // function to add new player to the otherPlayer group
   private handlePlayerJoined(newPlayer: IPlayer, id: string) {
+    // 同じidのスプライトが既にあれば作り直す（重複キャラの防止）
+    const existing = this.otherPlayerMap.get(id)
+    if (existing) {
+      this.otherPlayers.remove(existing, true, true)
+      this.otherPlayerMap.delete(id)
+    }
     const otherPlayer = this.add.otherPlayer(newPlayer.x, newPlayer.y, 'adam', id, newPlayer.name)
     otherPlayer.isVideoOff = newPlayer.isVideoOff
     otherPlayer.isAudioMuted = newPlayer.isAudioMuted
