@@ -9,6 +9,7 @@ import StopScreenShareIcon from '@mui/icons-material/StopScreenShare'
 import MapIcon from '@mui/icons-material/Map'
 import SignpostIcon from '@mui/icons-material/Signpost'
 import PersonAddIcon from '@mui/icons-material/PersonAdd'
+import SettingsIcon from '@mui/icons-material/Settings'
 import Tooltip from '@mui/material/Tooltip'
 import IconButton from '@mui/material/IconButton'
 
@@ -17,6 +18,7 @@ import Game from '../scenes/Game'
 import { useAppSelector, useAppDispatch } from '../hooks'
 import { toggleBuilderMode } from '../stores/MapBuilderStore'
 import { openSignboardDialog } from '../stores/SignboardStore'
+import { openSettingsDialog } from '../stores/SettingsStore'
 import { phaserEvents, Event } from '../events/EventCenter'
 
 import Adam from '../images/login/Adam_login.png'
@@ -484,6 +486,13 @@ export default function VideoOverlay() {
             <PersonAddIcon />
           </ScreenShareBtn>
           <ScreenShareLabel>招待</ScreenShareLabel>
+        </ControlItem>
+
+        <ControlItem>
+          <ScreenShareBtn onClick={() => dispatch(openSettingsDialog())}>
+            <SettingsIcon />
+          </ScreenShareBtn>
+          <ScreenShareLabel>設定</ScreenShareLabel>
         </ControlItem>
       </ScreenShareBar>
     </>
