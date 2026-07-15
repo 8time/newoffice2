@@ -86,36 +86,41 @@ const KnockBtn = styled.button`
   }
 `
 
-// DMボタン（未読の赤丸バッジ付き）
+// DMボタン（未読の赤丸バッジ付き）。見やすいよう大きめ＋薄い枠付き
 const DmBtn = styled.button`
   position: relative;
-  background: none;
-  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: rgba(74, 95, 176, 0.18);
+  border: 1px solid rgba(120, 150, 240, 0.5);
   cursor: pointer;
-  font-size: 20px;
-  padding: 2px 6px;
-  border-radius: 6px;
-  opacity: 0.5;
-  transition: opacity 0.15s, transform 0.15s;
+  font-size: 26px;
+  border-radius: 10px;
+  opacity: 0.9;
+  transition: background 0.15s, transform 0.15s;
   flex-shrink: 0;
 
-  &:hover { opacity: 1; transform: scale(1.2); }
+  &:hover { background: rgba(74, 95, 176, 0.4); transform: scale(1.1); }
 
   .unread {
     position: absolute;
-    top: -4px;
-    right: -2px;
-    min-width: 18px;
-    height: 18px;
-    padding: 0 4px;
-    border-radius: 9px;
+    top: -6px;
+    right: -6px;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 5px;
+    border-radius: 11px;
     background: #ff3b30;
     color: #fff;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 700;
-    line-height: 18px;
+    line-height: 22px;
     text-align: center;
     box-sizing: border-box;
+    border: 2px solid #1a1a1a;
   }
 `
 
