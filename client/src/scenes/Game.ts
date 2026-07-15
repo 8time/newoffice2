@@ -66,6 +66,12 @@ export default class Game extends Phaser.Scene {
   // 看板（全員同期）
   private signboardMap = new Map<string, Phaser.GameObjects.Container>()
   private scaleUpdateTimers = new Map<string, number>()
+  // 看板の角ドラッグでの自由リサイズ用（全看板で共有する1つのつまみ）
+  private signResizeHandle?: Phaser.GameObjects.Graphics
+  private signResizeTarget?: Phaser.GameObjects.Container
+  private signHandleHover = false
+  private signHandleDragging = false
+  private signHandleHideTimer?: number
   // 看板プレースモード（クリック位置で設置）
   private isPlacingSignboard = false
   private signboardPlacingData: { text: string; image: string; url: string; bgColor: string; textColor: string; scale: number } | null = null
@@ -333,6 +339,7 @@ export default class Game extends Phaser.Scene {
     this.builderGroup = this.physics.add.staticGroup()
     this.physics.add.collider(this.myPlayer, this.builderGroup)
     this.rebuildMeetingRoomEntrances()
+    this.setupSignboardResizeHandle()
 
     phaserEvents.on(Event.BUILDER_ENTER, this.enterBuilderMode, this)
     phaserEvents.on(Event.BUILDER_EXIT, this.exitBuilderMode, this)
@@ -565,8 +572,82 @@ export default class Game extends Phaser.Scene {
       container.destroy(true)
       this.signboardMap.delete(id)
     }
+    // 消した看板につまみが付いていたら隠す
+    if (this.signResizeTarget && this.signResizeTarget.getData('signboardId') === id) {
+      this.signResizeHandle?.setVisible(false)
+      this.signResizeTarget = undefined
+    }
     const key = `signtex_${id}`
     if (this.textures.exists(key)) this.textures.remove(key)
+  }
+
+  // 看板の角ドラッグでの自由リサイズ用つまみ（全看板で共有する1つ）
+  private setupSignboardResizeHandle() {
+    if (this.signResizeHandle) return
+    const handle = this.add.graphics().setDepth(40000).setVisible(false)
+    handle.fillStyle(0x4a93cf, 1)
+    handle.fillCircle(0, 0, 9)
+    handle.lineStyle(2.5, 0xffffff, 1)
+    handle.strokeCircle(0, 0, 9)
+    // 斜め矢印っぽい線でリサイズと分かるように
+    handle.lineStyle(2, 0xffffff, 1)
+    handle.lineBetween(-4, -4, 4, 4)
+    handle.setInteractive(new Phaser.Geom.Circle(0, 0, 16), Phaser.Geom.Circle.Contains)
+    this.input.setDraggable(handle)
+    this.input.setDefaultCursor('default')
+
+    handle.on('pointerover', () => {
+      this.signHandleHover = true
+      this.input.setDefaultCursor('nwse-resize')
+    })
+    handle.on('pointerout', () => {
+      this.signHandleHover = false
+      this.input.setDefaultCursor('default')
+      this.hideResizeHandleSoon()
+    })
+    handle.on('dragstart', () => { this.signHandleDragging = true })
+    handle.on('drag', (pointer: Phaser.Input.Pointer) => {
+      const target = this.signResizeTarget
+      if (!target) return
+      const cardW = (target.getData('cardW') as number) || 40
+      // つまみは右下角。ポインタと看板左上(target.x,target.y)の距離から幅→スケールを求める
+      const newW = pointer.worldX - target.x
+      const scale = Phaser.Math.Clamp(newW / cardW, 0.3, 3)
+      target.setScale(scale)
+      this.positionResizeHandle(target)
+    })
+    handle.on('dragend', () => {
+      this.signHandleDragging = false
+      const target = this.signResizeTarget
+      if (target) this.network.updateSignboardScale(target.getData('signboardId') as string, target.scaleX)
+      this.hideResizeHandleSoon()
+    })
+
+    this.signResizeHandle = handle
+  }
+
+  private positionResizeHandle(target: Phaser.GameObjects.Container) {
+    if (!this.signResizeHandle) return
+    const cardW = (target.getData('cardW') as number) || 40
+    const cardH = (target.getData('cardH') as number) || 40
+    this.signResizeHandle.setPosition(target.x + cardW * target.scaleX, target.y + cardH * target.scaleY)
+    this.signResizeHandle.setVisible(true)
+  }
+
+  private showResizeHandleFor(target: Phaser.GameObjects.Container) {
+    if (this.signHandleHideTimer) { window.clearTimeout(this.signHandleHideTimer); this.signHandleHideTimer = undefined }
+    this.signResizeTarget = target
+    this.positionResizeHandle(target)
+  }
+
+  // 看板・つまみのどちらからも離れたら少し待ってつまみを隠す
+  private hideResizeHandleSoon() {
+    if (this.signHandleHideTimer) window.clearTimeout(this.signHandleHideTimer)
+    this.signHandleHideTimer = window.setTimeout(() => {
+      if (this.signHandleDragging || this.signHandleHover) return
+      this.signResizeHandle?.setVisible(false)
+      this.signResizeTarget = undefined
+    }, 250)
   }
 
   private renderSignboard(
@@ -646,8 +727,15 @@ export default class Game extends Phaser.Scene {
     )
     this.input.setDraggable(container)
 
-    container.on('pointerover', () => this.input.setDefaultCursor('pointer'))
-    container.on('pointerout', () => this.input.setDefaultCursor('default'))
+    container.on('pointerover', () => {
+      this.input.setDefaultCursor('pointer')
+      // 右下にリサイズつまみを出す（角ドラッグで自由に拡大縮小できる）
+      this.showResizeHandleFor(container)
+    })
+    container.on('pointerout', () => {
+      this.input.setDefaultCursor('default')
+      this.hideResizeHandleSoon()
+    })
 
     container.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       container.setData('moved', false)
@@ -666,6 +754,7 @@ export default class Game extends Phaser.Scene {
       container.x = dragX
       container.y = dragY
       container.setDepth(dragY + cardH + OFFSET_Y)
+      if (this.signResizeTarget === container) this.positionResizeHandle(container)
     })
     container.on('dragend', () => {
       const bx = Math.round(container.x + cardW / 2)
@@ -681,6 +770,7 @@ export default class Game extends Phaser.Scene {
       const step = Math.abs(deltaY) >= 20 ? deltaY * 0.0015 : Math.sign(deltaY) * 0.06
       const next = Math.min(3, Math.max(0.3, cur - step))
       container.setScale(next)
+      if (this.signResizeTarget === container) this.positionResizeHandle(container)
       const prev = this.scaleUpdateTimers.get(data.id)
       if (prev !== undefined) window.clearTimeout(prev)
       this.scaleUpdateTimers.set(data.id, window.setTimeout(() => {
