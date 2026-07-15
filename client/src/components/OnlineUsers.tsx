@@ -1,7 +1,9 @@
 import React from 'react'
 import styled from 'styled-components'
-import { useAppSelector } from '../hooks'
+import { useAppSelector, useAppDispatch } from '../hooks'
 import { getColorByString } from '../util'
+import { openDm, setDmName } from '../stores/DMStore'
+import { getClientId } from '../util/clientId'
 import phaserGame from '../PhaserGame'
 import Game from '../scenes/Game'
 
@@ -84,6 +86,39 @@ const KnockBtn = styled.button`
   }
 `
 
+// DMボタン（未読の赤丸バッジ付き）
+const DmBtn = styled.button`
+  position: relative;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 20px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  opacity: 0.5;
+  transition: opacity 0.15s, transform 0.15s;
+  flex-shrink: 0;
+
+  &:hover { opacity: 1; transform: scale(1.2); }
+
+  .unread {
+    position: absolute;
+    top: -4px;
+    right: -2px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 9px;
+    background: #ff3b30;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+    box-sizing: border-box;
+  }
+`
+
 const STATUS_DOT: Record<string, string> = {
   present: '#44cc77',
   away:    '#ff6b35',
@@ -92,8 +127,14 @@ const STATUS_DOT: Record<string, string> = {
 }
 
 export default function OnlineUsers() {
+  const dispatch = useAppDispatch()
   const playerNameMap = useAppSelector((state) => state.user.playerNameMap)
   const playerStatusMap = useAppSelector((state) => state.user.playerStatusMap)
+  const playerUserKeyMap = useAppSelector((state) => state.user.playerUserKeyMap)
+  const dmMessagesByKey = useAppSelector((state) => state.dm.messagesByKey)
+  const dmLastReadByKey = useAppSelector((state) => state.dm.lastReadByKey)
+  // 自分のuserKeyは他プレイヤー用のマップには入らないため、getClientId()を直接使う
+  const myUserKey = getClientId()
   const mySessionId = useAppSelector((state) => state.user.sessionId)
   const myName = useAppSelector((state) => {
     const sessionId = state.user.sessionId
@@ -106,6 +147,18 @@ export default function OnlineUsers() {
   const handleKnock = (targetId: string, name: string) => {
     const game = phaserGame.scene.keys.game as Game
     game?.network?.knockPlayer(targetId)
+  }
+
+  // その相手からの未読DM数（最後に開いた時刻より後の、相手からのメッセージ数）
+  const unreadFor = (otherKey: string): number => {
+    const msgs = dmMessagesByKey[otherKey] || []
+    const lastRead = dmLastReadByKey[otherKey] || 0
+    return msgs.filter((m) => m.fromUserKey !== myUserKey && m.createdAt > lastRead).length
+  }
+
+  const handleOpenDm = (userKey: string, name: string) => {
+    dispatch(setDmName({ userKey, name }))
+    dispatch(openDm(userKey))
   }
 
   return (
@@ -142,6 +195,17 @@ export default function OnlineUsers() {
                   {status === 'away' ? '離席' : status === 'focus' ? '集中' : '休憩'}
                 </span>
               )}
+              {(() => {
+                const userKey = playerUserKeyMap.get(id)
+                if (!userKey) return null
+                const unread = unreadFor(userKey)
+                return (
+                  <DmBtn onClick={() => handleOpenDm(userKey, name)} title={`${name}にDMを送る`}>
+                    💬
+                    {unread > 0 && <span className="unread">{unread > 99 ? '99+' : unread}</span>}
+                  </DmBtn>
+                )
+              })()}
               <KnockBtn onClick={() => handleKnock(id, name)} title={`${name}を呼ぶ`}>
                 🔔
               </KnockBtn>

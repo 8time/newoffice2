@@ -12,6 +12,7 @@ import signboardReducer from './SignboardStore'
 import predictionBoardReducer from './PredictionBoardStore'
 import uiReducer from './UiStore'
 import settingsReducer from './SettingsStore'
+import dmReducer from './DMStore'
 
 enableMapSet()
 
@@ -29,6 +30,7 @@ const store = configureStore({
     predictionBoard: predictionBoardReducer,
     ui: uiReducer,
     settings: settingsReducer,
+    dm: dmReducer,
   },
   // Temporary disable serialize check for redux as we store MediaStream in ComputerStore.
   // https://stackoverflow.com/a/63244831

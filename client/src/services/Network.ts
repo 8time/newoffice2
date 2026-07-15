@@ -21,7 +21,10 @@ import {
   removePlayerAudioMuted,
   setPlayerScreenSharing,
   removePlayerScreenSharing,
+  setPlayerUserKey,
+  removePlayerUserKey,
 } from '../stores/UserStore'
+import { addDmMessage, setDmHistory, setDmName, DMMessage } from '../stores/DMStore'
 import {
   setLobbyJoined,
   setJoinedRoomData,
@@ -175,7 +178,19 @@ export default class Network {
           if (field === 'isScreenSharing') {
             store.dispatch(setPlayerScreenSharing({ id: key, isScreenSharing: player.isScreenSharing }))
           }
+
+          // DM用のuserKeyをストアに反映（名前が分かればDMの表示名も記録）
+          if (field === 'userKey' && player.userKey) {
+            store.dispatch(setPlayerUserKey({ id: key, userKey: player.userKey }))
+            if (player.name) store.dispatch(setDmName({ userKey: player.userKey, name: player.name }))
+          }
         })
+
+        // 参加直後にuserKeyが既に入っている場合にも反映する
+        if (player.userKey) {
+          store.dispatch(setPlayerUserKey({ id: key, userKey: player.userKey }))
+          if (player.name) store.dispatch(setDmName({ userKey: player.userKey, name: player.name }))
+        }
       }
     }
 
@@ -191,6 +206,7 @@ export default class Network {
       store.dispatch(removePlayerMeetingRoomId(key))
       store.dispatch(removePlayerAudioMuted(key))
       store.dispatch(removePlayerScreenSharing(key))
+      store.dispatch(removePlayerUserKey(key))
     }
 
     // new instance added to the computers MapSchema
@@ -335,6 +351,16 @@ export default class Network {
 
     this.room.onMessage(Message.MEETING_ACTIVE_TAB_SYNC, ({ roomId, tabId, byName }) => {
       phaserEvents.emit(Event.MEETING_ACTIVE_TAB_REMOTE_UPDATE, roomId, tabId, byName)
+    })
+
+    // DM受信（自分が送った分のエコーも含む）
+    this.room.onMessage(Message.DM_MESSAGE, (msg: DMMessage) => {
+      store.dispatch(addDmMessage({ myUserKey: getClientId(), msg }))
+    })
+
+    // DM履歴の受信
+    this.room.onMessage(Message.DM_HISTORY, ({ withUserKey, messages }: { withUserKey: string; messages: DMMessage[] }) => {
+      store.dispatch(setDmHistory({ otherKey: withUserKey, messages }))
     })
 
     this.room.onMessage(Message.JUKEBOX_SYNC, (message) => {
@@ -559,6 +585,15 @@ export default class Network {
 
   knockPlayer(targetSessionId: string) {
     this.room?.send(Message.KNOCK_PLAYER, { targetSessionId })
+  }
+
+  sendDm(toUserKey: string, content: string) {
+    const id = `dm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+    this.room?.send(Message.SEND_DM, { toUserKey, content, id })
+  }
+
+  requestDmHistory(withUserKey: string) {
+    this.room?.send(Message.REQUEST_DM_HISTORY, { withUserKey })
   }
 
   sendEmote(emoji: string) {

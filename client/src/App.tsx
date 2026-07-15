@@ -23,6 +23,7 @@ import KnockNotification from './components/KnockNotification'
 import SignboardDeleteConfirm from './components/SignboardDeleteConfirm'
 import ExitConfirmDialog from './components/ExitConfirmDialog'
 import SettingsDialog from './components/SettingsDialog'
+import DMDialog from './components/DMDialog'
 import SignboardEditDialog from './components/SignboardEditDialog'
 import EmotePanel from './components/EmotePanel'
 import VideoOverlay from './components/VideoOverlay'
@@ -234,6 +235,9 @@ function App() {
 
       {/* 設定ダイアログ（名前・アバター変更） */}
       {loggedIn && <SettingsDialog />}
+
+      {/* ダイレクトメッセージ */}
+      {loggedIn && <DMDialog />}
 
       {/* 看板編集ダイアログ */}
       {loggedIn && editBoard && <SignboardEditDialog />}

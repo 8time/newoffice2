@@ -14,6 +14,7 @@ export interface IPlayer extends Schema {
   meetingRoomId: string // 入室中のミーティングルームID（空なら未入室）
   handRaised: boolean   // 会議室で手を挙げているか
   isScreenSharing: boolean // 画面共有中か
+  userKey: string       // ブラウザ固定の識別子（DMの相手識別・履歴キーに使う）
 }
 
 export interface IComputer extends Schema {

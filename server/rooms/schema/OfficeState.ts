@@ -23,6 +23,7 @@ export class Player extends Schema implements IPlayer {
   @type('string') meetingRoomId = ''       // 入室中のミーティングルームID（空なら未入室）
   @type('boolean') handRaised = false      // 会議室で手を挙げているか
   @type('boolean') isScreenSharing = false // 画面共有中か
+  @type('string') userKey = ''             // ブラウザ固定の識別子（DM用）
 }
 
 export class Computer extends Schema implements IComputer {

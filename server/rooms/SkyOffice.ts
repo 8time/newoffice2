@@ -56,6 +56,42 @@ function saveChatHistory(all: Record<string, ChatRecord[]>) {
   }
 }
 
+// ─── ダイレクトメッセージ(DM)の永続化 ───────────────────────────────────────────
+
+const DM_FILE = path.join(__dirname, '../../dm-history.json')
+const DM_HISTORY_LIMIT = 500
+
+interface DMRecord {
+  id: string
+  fromUserKey: string
+  toUserKey: string
+  fromName: string
+  content: string
+  createdAt: number
+}
+
+// 2人のuserKeyから会話IDを作る（順不同で同じIDになるようソート）
+function dmConversationId(a: string, b: string): string {
+  return [a, b].sort().join('__')
+}
+
+function loadDmHistory(): Record<string, DMRecord[]> {
+  try {
+    if (fs.existsSync(DM_FILE)) {
+      return JSON.parse(fs.readFileSync(DM_FILE, 'utf-8'))
+    }
+  } catch {}
+  return {}
+}
+
+function saveDmHistory(all: Record<string, DMRecord[]>) {
+  try {
+    fs.writeFileSync(DM_FILE, JSON.stringify(all), 'utf-8')
+  } catch (e) {
+    console.error('[DM] 履歴保存失敗:', e)
+  }
+}
+
 // ─── ミーティングルームのホワイトボード永続化 ────────────────────────────────
 
 function loadWhiteboards(): Record<string, unknown> {
@@ -831,6 +867,50 @@ export class SkyOffice extends Room<OfficeState> {
       this.state.meetingEntranceY = message.y
       saveBuilder(this.state)
     })
+
+    // ─── ダイレクトメッセージ(DM) ─────────────────────────────────────────────
+    this.onMessage(Message.SEND_DM, (client, message: { toUserKey: string; content: string; id?: string }) => {
+      const sender = this.state.players.get(client.sessionId)
+      if (!sender || !sender.userKey || !message.toUserKey) return
+      const content = (message.content || '').slice(0, 2000)
+      if (!content.trim()) return
+
+      const record: DMRecord = {
+        id: message.id || `dm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        fromUserKey: sender.userKey,
+        toUserKey: message.toUserKey,
+        fromName: sender.name || '名無し',
+        content,
+        createdAt: Date.now(),
+      }
+
+      // 永続化（会話ごと）
+      const all = loadDmHistory()
+      const convId = dmConversationId(record.fromUserKey, record.toUserKey)
+      const list = all[convId] || []
+      list.push(record)
+      all[convId] = list.slice(-DM_HISTORY_LIMIT)
+      saveDmHistory(all)
+
+      // 送信者・受信者の両方（全タブ）へ配信
+      this.clients.forEach((cli) => {
+        const p = this.state.players.get(cli.sessionId)
+        if (p && (p.userKey === record.fromUserKey || p.userKey === record.toUserKey)) {
+          cli.send(Message.DM_MESSAGE, record)
+        }
+      })
+    })
+
+    this.onMessage(Message.REQUEST_DM_HISTORY, (client, message: { withUserKey: string }) => {
+      const me = this.state.players.get(client.sessionId)
+      if (!me || !me.userKey || !message.withUserKey) return
+      const convId = dmConversationId(me.userKey, message.withUserKey)
+      const all = loadDmHistory()
+      client.send(Message.DM_HISTORY, {
+        withUserKey: message.withUserKey,
+        messages: all[convId] || [],
+      })
+    })
   }
 
   // 会議室（ホワイトボード／メモ／タブ）の同期メッセージを、その会議室にいる参加者にだけ配信する。
@@ -922,7 +1002,10 @@ export class SkyOffice extends Room<OfficeState> {
       this.clientIdBySession.set(client.sessionId, clientId)
     }
 
-    this.state.players.set(client.sessionId, new Player())
+    const player = new Player()
+    // clientIdをDM用の識別子として同期する（ブラウザ固定・再接続で不変）
+    if (clientId) player.userKey = clientId
+    this.state.players.set(client.sessionId, player)
     client.send(Message.SEND_ROOM_DATA, {
       id: this.roomId,
       name: this.name,
