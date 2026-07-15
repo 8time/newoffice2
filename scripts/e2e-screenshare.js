@@ -136,27 +136,33 @@ async function main() {
   await A.evaluate(() => window.game.scene.keys.game.network.webRTC.startScreenShare())
   await wait(5000)
 
+  // 仕様: 共有中は小さいタイルは相手のキャラ（アバター）を表示し、
+  // 共有画面は大きい表示エリアだけに出す。
   const bView = await peerVideoState(B)
   log('   B側のピア映像要素: ' + JSON.stringify(bView))
-  // 同じ相手にpeers/onCalledPeersの2つのwrapperができることがあるため、
-  // 実際に映像が流れている方（videoWidth>0）を優先して選ぶ
-  const aShare = bView.filter((v) => !v.sessionId || v.sessionId === sidA)
-    .sort((x, y) => y.videoW - x.videoW)[0]
-  if (!aShare) {
-    log('[FAIL] B側にAの映像要素が無い（ピア接続自体が確立していない）')
-  } else {
-    log(`   B側のA映像: display=${aShare.videoDisplay} size=${aShare.videoW}x${aShare.videoH} アバター表示=${aShare.avatarVisible} objectFit=${aShare.objectFit}`)
-    log(aShare.videoDisplay !== 'none' && !aShare.avatarVisible
-      ? '[PASS] カメラOFFでも共有映像が表示されている（アバターに隠されていない）'
-      : '[FAIL] アバターが被さって共有画面が見えない')
-    log(aShare.videoW > 0 ? `[PASS] 共有ストリームが実際に届いている (${aShare.videoW}x${aShare.videoH})` : '[FAIL] 映像トラックが来ていない')
+  const aTile = bView.filter((v) => !v.sessionId || v.sessionId === sidA)[0]
+  if (aTile) {
+    log(aTile.avatarVisible
+      ? '[PASS] 小さいタイルは相手のキャラ（アバター）が表示され、共有画面で埋まっていない'
+      : '[FAIL] 小さいタイルが共有画面で埋まっている')
   }
+  // 大きい表示エリアに共有映像が来ているか
+  const bigStage = await B.evaluate(() => {
+    const vids = [...document.querySelectorAll('video')].filter((v) => v.videoWidth >= 320 && !v.closest('.peer-video-wrapper'))
+    const v = vids.sort((a, b) => b.videoWidth - a.videoWidth)[0]
+    return v ? { w: v.videoWidth, h: v.videoHeight } : null
+  })
+  log(bigStage && bigStage.w > 0
+    ? `[PASS] 大きい表示に共有映像が届いている (${bigStage.w}x${bigStage.h})`
+    : '[FAIL] 大きい表示に共有映像が来ていない')
 
   // ─── 共有した動画の音声が届いているか（B側で受信音の音量を実測する） ───
   // Aはマイクをミュートしているので、音が聞こえるなら画面共有の音声が届いている証拠になる。
   const level = await B.evaluate(async () => {
-    const w = document.querySelector('.peer-video-wrapper video')
-    const stream = w && w.srcObject
+    // タイル・大表示のどれでもよいので、音声トラックを持つvideoを探す
+    const vids = [...document.querySelectorAll('video')]
+    const withAudio = vids.find((v) => v.srcObject && v.srcObject.getAudioTracks && v.srcObject.getAudioTracks().length > 0)
+    const stream = withAudio && withAudio.srcObject
     const track = stream && stream.getAudioTracks()[0]
     if (!track) return { hasAudioTrack: false, rms: 0 }
 
@@ -203,18 +209,14 @@ async function main() {
   await B.evaluate(() => window.game.scene.keys.game.network.webRTC.startScreenShare())
   await wait(5000)
 
-  const aView = await peerVideoState(A)
-  log('   A側のピア映像要素: ' + JSON.stringify(aView))
-  const bShare = aView.filter((v) => !v.sessionId || v.sessionId === sidB)
-    .sort((x, y) => y.videoW - x.videoW)[0]
-  if (!bShare) {
-    log('[FAIL] A側にBの映像要素が無い')
-  } else {
-    log(`   A側のB映像: display=${bShare.videoDisplay} size=${bShare.videoW}x${bShare.videoH} アバター表示=${bShare.avatarVisible}`)
-    log(bShare.videoW > 0 && bShare.videoDisplay !== 'none'
-      ? '[PASS] 逆向き（onCalledPeers）でも共有映像が届いている'
-      : '[FAIL] 逆向きの共有が届いていない')
-  }
+  const aBigStage = await A.evaluate(() => {
+    const vids = [...document.querySelectorAll('video')].filter((v) => v.videoWidth >= 320 && !v.closest('.peer-video-wrapper'))
+    const v = vids.sort((a, b) => b.videoWidth - a.videoWidth)[0]
+    return v ? { w: v.videoWidth, h: v.videoHeight } : null
+  })
+  log(aBigStage && aBigStage.w > 0
+    ? `[PASS] 逆向き（onCalledPeers）でも共有映像が大きい表示に届いている (${aBigStage.w}x${aBigStage.h})`
+    : '[FAIL] 逆向きの共有が届いていない')
   await A.screenshot({ path: path.join(OUT_DIR, 'ss-02-A-sees-B-share.png') })
 
   log(`\nスクリーンショット: ${OUT_DIR}`)

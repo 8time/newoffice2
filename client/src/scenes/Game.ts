@@ -673,10 +673,13 @@ export default class Game extends Phaser.Scene {
       this.network.updateSignboard(data.id, bx, by)
     })
 
-    // ホイールでリアルタイムスケール変更（デバウンス500msで全員に同期）
+    // ホイール/トラックパッドでリアルタイムスケール変更（デバウンス500msで全員に同期）。
+    // Macのトラックパッドは deltaY が小さく（±1〜4）、係数だけだと変化が微小で
+    // 「効かない」ように見えるため、小さい値のときは一定ステップにする。
     container.on('wheel', (_ptr: unknown, _dx: number, deltaY: number) => {
       const cur = container.scaleX
-      const next = Math.min(3, Math.max(0.3, cur - deltaY * 0.001))
+      const step = Math.abs(deltaY) >= 20 ? deltaY * 0.0015 : Math.sign(deltaY) * 0.06
+      const next = Math.min(3, Math.max(0.3, cur - step))
       container.setScale(next)
       const prev = this.scaleUpdateTimers.get(data.id)
       if (prev !== undefined) window.clearTimeout(prev)

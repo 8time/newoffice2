@@ -116,8 +116,9 @@ export default class WebRTC {
     if (video.srcObject !== stream) video.srcObject = stream
     video.play().catch(() => undefined)
 
-    // カメラOFFのアバターが被さっていると共有画面が見えないため、タイル側も映像を表示する
-    this.applyVideoFallback(peer.video, false)
+    // 共有画面は大きい表示だけに出し、カメラ列/上部の小さいタイルは相手のキャラ（アバター）を
+    // 出したままにする。こうしないと小さいタイルが共有画面で埋まり「キャラが消えた」ように見える。
+    this.applyVideoFallback(peer.video, true)
   }
 
   unmountScreenShareVideo(peerSessionId: string) {
@@ -179,7 +180,9 @@ export default class WebRTC {
   private peerScreenSharing = new Set<string>()
 
   private isPeerVideoHidden(sessionId: string, isVideoOff: boolean) {
-    return isVideoOff && !this.peerScreenSharing.has(sessionId)
+    // カメラOFF、または画面共有中はタイル映像を隠してアバター（キャラ）を出す。
+    // 画面共有の映像は大きい表示エリアの方に出すため、小さいタイルはキャラのままにする。
+    return isVideoOff || this.peerScreenSharing.has(sessionId)
   }
 
   // 相手のタイル映像の左右反転を切り替える。カメラはセルフィー風に反転させるが、
