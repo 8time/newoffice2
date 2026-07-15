@@ -39,7 +39,7 @@ const Overlay = styled.div`
   top: 0;
   left: 0;
   right: ${SIDEBAR_WIDTH}px;
-  height: 360px;
+  height: 224px;
   background: transparent;
   display: flex;
   align-items: flex-start;
@@ -62,15 +62,15 @@ const Overlay = styled.div`
 /* 個別カメラ枠 */
 const VideoCard = styled.div`
   position: relative;
-  width: 495px;
-  min-width: 495px;
-  height: 324px;
+  width: 300px;
+  min-width: 300px;
+  height: 196px;
   flex-shrink: 0;
   border-radius: 10px;
   overflow: hidden;
   background: rgba(34, 34, 34, 0.5);
   backdrop-filter: blur(6px);
-  border: 4px solid #00CCCC;
+  border: 3px solid #00CCCC;
   pointer-events: auto;
 
   video {
@@ -83,35 +83,35 @@ const VideoCard = styled.div`
   /* 名前ラベル */
   .label {
     position: absolute;
-    bottom: 12px;
-    left: 12px;
-    font-size: 26px;
+    bottom: 8px;
+    left: 8px;
+    font-size: 16px;
     color: #fff;
     background: rgba(0, 0, 0, 0.60);
     border-radius: 6px;
-    padding: 4px 16px;
+    padding: 3px 10px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     /* ボタンの上にラベルが重ならないよう右端を空ける */
-    right: 170px;
+    right: 104px;
   }
 
   /* マイク・カメラボタン（枠内・右下に常時表示） */
   .card-controls {
     position: absolute;
-    bottom: 12px;
-    right: 12px;
+    bottom: 8px;
+    right: 8px;
     display: flex;
-    gap: 8px;
+    gap: 6px;
     pointer-events: auto;
   }
 `
 
 const CardCtrlBtn = styled(IconButton)<{ isOff?: boolean }>`
   && {
-    width: 68px;
-    height: 68px;
+    width: 42px;
+    height: 42px;
     background: ${({ isOff }) =>
       isOff ? 'rgba(220, 50, 50, 0.85)' : 'rgba(0, 0, 0, 0.55)'};
     color: #fff;
@@ -124,7 +124,7 @@ const CardCtrlBtn = styled(IconButton)<{ isOff?: boolean }>`
     }
 
     svg {
-      font-size: 36px;
+      font-size: 22px;
     }
   }
 `
@@ -153,10 +153,10 @@ const PeerVideosContainer = styled.div`
   pointer-events: auto;
 
   .peer-video-wrapper {
-    width: 495px;
-    height: 324px;
+    width: 300px !important;
+    height: 196px !important;
     border-radius: 10px;
-    border: 4px solid #00CCCC;
+    border: 3px solid #00CCCC;
     flex-shrink: 0;
     position: relative;
     overflow: hidden;

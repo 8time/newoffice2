@@ -322,10 +322,12 @@ export default class WebRTC {
     const wrapper = document.createElement('div')
     wrapper.className = 'peer-video-wrapper'
     wrapper.style.position = 'relative'
-    wrapper.style.width = '495px'
-    wrapper.style.height = '324px'
+    // 既定サイズ。VideoOverlayのカメラ枠に合わせて小さめにする
+    // （ミーティングルームでは MeetingRoomOverlay 側が CAM_W で上書きする）
+    wrapper.style.width = '300px'
+    wrapper.style.height = '196px'
     wrapper.style.borderRadius = '10px'
-    wrapper.style.border = '4px solid #00CCCC'
+    wrapper.style.border = '3px solid #00CCCC'
     wrapper.style.flexShrink = '0'
     wrapper.style.backgroundColor = '#222'
     wrapper.style.borderBottom = '2px solid #333'
@@ -405,7 +407,7 @@ export default class WebRTC {
     label.style.bottom = '8px'
     label.style.left = '10px'
     label.style.right = '10px'
-    label.style.fontSize = '20px'
+    label.style.fontSize = '14px'
     label.style.fontWeight = '600'
     label.style.color = '#fff'
     label.style.background = 'rgba(0,0,0,0.65)'
