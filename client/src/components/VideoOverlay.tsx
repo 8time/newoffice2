@@ -221,6 +221,48 @@ const ScreenShareLabel = styled.span<{ isActive?: boolean }>`
   letter-spacing: 0.5px;
 `
 
+/* マップ上で誰かが画面共有しているときの大きな表示。カメラ枠の下・中央に出す */
+const ScreenShareStage = styled.div`
+  position: fixed;
+  top: 240px;
+  left: 16px;
+  right: ${SIDEBAR_WIDTH + 16}px;
+  bottom: 200px;
+  z-index: 210;
+  display: flex;
+  flex-direction: column;
+  background: rgba(10, 10, 14, 0.92);
+  border: 2px solid #00CCCC;
+  border-radius: 12px;
+  overflow: hidden;
+  pointer-events: auto;
+
+  .stage-header {
+    flex-shrink: 0;
+    padding: 8px 16px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .stage-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+  }
+  .stage-body video {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+`
+
 const avatarGradients = [
   'linear-gradient(135deg, #4b6cb7cc 0%, #182848cc 100%)',
   'linear-gradient(135deg, #ff7e50cc 0%, #c0392bcc 100%)',
@@ -248,9 +290,11 @@ interface VideoState {
 
 export default function VideoOverlay() {
   const peerContainerRef = useRef<HTMLDivElement>(null)
+  const shareStageRef = useRef<HTMLDivElement>(null)
   const loggedIn = useAppSelector((state) => state.user.loggedIn)
   const videoConnected = useAppSelector((state) => state.user.videoConnected)
   const playerNameMap = useAppSelector((state) => state.user.playerNameMap)
+  const playerScreenSharingMap = useAppSelector((state) => state.user.playerScreenSharingMap)
   const sessionId = useAppSelector((state) => state.user.sessionId)
   const myAvatarName = useAppSelector((state) => state.user.avatarName) || 'adam'
   const myPlayerName = useAppSelector((state) => state.user.playerName) || 'あなた'
@@ -268,6 +312,27 @@ export default function VideoOverlay() {
     const game = phaserGame.scene.keys.game as Game
     return game?.network?.webRTC
   }
+
+  // 画面共有中の相手（自分以外）。いれば大きな共有表示を出す
+  const remoteSharerId = Array.from(playerNameMap.entries())
+    .find(([sid]) => sid !== sessionId && playerScreenSharingMap.get(sid))?.[0] ?? null
+  const remoteSharerName = remoteSharerId ? (playerNameMap.get(remoteSharerId) || '相手') : null
+  const showShareStage = !!remoteSharerId || videoState.isSharingScreen
+
+  // 相手の共有映像を大きな表示エリアへ流す（カメラ列のタイルはそのまま残す）
+  useEffect(() => {
+    if (!showShareStage) return
+    const container = shareStageRef.current
+    if (!container) return
+    if (remoteSharerId) {
+      getWebRTC()?.mountScreenShareVideo(remoteSharerId, container)
+    } else if (videoState.isSharingScreen) {
+      getWebRTC()?.attachLocalScreenPreview(container)
+    }
+    return () => {
+      if (remoteSharerId) getWebRTC()?.unmountScreenShareVideo(remoteSharerId)
+    }
+  }, [showShareStage, remoteSharerId, videoState.isSharingScreen])
 
   useEffect(() => {
     const rtc = getWebRTC()
@@ -372,6 +437,16 @@ export default function VideoOverlay() {
         {/* 他参加者のビデオ */}
         <PeerVideosContainer ref={peerContainerRef} />
       </Overlay>
+
+      {/* 誰かが画面共有中は大きく表示（カメラ枠は上に残る） */}
+      {showShareStage && (
+        <ScreenShareStage>
+          <div className="stage-header">
+            🖥️ {remoteSharerName ? `${remoteSharerName}の画面` : 'あなたの画面を共有中'}
+          </div>
+          <div className="stage-body" ref={shareStageRef} />
+        </ScreenShareStage>
+      )}
 
       {/* 画面下部中央コントロールバー（ログイン後は常時表示） */}
       <ScreenShareBar>

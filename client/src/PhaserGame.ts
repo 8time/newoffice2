@@ -6,7 +6,9 @@ import Bootstrap from './scenes/Bootstrap'
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent: 'phaser-container',
-  backgroundColor: '#111111',
+  // マップ画像の外側（キャンバスの余白）に出る色。黒だと画面端に黒帯が見えるため、
+  // 背景画像の空の縁の色（#1C96E8〜#70AEE0あたり）に馴染む空色にする。
+  backgroundColor: '#4a93cf',
   pixelArt: true, // Prevent pixel art from becoming blurred when scaled.
   scale: {
     mode: Phaser.Scale.ScaleModes.RESIZE,

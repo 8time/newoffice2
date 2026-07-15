@@ -129,8 +129,8 @@ export default class WebRTC {
   }
 
   // 自分が画面共有中のとき、自分のプレビューを表示する（通常のmyVideoはカメラのままなので別要素を使う）
-  attachLocalScreenPreview(containerId: string) {
-    const mount = document.getElementById(containerId)
+  attachLocalScreenPreview(container: string | HTMLElement) {
+    const mount = typeof container === 'string' ? document.getElementById(container) : container
     if (!mount || !this.screenStream) return
     let video = mount.querySelector('video') as HTMLVideoElement | null
     if (!video) {
@@ -182,6 +182,15 @@ export default class WebRTC {
     return isVideoOff && !this.peerScreenSharing.has(sessionId)
   }
 
+  // 相手のタイル映像の左右反転を切り替える。カメラはセルフィー風に反転させるが、
+  // 画面共有は文字が鏡文字になってしまうため反転を解除する。
+  private applyPeerMirror(sessionId: string) {
+    const sanitizedId = this.replaceInvalidId(sessionId)
+    const peer = this.peers.get(sanitizedId) || this.onCalledPeers.get(sanitizedId)
+    if (!peer) return
+    peer.video.style.transform = this.peerScreenSharing.has(sessionId) ? 'none' : 'scaleX(-1)'
+  }
+
   private handlePlayerUpdated(field: string, value: any, key: string) {
     if (field === 'isScreenSharing') {
       const sanitizedId = this.replaceInvalidId(key)
@@ -192,7 +201,10 @@ export default class WebRTC {
         // 共有開始時は必ず映像を出し、共有終了時は相手のカメラ状態に従って戻す
         const isVideoOff = this.network.getPlayerState(key)?.isVideoOff ?? false
         this.applyVideoFallback(peer.video, this.isPeerVideoHidden(key, isVideoOff))
+        this.applyPeerMirror(key)
       }
+      // マップ／会議室のReact側に、大きな共有表示を出す/消すきっかけを渡す
+      window.dispatchEvent(new CustomEvent('screen-share-change'))
       return
     }
 
@@ -447,6 +459,7 @@ export default class WebRTC {
 
     // カメラOFFならアバターを表示する。ただし相手が画面共有中は共有映像を隠さない
     this.applyVideoFallback(video, this.isPeerVideoHidden(peerSessionId, isVideoOff))
+    if (peerSessionId) this.applyPeerMirror(peerSessionId)
     this.updatePeerStatusIcons(peerId, isVideoOff, isAudioMuted)
 
     video.addEventListener('loadedmetadata', () => {
