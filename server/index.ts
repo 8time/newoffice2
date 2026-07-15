@@ -223,6 +223,9 @@ gameServer.define(RoomType.PUBLIC, SkyOffice, {
   autoDispose: false,
 })
 gameServer.define(RoomType.CUSTOM, SkyOffice).enableRealtimeListing()
+// 合言葉(roomKey)で固定入室できるルーム。filterByにより、同じroomKeyで
+// joinOrCreateすると既存の部屋に合流し、無ければ作られる（URLからの直接入室に使う）。
+gameServer.define(RoomType.KEYED, SkyOffice).filterBy(['roomKey'])
 
 /**
  * Register @colyseus/social routes

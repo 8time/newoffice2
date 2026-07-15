@@ -5,7 +5,7 @@ import store from '../stores'
 import { setRoomJoined } from '../stores/RoomStore'
 
 export default class Bootstrap extends Phaser.Scene {
-  private preloadComplete = false
+  preloadComplete = false
   network!: Network
 
   constructor() {

@@ -1,7 +1,11 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
-import { useAppSelector } from './hooks'
+import { useAppSelector, useAppDispatch } from './hooks'
+import { setRoomKey } from './stores/RoomStore'
+import { getRoomKeyFromUrl } from './util/roomKey'
+import phaserGame from './PhaserGame'
+import Bootstrap from './scenes/Bootstrap'
 
 import RoomSelectionDialog from './components/RoomSelectionDialog'
 import LoginDialog from './components/LoginDialog'
@@ -134,10 +138,13 @@ function App() {
   const whiteboardDialogOpen = useAppSelector((state) => state.whiteboard.whiteboardDialogOpen)
   const videoConnected = useAppSelector((state) => state.user.videoConnected)
   const roomJoined = useAppSelector((state) => state.room.roomJoined)
+  const lobbyJoined = useAppSelector((state) => state.room.lobbyJoined)
   const isBuilderMode = useAppSelector((state) => state.mapBuilder.isBuilderMode)
   const activeMeetingRoom = useAppSelector((state) => state.meetingRoom.activeRoom)
   const signboardDialogOpen = useAppSelector((state) => state.signboard.signboardDialogOpen)
   const editBoard = useAppSelector((state) => state.signboard.editBoard)
+  const dispatch = useAppDispatch()
+  const autoJoinTried = useRef(false)
 
   useEffect(() => {
     if (loggedIn) {
@@ -146,6 +153,32 @@ function App() {
       document.body.classList.remove('logged-in')
     }
   }, [loggedIn])
+
+  // URLに ?room=<合言葉> が付いていれば、ロビー接続後に自動でその固定ルームへ入る。
+  // これによりブックマークしたURLを踏むだけで、いつもの部屋に直行できる。
+  useEffect(() => {
+    if (autoJoinTried.current) return
+    if (!lobbyJoined || roomJoined) return
+    const key = getRoomKeyFromUrl()
+    if (!key) return
+    autoJoinTried.current = true
+
+    const enter = () => {
+      const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
+      if (!bootstrap?.preloadComplete) {
+        setTimeout(enter, 100)
+        return
+      }
+      bootstrap.network
+        .joinOrCreateKeyed(key)
+        .then(() => {
+          dispatch(setRoomKey(key))
+          bootstrap.launchGame()
+        })
+        .catch((error) => console.error('固定ルームへの自動入室に失敗:', error))
+    }
+    enter()
+  }, [lobbyJoined, roomJoined, dispatch])
 
   let ui: JSX.Element
   if (loggedIn) {

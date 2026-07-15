@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import styled from 'styled-components'
 import Fab from '@mui/material/Fab'
+import Button from '@mui/material/Button'
 import IconButton from '@mui/material/IconButton'
 import Avatar from '@mui/material/Avatar'
 import Tooltip from '@mui/material/Tooltip'
@@ -11,6 +12,7 @@ import DarkModeIcon from '@mui/icons-material/DarkMode'
 import CloseIcon from '@mui/icons-material/Close'
 import LightbulbIcon from '@mui/icons-material/Lightbulb'
 import ArrowRightIcon from '@mui/icons-material/ArrowRight'
+import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import VideogameAssetIcon from '@mui/icons-material/VideogameAsset'
 import VideogameAssetOffIcon from '@mui/icons-material/VideogameAssetOff'
 
@@ -18,6 +20,7 @@ import { BackgroundMode } from '../../../types/BackgroundMode'
 import { setShowJoystick, toggleBackgroundMode } from '../stores/UserStore'
 import { useAppSelector, useAppDispatch } from '../hooks'
 import { getAvatarString, getColorByString } from '../util'
+import { buildRoomUrl } from '../util/roomKey'
 
 const Backdrop = styled.div`
   position: fixed;
@@ -112,7 +115,16 @@ export default function HelperButtonGroup() {
   const roomId = useAppSelector((state) => state.room.roomId)
   const roomName = useAppSelector((state) => state.room.roomName)
   const roomDescription = useAppSelector((state) => state.room.roomDescription)
+  const roomKey = useAppSelector((state) => state.room.roomKey)
+  const [copied, setCopied] = useState(false)
   const dispatch = useAppDispatch()
+
+  const copyRoomUrl = () => {
+    navigator.clipboard?.writeText(buildRoomUrl(roomKey)).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }).catch(() => undefined)
+  }
 
   return (
     <Backdrop>
@@ -141,10 +153,29 @@ export default function HelperButtonGroup() {
             <RoomDescription>
               <ArrowRightIcon /> 説明: {roomDescription}
             </RoomDescription>
-            <p className="tip">
-              <LightbulbIcon />
-              共有リンクは近日公開予定です 😄
-            </p>
+            {roomKey ? (
+              <>
+                <Button
+                  variant="contained"
+                  color="secondary"
+                  size="small"
+                  startIcon={<ContentCopyIcon />}
+                  onClick={copyRoomUrl}
+                  style={{ margin: '8px auto 4px' }}
+                >
+                  {copied ? 'コピーしました！' : 'このルームのURLをコピー'}
+                </Button>
+                <p className="tip">
+                  <LightbulbIcon />
+                  このURLを共有・ブックマークすれば、同じ部屋に直接入れます
+                </p>
+              </>
+            ) : (
+              <p className="tip">
+                <LightbulbIcon />
+                合言葉で作った固定ルームなら、URLを共有して直接入れます
+              </p>
+            )}
           </Wrapper>
         )}
         {showControlGuide && (

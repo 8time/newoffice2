@@ -254,9 +254,11 @@ export class SkyOffice extends Room<OfficeState> {
   }
 
   async onCreate(options: IRoomData) {
-    const { name, description, password, autoDispose } = options
+    const { description, password, autoDispose, roomKey } = options
+    // 合言葉で作られた固定ルームは名前が省略されることがあるので合言葉を名前に補う
+    const name = options.name || (roomKey ? `ルーム: ${roomKey}` : 'Room')
     this.name = name
-    this.description = description
+    this.description = description || ''
     this.autoDispose = autoDispose
 
     let hasPassword = false
@@ -265,7 +267,8 @@ export class SkyOffice extends Room<OfficeState> {
       this.password = await bcrypt.hash(password, salt)
       hasPassword = true
     }
-    this.setMetadata({ name, description, hasPassword })
+    // roomKeyはfilterByの照合に使われる。metadataにも入れておく。
+    this.setMetadata({ name, description: this.description, hasPassword, roomKey: roomKey || '' })
 
     this.setState(new OfficeState())
 

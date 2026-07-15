@@ -10,9 +10,13 @@ import Snackbar from '@mui/material/Snackbar'
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 
+import TextField from '@mui/material/TextField'
+
 import { CustomRoomTable } from './CustomRoomTable'
 import { CreateRoomForm } from './CreateRoomForm'
-import { useAppSelector } from '../hooks'
+import { useAppSelector, useAppDispatch } from '../hooks'
+import { setRoomKey } from '../stores/RoomStore'
+import { normalizeRoomKey, setRoomKeyInUrl } from '../util/roomKey'
 
 import phaserGame from '../PhaserGame'
 import Bootstrap from '../scenes/Bootstrap'
@@ -102,11 +106,40 @@ const ProgressBar = styled(LinearProgress)`
   width: 360px;
 `
 
+const FixedRoomBox = styled.div`
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid #ffffff22;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 320px;
+
+  .label {
+    font-size: 14px;
+    color: #eee;
+    text-align: center;
+  }
+  .row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .hint {
+    font-size: 11px;
+    color: #9a9a9a;
+    line-height: 1.4;
+  }
+`
+
 export default function RoomSelectionDialog() {
   const [showCustomRoom, setShowCustomRoom] = useState(false)
   const [showCreateRoomForm, setShowCreateRoomForm] = useState(false)
   const [showSnackbar, setShowSnackbar] = useState(false)
+  const [fixedRoomInput, setFixedRoomInput] = useState('')
   const lobbyJoined = useAppSelector((state) => state.room.lobbyJoined)
+  const dispatch = useAppDispatch()
 
   const handleConnect = () => {
     if (lobbyJoined) {
@@ -118,6 +151,25 @@ export default function RoomSelectionDialog() {
     } else {
       setShowSnackbar(true)
     }
+  }
+
+  // 合言葉で固定ルームに入る（同じ合言葉なら常に同じ部屋）。入室後URLに ?room= を反映する
+  const handleEnterFixedRoom = () => {
+    const key = normalizeRoomKey(fixedRoomInput)
+    if (!key) return
+    if (!lobbyJoined) {
+      setShowSnackbar(true)
+      return
+    }
+    const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
+    bootstrap.network
+      .joinOrCreateKeyed(key)
+      .then(() => {
+        dispatch(setRoomKey(key))
+        setRoomKeyInUrl(key)
+        bootstrap.launchGame()
+      })
+      .catch((error) => console.error(error))
   }
 
   return (
@@ -193,6 +245,31 @@ export default function RoomSelectionDialog() {
                 >
                   ルームを作成・探す
                 </Button>
+
+                {/* 合言葉で入る固定ルーム。同じ合言葉なら毎回同じ部屋に入れる（URL共有可） */}
+                <FixedRoomBox>
+                  <div className="label">合言葉で固定ルームに入る</div>
+                  <div className="row">
+                    <TextField
+                      size="small"
+                      variant="outlined"
+                      color="secondary"
+                      placeholder="例: eigyou-team"
+                      value={fixedRoomInput}
+                      onChange={(e) => setFixedRoomInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleEnterFixedRoom() }}
+                    />
+                    <Button
+                      variant="contained"
+                      color="secondary"
+                      disabled={!normalizeRoomKey(fixedRoomInput)}
+                      onClick={handleEnterFixedRoom}
+                    >
+                      入る
+                    </Button>
+                  </div>
+                  <div className="hint">同じ合言葉を入れた人と同じ部屋になります。入室後のURLをブックマークすればワンクリックで入れます。</div>
+                </FixedRoomBox>
               </Content>
             </>
           )}

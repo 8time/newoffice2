@@ -93,6 +93,19 @@ export default class Network {
     this.initialize()
   }
 
+  // 合言葉(roomKey)で固定ルームに入る。既存の同じ合言葉の部屋があれば合流し、
+  // 無ければ作る。空室で一旦消えても、次回同じ合言葉で作り直されるためURLは常に有効。
+  async joinOrCreateKeyed(roomKey: string, name?: string, password: string | null = null) {
+    this.room = await this.client.joinOrCreate(RoomType.KEYED, {
+      roomKey,
+      name: name || `ルーム: ${roomKey}`,
+      description: '',
+      password,
+      autoDispose: true,
+    })
+    this.initialize()
+  }
+
   // method to create a custom room
   async createCustom(roomData: IRoomData) {
     const { name, description, password, autoDispose } = roomData

@@ -21,11 +21,15 @@ export const roomSlice = createSlice({
     roomId: '',
     roomName: '',
     roomDescription: '',
+    roomKey: '',
     availableRooms: new Array<RoomAvailable>(),
   },
   reducers: {
     setLobbyJoined: (state, action: PayloadAction<boolean>) => {
       state.lobbyJoined = action.payload
+    },
+    setRoomKey: (state, action: PayloadAction<string>) => {
+      state.roomKey = action.payload
     },
     setRoomJoined: (state, action: PayloadAction<boolean>) => {
       state.roomJoined = action.payload
@@ -61,6 +65,7 @@ export const roomSlice = createSlice({
 export const {
   setLobbyJoined,
   setRoomJoined,
+  setRoomKey,
   setJoinedRoomData,
   setAvailableRooms,
   addAvailableRooms,
