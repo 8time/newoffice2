@@ -17,10 +17,9 @@ export default class ChatMessageUpdateCommand extends Command<IOfficeState, Payl
     if (!chatMessages) return
 
     /**
-     * Only allow server to store a maximum of 100 chat messages:
-     * remove the first element before pushing a new one when array length is >= 100
+     * さかのぼり用に直近500件まで保持する（超えたら古いものから削除）
      */
-    if (chatMessages.length >= 100) chatMessages.shift()
+    if (chatMessages.length >= 500) chatMessages.shift()
 
     const newMessage = new ChatMessage()
     newMessage.id = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`

@@ -122,6 +122,45 @@ const NotificationRow = styled.div`
   padding: 2px 0;
 `
 
+// ─── 日付区切り ────────────────────────────────────────────────────────────────
+
+const DateDivider = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 8px 0 4px;
+
+  span {
+    background: rgba(255, 255, 255, 0.12);
+    color: #cfd3e0;
+    font-size: 12px;
+    padding: 3px 14px;
+    border-radius: 12px;
+  }
+`
+
+const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
+
+// メッセージのタイムスタンプを「今日 / 昨日 / M月D日(曜)」に整形する
+function formatDateLabel(ts: number): string {
+  const d = new Date(ts)
+  const today = new Date()
+  const yesterday = new Date()
+  yesterday.setDate(today.getDate() - 1)
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+  if (sameDay(d, today)) return '今日'
+  if (sameDay(d, yesterday)) return '昨日'
+  return `${d.getMonth() + 1}月${d.getDate()}日(${WEEKDAYS[d.getDay()]})`
+}
+
+// 2つのタイムスタンプが別の日かどうか
+function isDifferentDay(a: number, b: number): boolean {
+  const da = new Date(a)
+  const db = new Date(b)
+  return da.getFullYear() !== db.getFullYear() || da.getMonth() !== db.getMonth() || da.getDate() !== db.getDate()
+}
+
 // ─── 吹き出し行 ──────────────────────────────────────────────────────────────
 
 // isMine=true → 自分：左寄せ（row）  isMine=false → 他者：右寄せ（row-reverse）
@@ -627,9 +666,23 @@ export default function Chat() {
   }
 
   useEffect(() => { if (focused) inputRef.current?.focus() }, [focused])
+
+  // 過去にさかのぼって読んでいる間は自動で最下部へ飛ばさない。
+  // 最下部付近にいるとき（＝最新を追っている）だけ新着でスクロールする。
+  const chatBoxRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [chatMessages, showChat])
+    const box = chatBoxRef.current
+    if (!box) return
+    const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120
+    if (nearBottom) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chatMessages])
+
+  // チャットを開いた瞬間は最新（最下部）を表示する
+  useEffect(() => {
+    if (showChat) {
+      requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView())
+    }
+  }, [showChat])
 
   // 新着チャット（テキスト/ファイル）で控えめな通知音。初回ロードと入退室通知は鳴らさない
   const prevMsgCountRef = useRef<number | null>(null)
@@ -665,6 +718,7 @@ export default function Chat() {
             </ChatHeader>
 
             <ChatBox
+              ref={chatBoxRef}
               isDragging={isDragging}
               onDragEnter={handleDragEnter}
               onDragLeave={handleDragLeave}
@@ -677,17 +731,30 @@ export default function Chat() {
                   <span className="drop-text">ここにドロップして送信</span>
                 </DropOverlay>
               )}
-              {chatMessages.map(({ messageType, chatMessage, file }, index) => (
-                <Message
-                  key={index}
-                  chatMessage={chatMessage}
-                  messageType={messageType}
-                  file={file}
-                  colorIndex={getColorIndex(chatMessage.author)}
-                  myName={myName}
-                  sessionId={sessionId}
-                />
-              ))}
+              {chatMessages.map(({ messageType, chatMessage, file }, index) => {
+                // 日付が変わる境目に日付区切りを挿入する
+                const prev = chatMessages[index - 1]
+                const showDate =
+                  chatMessage.createdAt &&
+                  (index === 0 || !prev?.chatMessage?.createdAt || isDifferentDay(prev.chatMessage.createdAt, chatMessage.createdAt))
+                return (
+                  <React.Fragment key={index}>
+                    {showDate && (
+                      <DateDivider>
+                        <span>{formatDateLabel(chatMessage.createdAt)}</span>
+                      </DateDivider>
+                    )}
+                    <Message
+                      chatMessage={chatMessage}
+                      messageType={messageType}
+                      file={file}
+                      colorIndex={getColorIndex(chatMessage.author)}
+                      myName={myName}
+                      sessionId={sessionId}
+                    />
+                  </React.Fragment>
+                )
+              })}
               <div ref={messagesEndRef} />
 
               {showEmojiPicker && (

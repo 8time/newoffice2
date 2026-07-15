@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { Room, Client, ServerError } from 'colyseus'
 import { Dispatcher } from '@colyseus/command'
-import { Player, OfficeState, Computer, Whiteboard, Signboard, PlacedItem } from './schema/OfficeState'
+import { Player, OfficeState, Computer, Whiteboard, Signboard, PlacedItem, ChatMessage } from './schema/OfficeState'
 import { Message } from '../../types/Messages'
 import { IRoomData } from '../../types/Rooms'
 import { whiteboardRoomIds } from './schema/OfficeState'
@@ -25,6 +25,36 @@ const BUILDER_FILE = path.join(__dirname, '../../builder.json')
 const WHITEBOARDS_FILE = path.join(__dirname, '../../meeting-whiteboards.json')
 const MEETING_DOCS_FILE = path.join(__dirname, '../../meeting-docs.json')
 const MEETING_TABS_FILE = path.join(__dirname, '../../meeting-tabs.json')
+const CHAT_FILE = path.join(__dirname, '../../chat-history.json')
+
+// ─── チャット履歴の永続化（ルームごと・日付区切りでさかのぼれるように保持） ─────
+
+interface ChatRecord {
+  id: string
+  author: string
+  createdAt: number
+  content: string
+}
+
+// ルームキーごとに直近のチャットを保持する
+const CHAT_HISTORY_LIMIT = 500
+
+function loadChatHistory(): Record<string, ChatRecord[]> {
+  try {
+    if (fs.existsSync(CHAT_FILE)) {
+      return JSON.parse(fs.readFileSync(CHAT_FILE, 'utf-8'))
+    }
+  } catch {}
+  return {}
+}
+
+function saveChatHistory(all: Record<string, ChatRecord[]>) {
+  try {
+    fs.writeFileSync(CHAT_FILE, JSON.stringify(all), 'utf-8')
+  } catch (e) {
+    console.error('[Chat] 履歴保存失敗:', e)
+  }
+}
 
 // ─── ミーティングルームのホワイトボード永続化 ────────────────────────────────
 
@@ -247,6 +277,9 @@ export class SkyOffice extends Room<OfficeState> {
   private meetingActiveTabs = new Map<string, string>()
   // sessionId → clientId（同じブラウザからの重複接続を検出して1キャラに保つため）
   private clientIdBySession = new Map<string, string>()
+  // このルームのチャット履歴を保存するキー（固定ルームは合言葉で識別）
+  private chatKey = 'public'
+  private chatSaveTimer?: NodeJS.Timeout
   private currentJukeboxState = {
     index: -1,
     status: 'stopped',
@@ -272,7 +305,24 @@ export class SkyOffice extends Room<OfficeState> {
     // roomKeyはfilterByの照合に使われる。metadataにも入れておく。
     this.setMetadata({ name, description: this.description, hasPassword, roomKey: roomKey || '' })
 
+    // チャット履歴の保存キー（固定ルームは合言葉、それ以外は名前で分ける）
+    this.chatKey = roomKey || name || 'public'
+
     this.setState(new OfficeState())
+
+    // チャット履歴を永続化ファイルから復元（日付区切りでさかのぼれるように）
+    const savedChat = loadChatHistory()[this.chatKey]
+    if (Array.isArray(savedChat) && savedChat.length > 0) {
+      savedChat.slice(-CHAT_HISTORY_LIMIT).forEach((rec) => {
+        const m = new ChatMessage()
+        m.id = rec.id
+        m.author = rec.author
+        m.createdAt = rec.createdAt
+        m.content = rec.content
+        this.state.chatMessages.push(m)
+      })
+      console.log(`[Chat] ${savedChat.length} 件の履歴を復元しました (${this.chatKey})`)
+    }
 
     // ミーティングルームのホワイトボードを永続化ファイルから復元
     const savedWhiteboards = loadWhiteboards()
@@ -465,6 +515,7 @@ export class SkyOffice extends Room<OfficeState> {
         { clientId: client.sessionId, content: message.content },
         { except: client }
       )
+      this.scheduleChatSave()
     })
 
     // チャット既読処理
@@ -816,6 +867,26 @@ export class SkyOffice extends Room<OfficeState> {
     }, 3000)
   }
 
+  // チャットは送信のたびに保存すると重いので3秒デバウンスでまとめて保存
+  private scheduleChatSave() {
+    if (this.chatSaveTimer) return
+    this.chatSaveTimer = setTimeout(() => {
+      this.persistChat()
+      this.chatSaveTimer = undefined
+    }, 3000)
+  }
+
+  private persistChat() {
+    const all = loadChatHistory()
+    all[this.chatKey] = this.state.chatMessages.slice(-CHAT_HISTORY_LIMIT).map((m) => ({
+      id: m.id,
+      author: m.author,
+      createdAt: m.createdAt,
+      content: m.content,
+    }))
+    saveChatHistory(all)
+  }
+
   // 議事録メモも入力のたびに送られてくるため、3秒デバウンスでまとめて保存
   private scheduleDocSave() {
     if (this.docSaveTimer) return
@@ -897,6 +968,13 @@ export class SkyOffice extends Room<OfficeState> {
       this.docSaveTimer = undefined
     }
     saveMeetingDocs(this.meetingDocSnapshots)
+
+    // 保留中のチャット履歴を確実に書き出す
+    if (this.chatSaveTimer) {
+      clearTimeout(this.chatSaveTimer)
+      this.chatSaveTimer = undefined
+    }
+    this.persistChat()
 
     console.log('room', this.roomId, 'disposing...')
     this.dispatcher.stop()
