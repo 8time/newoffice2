@@ -32,6 +32,7 @@ import OnlineUsers from './components/OnlineUsers'
 import AttendancePanel from './components/AttendancePanel'
 import StatusToggle from './components/StatusToggle'
 import MeetingRoomOverlay from './components/MeetingRoomOverlay'
+import RendererWarning from './components/RendererWarning'
 
 // ReactのUIオーバーレイの最外枠
 const Backdrop = styled.div`
@@ -205,6 +206,9 @@ function App() {
 
   return (
     <>
+      {/* WebGLが使えずCanvas描画に降格すると激重になるため、その旨を知らせる */}
+      <RendererWarning />
+
       <Backdrop>
         {ui}
         {loggedIn && !computerDialogOpen && !whiteboardDialogOpen && <HelperButtonGroup />}
