@@ -237,27 +237,30 @@ export default class Game extends Phaser.Scene {
     this.setupCollidersDebugTools()
 
     // ── 当たり判定デバッグ用 操作ガイドHUD（画面左下に固定表示）──
-    const hudLines = [
-      '🔧 当たり判定デバッグ',
-      'P : デバッグ表示 ON/OFF',
-      '  緑枠 = Tiled座標変換済み',
-      '  青枠 = 物理ボディ実位置',
-      '  ※両者が重なればOK',
-      'K : 全データをコンソール出力',
-      'L : collision.jsonにリセット',
-    ]
-    const hudX = 12
-    const hudStartY = mapHeight - 12 - hudLines.length * 18
-    hudLines.forEach((line, i) => {
-      const t = this.add.text(hudX, hudStartY + i * 18, line, {
-        fontSize: '12px',
-        color: '#ffffff',
-        backgroundColor: '#00000088',
-        padding: { x: 4, y: 2 },
-        fontFamily: 'monospace',
+    // 開発者向けの案内なので開発時のみ出す（デバッグ機能自体も開発時のみ有効）
+    if (import.meta.env.DEV) {
+      const hudLines = [
+        '🔧 当たり判定デバッグ',
+        'P : デバッグ表示 ON/OFF',
+        '  緑枠 = Tiled座標変換済み',
+        '  青枠 = 物理ボディ実位置',
+        '  ※両者が重なればOK',
+        'K : 全データをコンソール出力',
+        'L : collision.jsonにリセット',
+      ]
+      const hudX = 12
+      const hudStartY = mapHeight - 12 - hudLines.length * 18
+      hudLines.forEach((line, i) => {
+        const t = this.add.text(hudX, hudStartY + i * 18, line, {
+          fontSize: '12px',
+          color: '#ffffff',
+          backgroundColor: '#00000088',
+          padding: { x: 4, y: 2 },
+          fontFamily: 'monospace',
+        })
+        t.setScrollFactor(0).setDepth(20000)
       })
-      t.setScrollFactor(0).setDepth(20000)
-    })
+    }
 
     this.otherPlayers = this.physics.add.group({ classType: OtherPlayer })
     this.physics.add.collider(this.myPlayer, this.otherPlayers)
@@ -1615,6 +1618,13 @@ export default class Game extends Phaser.Scene {
   // ─── デバッグ & ドラッグ＆ドロップ作成ツール ─────────────────────────────
 
   private setupCollidersDebugTools() {
+    // 当たり判定を調整するための開発者用ツール（P:デバッグ表示 / K:保存 / L:リセット、
+    // デバッグ表示中はドラッグで当たり判定を追加できる）。
+    // Phaserのキー入力はDOMの入力欄で打った文字も拾ってしまうため、本番で有効にしておくと
+    // 名前やチャットに「p」を打っただけでデバッグ枠が出たり、その状態でドラッグすると
+    // 見えない壁が増えて動けなくなる。利用者には不要な機能なので開発時のみ有効にする。
+    if (!import.meta.env.DEV) return
+
     const STORAGE_KEY = 'skyoffice_custom_colliders_v2'
 
     // ── オーバーレイグラフィックス（座標表示・ドラッグ描画用） ─────────────
