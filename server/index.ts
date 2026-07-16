@@ -11,7 +11,7 @@ import { spawn, ChildProcess } from 'child_process'
 // import socialRoutes from "@colyseus/social/express"
 
 import { SkyOffice, getAttendanceForDate } from './rooms/SkyOffice'
-import { registerDoc, readDoc, writeDoc, hydrate, setLocalBlobDir, putBlob, getBlob } from './storage'
+import { registerDoc, readDoc, writeDoc, hydrate, setLocalBlobDir, putBlob, getBlob, status as storageStatus } from './storage'
 
 const port = Number(process.env.PORT || 2567)
 const app = express()
@@ -160,6 +160,11 @@ app.post('/api/files', upload.single('file'), async (req, res) => {
     console.error('[Files] アップロード失敗:', e)
     res.status(500).json({ error: 'upload failed' })
   }
+})
+
+// 保存先が効いているかの確認用。'local' なら再起動でデータが消えるので設定を見直す。
+app.get('/api/storage-status', (req, res) => {
+  res.json(storageStatus())
 })
 
 app.get('/files/:id', async (req, res) => {

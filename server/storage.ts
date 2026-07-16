@@ -27,6 +27,28 @@ if (SUPABASE_URL && SUPABASE_KEY) {
 
 export const isRemote = () => client !== null
 
+/**
+ * 保存先が正しく効いているかの確認用。接続情報そのものは絶対に返さない。
+ * 「Supabaseのつもりが実はローカル保存だった（＝再起動で消える）」に気づけるようにする。
+ */
+export function status() {
+  const docs: Record<string, number> = {}
+  cache.forEach((value, key) => {
+    // 中身は出さず、件数だけ返す
+    docs[key] = Array.isArray(value)
+      ? value.length
+      : value && typeof value === 'object'
+      ? Object.keys(value as object).length
+      : 1
+  })
+  return {
+    backend: client ? 'supabase' : 'local',
+    persistent: client !== null,
+    bucket: client ? BUCKET : null,
+    docs,
+  }
+}
+
 // key -> ローカルフォールバック時の保存先ファイル
 const localFiles = new Map<string, string>()
 // 起動時に読み込んだ内容のメモリキャッシュ
