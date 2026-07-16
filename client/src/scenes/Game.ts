@@ -360,6 +360,7 @@ export default class Game extends Phaser.Scene {
     phaserEvents.on(Event.JUKEBOX_STOP, this.handleJukeboxStop, this)
     phaserEvents.on(Event.JUKEBOX_REPEAT, this.handleJukeboxRepeat, this)
     phaserEvents.on(Event.JUKEBOX_VOLUME, this.handleJukeboxVolume, this)
+    phaserEvents.on(Event.JUKEBOX_BROADCAST, this.handleJukeboxBroadcast, this)
     phaserEvents.on('network-jukebox-sync', this.handleNetworkJukeboxSync, this)
 
     // クリックとドラッグを区別するための移動しきい値（看板の誤ドラッグ防止）
@@ -389,6 +390,7 @@ export default class Game extends Phaser.Scene {
       phaserEvents.off(Event.JUKEBOX_STOP, this.handleJukeboxStop, this)
       phaserEvents.off(Event.JUKEBOX_REPEAT, this.handleJukeboxRepeat, this)
       phaserEvents.off(Event.JUKEBOX_VOLUME, this.handleJukeboxVolume, this)
+      phaserEvents.off(Event.JUKEBOX_BROADCAST, this.handleJukeboxBroadcast, this)
       phaserEvents.off('network-jukebox-sync', this.handleNetworkJukeboxSync, this)
       phaserEvents.off(Event.BUILDER_PICK_MEETING_ENTRANCE, this.startPickingMeetingEntrance, this)
       phaserEvents.off(Event.MEETING_ROOM_EXIT, this.exitMeetingRoom, this)
@@ -1742,6 +1744,28 @@ export default class Game extends Phaser.Scene {
     }
   }
 
+  // 自分の操作を他の人のMAPにも反映させるか。
+  // ジュークボックスの「全員のMAPでも流す」がOFFなら自分だけで聴く（送信しない）。
+  private shouldBroadcastJukebox() {
+    return store.getState().jukebox.broadcast
+  }
+
+  // トグル切り替え時に、相手側の再生状態を今の設定に合わせる。
+  // ONにしたら鳴っている曲を相手にも流し始め、OFFにしたら相手側だけ止める。
+  private handleJukeboxBroadcast(enabled: boolean) {
+    const { currentSongIndex, playlist, playing } = store.getState().jukebox
+    const song = playlist[currentSongIndex]
+    if (enabled) {
+      if (playing && song && !song.isLocal) {
+        this.network.sendJukeboxSync({
+          index: currentSongIndex, status: 'playing', name: song.name, url: song.url, isLocal: false,
+        })
+      }
+    } else {
+      this.network.sendJukeboxSync({ index: -1, status: 'stopped', name: '', url: '', isLocal: false })
+    }
+  }
+
   private handleJukeboxPlay(data: { name: string; url: string; isLocal: boolean; index: number }, isFromNetwork = false) {
     const songIndex = data.index
     // アセットキーの作成 (ローカル追加曲はインデックスベース、サーバー提供曲は名前ベースにして重複やズレを防ぐ)
@@ -1752,7 +1776,7 @@ export default class Game extends Phaser.Scene {
       if (this.currentSound.isPaused) {
         this.currentSound.resume()
         store.dispatch(setPlayState({ playing: true, paused: false }))
-        if (!isFromNetwork && !data.isLocal) {
+        if (!isFromNetwork && !data.isLocal && this.shouldBroadcastJukebox()) {
           this.network.sendJukeboxSync({ index: data.index, status: 'playing', name: data.name, url: data.url, isLocal: data.isLocal })
         }
       }
@@ -1785,7 +1809,7 @@ export default class Game extends Phaser.Scene {
         })
 
         // 自分が操作した場合はサーバーに同期（ローカルアップロード曲は blob: URL のため除外）
-        if (!isFromNetwork && !data.isLocal) {
+        if (!isFromNetwork && !data.isLocal && this.shouldBroadcastJukebox()) {
           this.network.sendJukeboxSync({ index: data.index, status: 'playing', name: data.name, url: data.url, isLocal: data.isLocal })
         }
       } catch (err) {
@@ -1810,7 +1834,7 @@ export default class Game extends Phaser.Scene {
     if (this.currentSound) {
       this.currentSound.pause()
       store.dispatch(setPlayState({ playing: false, paused: true }))
-      if (!isFromNetwork) {
+      if (!isFromNetwork && this.shouldBroadcastJukebox()) {
         this.network.sendJukeboxSync({ index: -1, status: 'paused', name: '', url: '', isLocal: false })
       }
     }
@@ -1824,7 +1848,7 @@ export default class Game extends Phaser.Scene {
       this.currentSound = undefined
     }
     store.dispatch(setPlayState({ playing: false, paused: false }))
-    if (!isFromNetwork) {
+    if (!isFromNetwork && this.shouldBroadcastJukebox()) {
       this.network.sendJukeboxSync({ index: -1, status: 'stopped', name: '', url: '', isLocal: false })
     }
   }

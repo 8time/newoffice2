@@ -30,6 +30,7 @@ export enum Event {
   JUKEBOX_NEXT = 'jukebox-next',
   JUKEBOX_REPEAT = 'jukebox-repeat',
   JUKEBOX_VOLUME = 'jukebox-volume',
+  JUKEBOX_BROADCAST = 'jukebox-broadcast',
   JUKEBOX_STATE_UPDATE = 'jukebox-state-update',
   // 着席/離席ステータス
   PLAYER_STATUS_CHANGED = 'player-status-changed',

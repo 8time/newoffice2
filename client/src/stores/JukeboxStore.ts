@@ -15,6 +15,9 @@ interface JukeboxState {
   repeat: boolean
   playlist: Song[]
   volume: number
+  // 自分が選んだ曲を他の人のMAPでも流すかどうか。OFFなら自分だけに聞こえる。
+  // （他の人が配信している曲は、この設定に関わらず自分にも聞こえる）
+  broadcast: boolean
 }
 
 const initialState: JukeboxState = {
@@ -24,6 +27,7 @@ const initialState: JukeboxState = {
   currentSongName: '',
   currentSongIndex: -1,
   repeat: false,
+  broadcast: true,
   playlist: [
     { name: 'SoundHelix Song 1', url: 'assets/audio/song1.mp3', isLocal: false },
     { name: 'SoundHelix Song 2', url: 'assets/audio/song2.mp3', isLocal: false },
@@ -52,6 +56,9 @@ export const jukeboxSlice = createSlice({
     toggleRepeat: (state) => {
       state.repeat = !state.repeat
     },
+    toggleBroadcast: (state) => {
+      state.broadcast = !state.broadcast
+    },
     addSongToPlaylist: (state, action: PayloadAction<Song>) => {
       state.playlist.push(action.payload)
     },
@@ -79,6 +86,7 @@ export const {
   setPlayState,
   setCurrentSong,
   toggleRepeat,
+  toggleBroadcast,
   addSongToPlaylist,
   setPlaylist,
   playSongByIndex,

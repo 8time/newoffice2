@@ -29,6 +29,7 @@ import {
   playSongByIndex,
   addSongToPlaylist,
   toggleRepeat,
+  toggleBroadcast,
   setVolume,
   setPlaylist,
 } from '../stores/JukeboxStore'
@@ -79,6 +80,15 @@ const MainPlayButton = styled(GlassButton)`
   }
 `
 
+const BroadcastRow = styled(Box)<{ $on: boolean }>`
+  margin-top: 8px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid ${(props) => (props.$on ? 'rgba(0, 255, 136, 0.35)' : 'rgba(255, 255, 255, 0.12)')};
+  background: ${(props) => (props.$on ? 'rgba(0, 255, 136, 0.08)' : 'rgba(255, 255, 255, 0.03)')};
+  transition: all 0.2s ease-in-out;
+`
+
 const SongListContainer = styled(Box)`
   max-height: 200px;
   overflow-y: auto;
@@ -117,6 +127,7 @@ export default function JukeboxDialog() {
   const repeat = useAppSelector((state) => state.jukebox.repeat)
   const playlist = useAppSelector((state) => state.jukebox.playlist)
   const volume = useAppSelector((state) => state.jukebox.volume)
+  const broadcast = useAppSelector((state) => state.jukebox.broadcast)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -203,6 +214,12 @@ export default function JukeboxDialog() {
     phaserEvents.emit(Event.JUKEBOX_REPEAT, !repeat)
   }
 
+  // ONにすると今鳴っている曲が相手のMAPでも流れ始め、OFFにすると相手側だけ止まる
+  const handleBroadcastChange = () => {
+    dispatch(toggleBroadcast())
+    phaserEvents.emit(Event.JUKEBOX_BROADCAST, !broadcast)
+  }
+
   // ローカル mp3 のアップロード・プレイリスト追加
   // ※ローカルアップロード曲は blob: URL のため他ユーザーには配信されない（自分だけ聴ける）
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -268,7 +285,7 @@ export default function JukeboxDialog() {
         >
           <Typography variant="body2" style={{ color: '#38bdf8', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>
             {playing
-              ? isCurrentSongLocal
+              ? (isCurrentSongLocal || !broadcast)
                 ? '🔊 Now Playing (自分のみ)'
                 : '🔊 Now Playing (全員に配信中)'
               : paused ? '⏸️ Paused' : '⏹️ Stopped'}
@@ -319,6 +336,25 @@ export default function JukeboxDialog() {
             {Math.round(volume * 100)}%
           </Typography>
         </Box>
+
+        {/* 相手のMAPでも流すかの切り替え */}
+        <BroadcastRow $on={broadcast}>
+          <FormControlLabel
+            control={<Switch checked={broadcast} onChange={handleBroadcastChange} color="primary" />}
+            label={
+              <Box>
+                <Typography style={{ fontSize: '14px', fontWeight: 'bold', color: broadcast ? '#00ff88' : '#94a3b8' }}>
+                  {broadcast ? '📡 みんなのMAPでも流す' : '🎧 自分だけで聴く'}
+                </Typography>
+                <Typography style={{ fontSize: '11px', color: '#94a3b8' }}>
+                  {broadcast
+                    ? '選んだ曲が他の人のMAPでも再生されます'
+                    : '他の人には聞こえません（他の人が流している曲は聞こえます）'}
+                </Typography>
+              </Box>
+            }
+          />
+        </BroadcastRow>
 
         <Box display="flex" justifyContent="space-between" alignItems="center" mt={2} px={1}>
           <FormControlLabel
@@ -386,7 +422,7 @@ export default function JukeboxDialog() {
                         fontSize: '13px',
                       },
                     }}
-                    secondary={song.isLocal ? '📱 自分のみ再生' : '📡 全員に配信'}
+                    secondary={song.isLocal || !broadcast ? '📱 自分のみ再生' : '📡 全員に配信'}
                     secondaryTypographyProps={{
                       style: {
                         color: isActive ? 'rgba(0, 255, 136, 0.6)' : 'rgba(224, 242, 254, 0.4)',
