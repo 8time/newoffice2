@@ -31,13 +31,13 @@ const check=(c,ok,ng)=>{log(c?`[PASS] ${ok}`:`[FAIL] ${ng}`); if(!c)failed++}
   const ta=p.locator('textarea').first()
   await ta.click()
   await ta.type('1行目',{delay:30})
-  await p.keyboard.press('Enter')
+  await p.keyboard.press('Shift+Enter')   // Shift+Enter で改行
   await ta.type('2行目',{delay:30})
   await wait(800)
 
   const val = await ta.inputValue()
   log('入力欄の中身: ' + JSON.stringify(val))
-  check(val.includes('\n'), '改行が入力できた', '改行が入らない（Enterが奪われている）')
+  check(val.includes('\n'), 'Shift+Enterで改行が入力できた', '改行が入らない（Enterが奪われている）')
   check(val === '1行目\n2行目', '入力した通りの2行になっている', `中身が違う: ${JSON.stringify(val)}`)
 
   // Enterでチャットが開いてしまっていないか
@@ -57,6 +57,20 @@ const check=(c,ok,ng)=>{log(c?`[PASS] ${ok}`:`[FAIL] ${ng}`); if(!c)failed++}
   })
   log('看板の文字: ' + JSON.stringify(placed))
   check(!!placed && placed.includes('\n'), '改行を含む看板が設置された', '改行入りの看板が設置できない')
+  // 看板の文字が M PLUS 1p で描かれているか
+  const fontInfo = await p.evaluate(() => {
+    const g = window.game.scene.keys.game
+    let fam = null
+    g.signboardMap.forEach((c) => {
+      const t = c.list?.find((o) => o.type === 'Text')
+      if (t && !fam) fam = t.style.fontFamily
+    })
+    return { loaded: document.fonts.check('13px "M PLUS 1p"'), fam }
+  })
+  log('フォント: ' + JSON.stringify(fontInfo))
+  check(fontInfo.loaded === true, 'M PLUS 1p が読み込まれている', 'M PLUS 1p が読み込まれていない（代替フォントのまま）')
+  check(!!fontInfo.fam && fontInfo.fam.includes('M PLUS 1p'), '看板の文字にM PLUS 1pが指定されている', `フォント指定が違う: ${fontInfo.fam}`)
+
   await p.screenshot({path:'_e2e_out/signboard-newline.png'})
 
   log(failed===0?'\n=== 全項目 PASS ===':`\n=== ${failed}件 FAIL ===`)

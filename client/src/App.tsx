@@ -33,6 +33,7 @@ import AttendancePanel from './components/AttendancePanel'
 import StatusToggle from './components/StatusToggle'
 import MeetingRoomOverlay from './components/MeetingRoomOverlay'
 import RendererWarning from './components/RendererWarning'
+import DisconnectedNotice from './components/DisconnectedNotice'
 
 // ReactのUIオーバーレイの最外枠
 const Backdrop = styled.div`
@@ -208,6 +209,9 @@ function App() {
     <>
       {/* WebGLが使えずCanvas描画に降格すると激重になるため、その旨を知らせる */}
       <RendererWarning />
+
+      {/* 別タブで開いて切断された等、操作が届かなくなったことを知らせる */}
+      <DisconnectedNotice />
 
       <Backdrop>
         {ui}

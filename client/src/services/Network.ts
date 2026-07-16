@@ -1,6 +1,6 @@
 import { Client, Room } from 'colyseus.js'
 import { IComputer, IOfficeState, IPlayer, IWhiteboard, ISignboard, IPlacedItem } from '../../../types/IOfficeState'
-import { Message } from '../../../types/Messages'
+import { Message, KICKED_BY_OTHER_TAB } from '../../../types/Messages'
 import { IRoomData, RoomType } from '../../../types/Rooms'
 import { ItemType } from '../../../types/Items'
 import WebRTC from '../web/WebRTC'
@@ -31,6 +31,7 @@ import {
   setAvailableRooms,
   addAvailableRooms,
   removeAvailableRooms,
+  setDisconnectReason,
 } from '../stores/RoomStore'
 import {
   pushChatMessage,
@@ -127,6 +128,14 @@ export default class Network {
   // set up all network listeners before the game starts
   initialize() {
     if (!this.room) return
+
+    // 切断されたら理由を控えておく。特に「同じブラウザの別タブで同じ部屋を開いた」場合は
+    // サーバーが古いタブを追い出す（1ブラウザ=1キャラを保つため）。
+    // これを無視すると、古いタブはマップを描き続けるのに送信だけが届かず、
+    // 「看板が置けない・消せない」という原因の分からない状態になる。
+    this.room.onLeave((code) => {
+      store.dispatch(setDisconnectReason(code === KICKED_BY_OTHER_TAB ? 'other-tab' : 'lost'))
+    })
 
     this.lobby.leave()
     this.mySessionId = this.room.sessionId

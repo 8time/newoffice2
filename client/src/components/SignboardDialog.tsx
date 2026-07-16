@@ -264,11 +264,15 @@ export default function SignboardDialog() {
       <Panel onMouseDown={(e) => e.stopPropagation()}>
         <Title>看板を設置</Title>
 
-        <Label>メモ / テキスト</Label>
+        <Label>メモ / テキスト（Shift + Enter で改行）</Label>
         <TextArea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="例：本日17時から全体MTG　など"
+          // 入力欄で打ったキーはゲーム側(Phaser)にも届いてしまい、
+          // Enterでチャットが開いてフォーカスを奪われ改行できなくなる。
+          // この入力欄のキーはここで止めて、確実に改行できるようにする。
+          onKeyDown={(e) => e.stopPropagation()}
+          placeholder="例：本日17時から全体MTG　など&#10;Shift + Enter で改行できます"
         />
 
         <Label>背景色</Label>

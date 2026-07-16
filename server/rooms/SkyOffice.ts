@@ -4,7 +4,7 @@ import { registerDoc, readDoc, writeDoc } from '../storage'
 import { Room, Client, ServerError } from 'colyseus'
 import { Dispatcher } from '@colyseus/command'
 import { Player, OfficeState, Computer, Whiteboard, Signboard, PlacedItem, ChatMessage } from './schema/OfficeState'
-import { Message } from '../../types/Messages'
+import { Message, KICKED_BY_OTHER_TAB } from '../../types/Messages'
 import { IRoomData } from '../../types/Rooms'
 import { whiteboardRoomIds } from './schema/OfficeState'
 import PlayerUpdateCommand from './commands/PlayerUpdateCommand'
@@ -952,7 +952,10 @@ export class SkyOffice extends Room<OfficeState> {
         if (other.sessionId !== client.sessionId && this.clientIdBySession.get(other.sessionId) === clientId) {
           if (this.state.players.has(other.sessionId)) this.state.players.delete(other.sessionId)
           this.clientIdBySession.delete(other.sessionId)
-          try { other.leave(1000) } catch {}
+          // 通常の切断(1000)で追い出すと、古いタブは理由が分からないまま
+          // 「マップは映るが看板の設置も削除もできない」状態になってしまう。
+          // 専用コードで追い出し、古いタブ側で理由を表示できるようにする。
+          try { other.leave(KICKED_BY_OTHER_TAB) } catch {}
         }
       })
       this.clientIdBySession.set(client.sessionId, clientId)

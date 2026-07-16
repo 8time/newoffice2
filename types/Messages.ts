@@ -46,3 +46,8 @@ export enum Message {
   REQUEST_DM_HISTORY,
   DM_HISTORY,
 }
+
+// ルームから追い出すときの切断コード。WebSocketの4000番台はアプリ独自に使える。
+// 同じブラウザの別タブで同じ部屋を開いたため、古いタブを切断したことを表す
+// （1ブラウザ=1キャラを保つための処理。古いタブ側で理由を表示するのに使う）
+export const KICKED_BY_OTHER_TAB = 4001

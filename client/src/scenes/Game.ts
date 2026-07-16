@@ -49,10 +49,11 @@ const FIXED_MEETING_ROOM_SIZE = { width: 96, height: 96 }
 // マップビルダーで設置した会議室が共通で使う部屋ID。設置物のIDに依存させないことで、
 // 入口を複数置いても・置き直しても、同じホワイトボードと議事録を使い続けられる
 const BUILDER_MEETING_ROOM_ID = 'builder-meeting-room'
-// 看板の文字に使うフォント。各OSの標準ゴシックを先に並べ、日本語がある場合でも
-// 明朝などに落ちないようにする（Inter/Arialは日本語のグリフを持たない）
+// 看板の文字に使うフォント。M PLUS 1p は日本語のグリフを持ち、小さい字でも読みやすい。
+// 読み込みに失敗した場合に備えて、各OSの標準ゴシックを控えに並べる
+// （Inter/Arialは日本語のグリフを持たないため、単独だと明朝などに落ちて汚くなる）
 const SIGNBOARD_FONT =
-  '"Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", Meiryo, "Noto Sans JP", Inter, Arial, sans-serif'
+  '"M PLUS 1p", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", Meiryo, sans-serif'
 
 export default class Game extends Phaser.Scene {
   network!: Network
@@ -76,6 +77,9 @@ export default class Game extends Phaser.Scene {
   private signboardTexLoading = new Set<string>()
   // 読み込み中に届いた看板の編集内容。読み込み完了後にこの内容でやり直す
   private pendingSignboardUpdate = new Map<string, any>()
+  // 描画済みの看板の元データ。Webフォントの読み込み完了後に描き直すのに使う
+  private signboardData = new Map<string, any>()
+  private signboardFontRefreshed = false
   private scaleUpdateTimers = new Map<string, number>()
   // 看板の角ドラッグでの自由リサイズ用（全看板で共有する1つのつまみ）
   private signResizeHandle?: Phaser.GameObjects.Graphics
@@ -151,6 +155,31 @@ export default class Game extends Phaser.Scene {
     })
 
     this.setupTypingGuard()
+    this.refreshSignboardsWhenFontReady()
+  }
+
+  // 看板の文字はWebフォント(M PLUS 1p)で描く。読み込みが終わる前にPhaserが描くと
+  // 代替フォントのまま固定されてしまうため、読み込み完了後に描き直す。
+  // 読み込みを待ってから入室させる作りにはしない（フォントの配信が遅い・届かないときに
+  // 入室できなくなるため）。画像のテクスチャは再利用するので描き直しは軽い。
+  private refreshSignboardsWhenFontReady() {
+    if (!document.fonts?.load) return
+    document.fonts
+      .load(`13px "M PLUS 1p"`)
+      .then(() => {
+        if (this.signboardFontRefreshed) return
+        this.signboardFontRefreshed = true
+        this.signboardData.forEach((data, id) => {
+          const container = this.signboardMap.get(id)
+          if (container) {
+            container.destroy(true)
+            this.signboardMap.delete(id)
+          }
+          const key = `signtex_${id}`
+          this.renderSignboard(data, this.textures.exists(key) ? key : null)
+        })
+      })
+      .catch(() => undefined)
   }
 
   // DOMの入力欄（看板・名前・設定など）で打った文字は、そのままではPhaserにも届いてしまう。
@@ -632,6 +661,7 @@ export default class Game extends Phaser.Scene {
   }
 
   private handleSignboardRemoved(id: string) {
+    this.signboardData.delete(id)
     const container = this.signboardMap.get(id)
     if (container) {
       container.destroy(true)
@@ -719,6 +749,8 @@ export default class Game extends Phaser.Scene {
     data: { id: string; x: number; y: number; text: string; url: string; image?: string; bgColor?: string; textColor?: string; scale?: number },
     texKey: string | null
   ) {
+    this.signboardData.set(data.id, data)
+
     const MAX_W = 160
     // 画像だけの看板（文字なし）は、画像をそのまま貼りたいので枠も余白も付けない
     const hasImage = !!(texKey && this.textures.exists(texKey))

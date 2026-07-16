@@ -23,6 +23,9 @@ export const roomSlice = createSlice({
     roomDescription: '',
     roomKey: '',
     availableRooms: new Array<RoomAvailable>(),
+    // サーバーから切断された理由。'other-tab' は同じブラウザの別タブで
+    // 同じ部屋を開いたため、このタブが追い出されたことを表す
+    disconnectReason: '' as '' | 'other-tab' | 'lost',
   },
   reducers: {
     setLobbyJoined: (state, action: PayloadAction<boolean>) => {
@@ -33,6 +36,9 @@ export const roomSlice = createSlice({
     },
     setRoomJoined: (state, action: PayloadAction<boolean>) => {
       state.roomJoined = action.payload
+    },
+    setDisconnectReason: (state, action: PayloadAction<'' | 'other-tab' | 'lost'>) => {
+      state.disconnectReason = action.payload
     },
     setJoinedRoomData: (
       state,
@@ -65,6 +71,7 @@ export const roomSlice = createSlice({
 export const {
   setLobbyJoined,
   setRoomJoined,
+  setDisconnectReason,
   setRoomKey,
   setJoinedRoomData,
   setAvailableRooms,
