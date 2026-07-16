@@ -225,6 +225,11 @@ export default function CollaborativeWhiteboard({ roomId }: { roomId: string }) 
   // onChangeはthrottleされておりrAFより後に発火することがあるため確実に機能しなかった。
   const lastSyncedVersions = useRef<Map<string, number>>(new Map())
 
+  // Excalidraw初期化前に届いたリモート更新を保持し、準備完了後に適用する
+  const pendingRemote = useRef<any>(null)
+  // リモート更新を適用する関数の最新版を保持（excalidrawAPI準備時に呼ぶため）
+  const applyRemoteRef = useRef<(payload: any) => void>(() => {})
+
   // 画像ファイルを累積管理
   const filesRef = useRef<Record<string, any>>({})
   // すでに同期済み（アップロード完了・サーバー/他クライアント由来で既知）のfileId
@@ -283,8 +288,16 @@ export default function CollaborativeWhiteboard({ roomId }: { roomId: string }) 
   }, [storageKey])
 
   useEffect(() => {
-    const handler = (remoteRoomId: string, payload: any) => {
-      if (remoteRoomId !== roomId || !apiRef.current) return
+    // 画像ファイルは「要素より先に」Excalidrawへ登録する必要がある。
+    // ファイルが無い状態で画像要素をupdateSceneすると、Excalidrawがその画像要素を
+    // 破棄してしまい、後からファイルを追加しても要素が復活せず「ダミー画像のまま」になる。
+    // そのため記述子(URL)の画像はfetchして addFiles してから updateScene する。
+    const handler = async (remoteRoomId: string, payload: any) => {
+      if (remoteRoomId !== roomId) return
+      // Excalidrawの初期化(apiRef設定)より前にスナップショットが届くことがある。
+      // その場合は捨てずにバッファし、API準備完了後に適用する（後入室で画像/内容が
+      // 「ダミー画像のまま/空のまま」になる問題を防ぐ）。
+      if (!apiRef.current) { pendingRemote.current = payload; return }
       if (payload.files && typeof payload.files === 'object') {
         // 新形式（URL記述子）とレガシー（base64込み）を分けて処理する
         const legacyFiles: any[] = []
@@ -302,13 +315,13 @@ export default function CollaborativeWhiteboard({ roomId }: { roomId: string }) 
         // 画像はupdateSceneのfilesでは反映されないため、addFilesで明示的に追加する
         if (legacyFiles.length > 0) apiRef.current.addFiles(legacyFiles)
         if (descriptors.length > 0) {
-          // 画像本体はHTTPで並列取得する（WebSocketを塞がない）。到着次第表示される
-          Promise.all(descriptors.map(fetchRemoteImage)).then((files) => {
-            const loaded = files.filter(Boolean)
-            if (loaded.length > 0 && apiRef.current) apiRef.current.addFiles(loaded)
-          })
+          // 画像本体をHTTPで取得してから登録する（要素適用より前に完了させる）
+          const loaded = (await Promise.all(descriptors.map(fetchRemoteImage))).filter(Boolean)
+          loaded.forEach((f: any) => { filesRef.current[f.id] = f })
+          if (loaded.length > 0 && apiRef.current) apiRef.current.addFiles(loaded)
         }
       }
+      if (!apiRef.current) return
       // 全置換ではなく、id/version/versionNonceで両者をマージする（同時編集で片方の描画が消えるのを防ぐ）
       const remoteElements = payload.elements || []
       const localElements = apiRef.current.getSceneElementsIncludingDeleted()
@@ -331,6 +344,14 @@ export default function CollaborativeWhiteboard({ roomId }: { roomId: string }) 
         captureUpdate: CaptureUpdateAction.NEVER,
       })
       scheduleLocalSave(reconciled, payload.appState || {})
+    }
+    // API準備完了後にバッファ済みの更新を流し込めるよう、最新のhandlerを保持（payloadのみ受ける形）
+    applyRemoteRef.current = (payload: any) => handler(roomId, payload)
+    // 既にAPIが準備できていてバッファが残っていれば適用
+    if (apiRef.current && pendingRemote.current) {
+      const p = pendingRemote.current
+      pendingRemote.current = null
+      handler(roomId, p)
     }
     phaserEvents.on(PhaserEvent.MEETING_WHITEBOARD_REMOTE_UPDATE, handler)
     getNetwork()?.requestMeetingWhiteboardSnapshot(roomId)
@@ -440,6 +461,12 @@ export default function CollaborativeWhiteboard({ roomId }: { roomId: string }) 
         // 開発時のみ、E2Eテストからシーンの中身を検証できるように公開する
         if (import.meta.env.DEV) {
           ;(window as any).__excalidrawApiForTest = api
+        }
+        // API準備前に届いていたスナップショット/更新をここで適用する
+        if (pendingRemote.current) {
+          const p = pendingRemote.current
+          pendingRemote.current = null
+          applyRemoteRef.current(p)
         }
       }}
       onChange={handleChange}
