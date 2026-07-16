@@ -1,9 +1,10 @@
 /**
- * 固定ミーティングルーム(473,440 / 717,503)とログイン時の自動接続を検証する。
+ * 固定ミーティングルーム(473,440)とログイン時の自動接続を検証する。
  *  - ログイン画面で「CONNECT WEBCAM」を押さなくてもカメラ/マイクに自動接続されるか
  *  - 既定でカメラOFF・マイクONになっているか
- *  - 会議室1・会議室2の入口が全ユーザーの画面にあるか
- *  - 別々のユーザーが同じ入口から入ると同じ部屋で合流できるか（会議室1と2が別部屋か）
+ *  - 会議室1の入口が全ユーザーの画面にあるか
+ *  - 解除した(749,464)付近＝旧会議室2に入口が残っていないか
+ *  - 別々のユーザーが同じ入口から入ると同じ部屋で合流できるか
  */
 const { chromium } = require('playwright')
 const path = require('path')
@@ -92,9 +93,15 @@ async function main() {
   })
   log('   入口一覧: ' + JSON.stringify(rooms))
   const r1 = rooms.find((r) => r.id === 'meeting-room-1')
-  const r2 = rooms.find((r) => r.id === 'meeting-room-2')
   log(r1 && r1.x === 473 && r1.y === 440 ? '[PASS] 会議室1が (473, 440) にある' : '[FAIL] 会議室1が無い/座標が違う')
-  log(r2 && r2.x === 717 && r2.y === 503 ? '[PASS] 会議室2が (717, 503) にある' : '[FAIL] 会議室2が無い/座標が違う')
+  // (749,464)を覆っていた会議室2は解除済み。ゾーンが残っていないことを確かめる
+  const covering = rooms.filter((r) => {
+    const w = r.width ?? 96, h = r.height ?? 96
+    return Math.abs(r.x - 749) <= w / 2 && Math.abs(r.y - 464) <= h / 2
+  })
+  log(covering.length === 0
+    ? '[PASS] (749,464)付近に会議室の入口が無い（解除できている）'
+    : `[FAIL] (749,464)付近にまだ入口がある: ${JSON.stringify(covering)}`)
 
   // ─── テスト3: 別ユーザーが同じ入口から入ると同じ部屋になるか ───
   log('\n== テスト3: 2人が同じ会議室で合流できるか ==')
@@ -118,17 +125,17 @@ async function main() {
     : '[FAIL] 同じ部屋に入れていない')
   await A.screenshot({ path: path.join(OUT_DIR, 'mr-02-A-in-room1.png') })
 
-  // 会議室2が別部屋になっているか（Aだけ退出して会議室2へ）
+  // 解除した(749,464)へ歩いても、もう会議室に入らないこと
   await A.evaluate(() => {
     window.__store.dispatch({ type: 'meetingRoom/clearActiveMeetingRoom' })
     window.__phaserEvents.emit('meeting-room-exit')
   })
   await wait(1800)
-  await walkTo(A, 717, 503)
+  await walkTo(A, 749, 464)
   await wait(1500)
   const aRoom2 = await inRoom(A)
-  log(`   Aを会議室2へ: ${aRoom2}`)
-  log(aRoom2 === 'meeting-room-2' ? '[PASS] 会議室2は会議室1とは別の部屋' : '[FAIL] 会議室2に入れない')
+  log(`   Aを(749,464)へ: ${aRoom2}`)
+  log(aRoom2 === null ? '[PASS] (749,464)へ歩いても会議室に入らない' : `[FAIL] まだ会議室に入ってしまう: ${aRoom2}`)
 
   log(`\nスクリーンショット: ${OUT_DIR}`)
   await browser.close()

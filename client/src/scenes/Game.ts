@@ -44,7 +44,6 @@ const TILE_SIZE = 32
 // 同じidを共有するため、別々のユーザーが同じ入口から入れば同じ部屋で合流できる。
 const FIXED_MEETING_ROOMS = [
   { id: 'meeting-room-1', name: '会議室1', x: 473, y: 440 },
-  { id: 'meeting-room-2', name: '会議室2', x: 717, y: 503 },
 ]
 const FIXED_MEETING_ROOM_SIZE = { width: 96, height: 96 }
 
