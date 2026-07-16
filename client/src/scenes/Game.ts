@@ -377,6 +377,10 @@ export default class Game extends Phaser.Scene {
     phaserEvents.on(Event.SIGNBOARD_PLACE, this.handleSignboardPlace, this)
     phaserEvents.on(Event.EMOTE_RECEIVED, this.handleEmote, this)
 
+    // 入室時点で既にサーバー上にある看板・設置物を描画する（再入室で消えないように）。
+    // これらの描画イベントはリスナー登録前に発火して取りこぼされるため、ここで明示的に再生する。
+    this.network.replayExistingState()
+
     this.events.once('destroy', () => {
       this.game.canvas.removeEventListener('contextmenu', this.preventCanvasContextMenu)
       this.input.off('pointerdown', this.handleInspectCoordinate, this)

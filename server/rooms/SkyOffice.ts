@@ -224,22 +224,37 @@ interface SignboardRecord {
   scale: number
 }
 
-function loadSignboards(): SignboardRecord[] {
+// 看板はルーム（合言葉）ごとに分けて保存する。以前は全ルーム共通の単一配列だったため、
+// 別ルームの空状態で上書きされて看板が消えることがあった。
+function loadAllSignboards(): Record<string, SignboardRecord[]> {
   try {
     if (fs.existsSync(SIGNBOARDS_FILE)) {
-      return JSON.parse(fs.readFileSync(SIGNBOARDS_FILE, 'utf-8'))
+      const parsed = JSON.parse(fs.readFileSync(SIGNBOARDS_FILE, 'utf-8'))
+      // 旧形式（配列）の場合は 'public' ルームのものとして移行する
+      if (Array.isArray(parsed)) return { public: parsed }
+      return parsed
     }
   } catch {}
-  return []
+  return {}
 }
 
-function saveSignboards(signboards: { forEach: (cb: (sign: Signboard, id: string) => void) => void }) {
+function loadSignboards(roomKey: string): SignboardRecord[] {
+  const all = loadAllSignboards()
+  return all[roomKey] || []
+}
+
+function saveSignboards(
+  signboards: { forEach: (cb: (sign: Signboard, id: string) => void) => void },
+  roomKey: string
+) {
   try {
     const records: SignboardRecord[] = []
     signboards.forEach((sign, id) => {
       records.push({ id, x: sign.x, y: sign.y, text: sign.text, image: sign.image, url: sign.url, createdBy: sign.createdBy, bgColor: sign.bgColor, textColor: sign.textColor, scale: sign.scale })
     })
-    fs.writeFileSync(SIGNBOARDS_FILE, JSON.stringify(records, null, 2), 'utf-8')
+    const all = loadAllSignboards()
+    all[roomKey] = records
+    fs.writeFileSync(SIGNBOARDS_FILE, JSON.stringify(all, null, 2), 'utf-8')
   } catch (e) {
     console.error('[Signboards] 保存失敗:', e)
   }
@@ -391,7 +406,7 @@ export class SkyOffice extends Room<OfficeState> {
     }
 
     // 看板データを永続化ファイルから復元
-    const savedSignboards = loadSignboards()
+    const savedSignboards = loadSignboards(this.chatKey)
     savedSignboards.forEach((record) => {
       const sign = new Signboard()
       sign.x = record.x
@@ -741,7 +756,7 @@ export class SkyOffice extends Room<OfficeState> {
         sign.scale = Math.min(3, Math.max(0.3, Number(message.scale) || 1))
         const id = `sign_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
         this.state.signboards.set(id, sign)
-        saveSignboards(this.state.signboards)
+        saveSignboards(this.state.signboards, this.chatKey)
       }
     )
 
@@ -749,7 +764,7 @@ export class SkyOffice extends Room<OfficeState> {
     this.onMessage(Message.REMOVE_SIGNBOARD, (client, message: { id: string }) => {
       if (this.state.signboards.has(message.id)) {
         this.state.signboards.delete(message.id)
-        saveSignboards(this.state.signboards)
+        saveSignboards(this.state.signboards, this.chatKey)
       }
     })
 
@@ -760,7 +775,7 @@ export class SkyOffice extends Room<OfficeState> {
         if (message.x !== undefined) sign.x = message.x
         if (message.y !== undefined) sign.y = message.y
         if (message.scale !== undefined) sign.scale = Math.min(3, Math.max(0.3, message.scale))
-        saveSignboards(this.state.signboards)
+        saveSignboards(this.state.signboards, this.chatKey)
       }
     })
 
@@ -774,7 +789,7 @@ export class SkyOffice extends Room<OfficeState> {
         if (message.bgColor !== undefined && /^#[0-9a-f]{6}$/i.test(message.bgColor)) sign.bgColor = message.bgColor
         if (message.textColor !== undefined && /^#[0-9a-f]{6}$/i.test(message.textColor)) sign.textColor = message.textColor
         if (message.scale !== undefined) sign.scale = Math.min(3, Math.max(0.3, message.scale))
-        saveSignboards(this.state.signboards)
+        saveSignboards(this.state.signboards, this.chatKey)
       }
     })
 

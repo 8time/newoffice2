@@ -386,6 +386,43 @@ export default class Network {
     )
   }
 
+  // Gameシーンの準備が整った後に呼ぶ。入室時点で既にサーバー状態にある看板・設置物・会議室入口を
+  // 再度Phaser側へ通知して描画させる。onAdd/onChangeは入室直後（Gameシーンがリスナー登録する前）に
+  // 発火してしまい、既存アイテムの描画イベントが取りこぼされるため、ここで明示的に再生する。
+  replayExistingState() {
+    if (!this.room) return
+    this.room.state.signboards.forEach((signboard, key) => {
+      phaserEvents.emit(Event.SIGNBOARD_ADDED, {
+        id: key,
+        x: signboard.x,
+        y: signboard.y,
+        text: signboard.text,
+        image: signboard.image,
+        url: signboard.url,
+        createdBy: signboard.createdBy,
+        bgColor: signboard.bgColor || '#fff8e1',
+        textColor: signboard.textColor || '#1a1a1a',
+        scale: signboard.scale || 1,
+      })
+    })
+    this.room.state.placedItems.forEach((item, key) => {
+      phaserEvents.emit(Event.BUILDER_ITEM_ADDED, {
+        id: key,
+        itemType: item.itemType,
+        x: item.x,
+        y: item.y,
+        frame: item.frame,
+        direction: item.direction,
+      })
+    })
+    if (this.room.state.meetingEntranceX >= 0) {
+      phaserEvents.emit(Event.MEETING_ENTRANCE_CHANGED, {
+        x: this.room.state.meetingEntranceX,
+        y: this.room.state.meetingEntranceY,
+      })
+    }
+  }
+
   // method to register event listener and call back function when a item user added
   onChatMessageAdded(callback: (playerId: string, content: string) => void, context?: any) {
     phaserEvents.on(Event.UPDATE_DIALOG_BUBBLE, callback, context)
