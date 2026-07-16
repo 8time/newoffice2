@@ -48,3 +48,9 @@ export function playEmoteSound() {
 export function playChatSound() {
   beep(560, 640, 0.06, 0.05)
 }
+
+/** DM着信：やや目立つ2音 */
+export function playDmSound() {
+  beep(784, 1047, 0.14, 0.3)
+  setTimeout(() => beep(1047, 1319, 0.16, 0.3), 160)
+}

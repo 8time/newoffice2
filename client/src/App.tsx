@@ -24,6 +24,7 @@ import SignboardDeleteConfirm from './components/SignboardDeleteConfirm'
 import ExitConfirmDialog from './components/ExitConfirmDialog'
 import SettingsDialog from './components/SettingsDialog'
 import DMDialog from './components/DMDialog'
+import DMNotification from './components/DMNotification'
 import SignboardEditDialog from './components/SignboardEditDialog'
 import EmotePanel from './components/EmotePanel'
 import VideoOverlay from './components/VideoOverlay'
@@ -238,6 +239,9 @@ function App() {
 
       {/* ダイレクトメッセージ */}
       {loggedIn && <DMDialog />}
+
+      {/* DM着信のポップアップ通知 */}
+      {loggedIn && <DMNotification />}
 
       {/* 看板編集ダイアログ */}
       {loggedIn && editBoard && <SignboardEditDialog />}

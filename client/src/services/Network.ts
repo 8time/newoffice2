@@ -355,7 +355,15 @@ export default class Network {
 
     // DM受信（自分が送った分のエコーも含む）
     this.room.onMessage(Message.DM_MESSAGE, (msg: DMMessage) => {
-      store.dispatch(addDmMessage({ myUserKey: getClientId(), msg }))
+      const myKey = getClientId()
+      store.dispatch(addDmMessage({ myUserKey: myKey, msg }))
+      // 相手から届いたDMで、その会話を開いていない場合はポップアップ＋音で知らせる
+      if (msg.fromUserKey !== myKey) {
+        const openKey = store.getState().dm.openKey
+        if (openKey !== msg.fromUserKey) {
+          phaserEvents.emit(Event.DM_RECEIVED, msg.fromUserKey, msg.fromName, msg.content)
+        }
+      }
     })
 
     // DM履歴の受信

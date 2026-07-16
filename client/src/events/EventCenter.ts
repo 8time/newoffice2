@@ -55,6 +55,7 @@ export enum Event {
   SIGNBOARD_PLACE = 'signboard-place',
   // ノック（呼び出し）
   KNOCK_RECEIVED = 'knock-received',
+  DM_RECEIVED = 'dm-received',
   // エモート（頭上リアクション）
   EMOTE_RECEIVED = 'emote-received',
   // マップビルダー設置物（全員同期）
