@@ -1,6 +1,6 @@
 import bcrypt from 'bcrypt'
-import fs from 'fs'
 import path from 'path'
+import { registerDoc, readDoc, writeDoc } from '../storage'
 import { Room, Client, ServerError } from 'colyseus'
 import { Dispatcher } from '@colyseus/command'
 import { Player, OfficeState, Computer, Whiteboard, Signboard, PlacedItem, ChatMessage } from './schema/OfficeState'
@@ -19,13 +19,19 @@ import {
 } from './commands/WhiteboardUpdateArrayCommand'
 import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
 
-const ATTENDANCE_FILE = path.join(__dirname, '../../attendance.json')
-const SIGNBOARDS_FILE = path.join(__dirname, '../../signboards.json')
-const BUILDER_FILE = path.join(__dirname, '../../builder.json')
-const WHITEBOARDS_FILE = path.join(__dirname, '../../meeting-whiteboards.json')
-const MEETING_DOCS_FILE = path.join(__dirname, '../../meeting-docs.json')
-const MEETING_TABS_FILE = path.join(__dirname, '../../meeting-tabs.json')
-const CHAT_FILE = path.join(__dirname, '../../chat-history.json')
+// 保存するデータの一覧。ローカル実行時は従来どおり同じJSONファイルへ書き出し、
+// SUPABASE_URLがあればSupabaseへ保存する（Renderの無料枠はディスクが再起動で消えるため）。
+const DOCS = {
+  attendance: path.join(__dirname, '../../attendance.json'),
+  signboards: path.join(__dirname, '../../signboards.json'),
+  builder: path.join(__dirname, '../../builder.json'),
+  whiteboards: path.join(__dirname, '../../meeting-whiteboards.json'),
+  meetingDocs: path.join(__dirname, '../../meeting-docs.json'),
+  meetingTabs: path.join(__dirname, '../../meeting-tabs.json'),
+  chat: path.join(__dirname, '../../chat-history.json'),
+  dm: path.join(__dirname, '../../dm-history.json'),
+} as const
+Object.entries(DOCS).forEach(([key, file]) => registerDoc(key, file))
 
 // ─── チャット履歴の永続化（ルームごと・日付区切りでさかのぼれるように保持） ─────
 
@@ -40,25 +46,15 @@ interface ChatRecord {
 const CHAT_HISTORY_LIMIT = 500
 
 function loadChatHistory(): Record<string, ChatRecord[]> {
-  try {
-    if (fs.existsSync(CHAT_FILE)) {
-      return JSON.parse(fs.readFileSync(CHAT_FILE, 'utf-8'))
-    }
-  } catch {}
-  return {}
+  return readDoc<Record<string, ChatRecord[]>>('chat', {})
 }
 
 function saveChatHistory(all: Record<string, ChatRecord[]>) {
-  try {
-    fs.writeFileSync(CHAT_FILE, JSON.stringify(all), 'utf-8')
-  } catch (e) {
-    console.error('[Chat] 履歴保存失敗:', e)
-  }
+  writeDoc('chat', all)
 }
 
 // ─── ダイレクトメッセージ(DM)の永続化 ───────────────────────────────────────────
 
-const DM_FILE = path.join(__dirname, '../../dm-history.json')
 const DM_HISTORY_LIMIT = 500
 
 interface DMRecord {
@@ -76,31 +72,17 @@ function dmConversationId(a: string, b: string): string {
 }
 
 function loadDmHistory(): Record<string, DMRecord[]> {
-  try {
-    if (fs.existsSync(DM_FILE)) {
-      return JSON.parse(fs.readFileSync(DM_FILE, 'utf-8'))
-    }
-  } catch {}
-  return {}
+  return readDoc<Record<string, DMRecord[]>>('dm', {})
 }
 
 function saveDmHistory(all: Record<string, DMRecord[]>) {
-  try {
-    fs.writeFileSync(DM_FILE, JSON.stringify(all), 'utf-8')
-  } catch (e) {
-    console.error('[DM] 履歴保存失敗:', e)
-  }
+  writeDoc('dm', all)
 }
 
 // ─── ミーティングルームのホワイトボード永続化 ────────────────────────────────
 
 function loadWhiteboards(): Record<string, unknown> {
-  try {
-    if (fs.existsSync(WHITEBOARDS_FILE)) {
-      return JSON.parse(fs.readFileSync(WHITEBOARDS_FILE, 'utf-8'))
-    }
-  } catch {}
-  return {}
+  return readDoc<Record<string, unknown>>('whiteboards', {})
 }
 
 // 削除済み要素は同期のたびに増え続けるため、24時間以上前に更新されたものは
@@ -119,55 +101,33 @@ function pruneStaleDeletedElements(payload: any): unknown {
 }
 
 function saveWhiteboards(snapshots: Map<string, unknown>) {
-  try {
-    const obj: Record<string, unknown> = {}
-    snapshots.forEach((payload, roomId) => { obj[roomId] = pruneStaleDeletedElements(payload) })
-    fs.writeFileSync(WHITEBOARDS_FILE, JSON.stringify(obj), 'utf-8')
-  } catch (e) {
-    console.error('[Whiteboards] 保存失敗:', e)
-  }
+  const obj: Record<string, unknown> = {}
+  snapshots.forEach((payload, roomId) => { obj[roomId] = pruneStaleDeletedElements(payload) })
+  writeDoc('whiteboards', obj)
 }
 
 // ─── ミーティングルームの議事録メモ永続化 ──────────────────────────────────────
 
 function loadMeetingDocs(): Record<string, string> {
-  try {
-    if (fs.existsSync(MEETING_DOCS_FILE)) {
-      return JSON.parse(fs.readFileSync(MEETING_DOCS_FILE, 'utf-8'))
-    }
-  } catch {}
-  return {}
+  return readDoc<Record<string, string>>('meetingDocs', {})
 }
 
 function saveMeetingDocs(snapshots: Map<string, string>) {
-  try {
-    const obj: Record<string, string> = {}
-    snapshots.forEach((content, roomId) => { obj[roomId] = content })
-    fs.writeFileSync(MEETING_DOCS_FILE, JSON.stringify(obj), 'utf-8')
-  } catch (e) {
-    console.error('[MeetingDocs] 保存失敗:', e)
-  }
+  const obj: Record<string, string> = {}
+  snapshots.forEach((content, roomId) => { obj[roomId] = content })
+  writeDoc('meetingDocs', obj)
 }
 
 // ─── ミーティングルームのタブ構成永続化 ────────────────────────────────────────
 
 function loadMeetingTabs(): Record<string, unknown> {
-  try {
-    if (fs.existsSync(MEETING_TABS_FILE)) {
-      return JSON.parse(fs.readFileSync(MEETING_TABS_FILE, 'utf-8'))
-    }
-  } catch {}
-  return {}
+  return readDoc<Record<string, unknown>>('meetingTabs', {})
 }
 
 function saveMeetingTabs(snapshots: Map<string, unknown>) {
-  try {
-    const obj: Record<string, unknown> = {}
-    snapshots.forEach((tabs, roomId) => { obj[roomId] = tabs })
-    fs.writeFileSync(MEETING_TABS_FILE, JSON.stringify(obj), 'utf-8')
-  } catch (e) {
-    console.error('[MeetingTabs] 保存失敗:', e)
-  }
+  const obj: Record<string, unknown> = {}
+  snapshots.forEach((tabs, roomId) => { obj[roomId] = tabs })
+  writeDoc('meetingTabs', obj)
 }
 
 // ─── マップビルダー設置物の永続化 ──────────────────────────────────────────────
@@ -187,12 +147,7 @@ interface BuilderData {
 }
 
 function loadBuilder(): BuilderData {
-  try {
-    if (fs.existsSync(BUILDER_FILE)) {
-      return JSON.parse(fs.readFileSync(BUILDER_FILE, 'utf-8'))
-    }
-  } catch {}
-  return { items: [], meetingEntrance: null }
+  return readDoc<BuilderData>('builder', { items: [], meetingEntrance: null })
 }
 
 function saveBuilder(state: OfficeState) {
@@ -203,7 +158,7 @@ function saveBuilder(state: OfficeState) {
     })
     const meetingEntrance =
       state.meetingEntranceX >= 0 ? { x: state.meetingEntranceX, y: state.meetingEntranceY } : null
-    fs.writeFileSync(BUILDER_FILE, JSON.stringify({ items, meetingEntrance }, null, 2), 'utf-8')
+    writeDoc('builder', { items, meetingEntrance })
   } catch (e) {
     console.error('[Builder] 保存失敗:', e)
   }
@@ -227,15 +182,10 @@ interface SignboardRecord {
 // 看板はルーム（合言葉）ごとに分けて保存する。以前は全ルーム共通の単一配列だったため、
 // 別ルームの空状態で上書きされて看板が消えることがあった。
 function loadAllSignboards(): Record<string, SignboardRecord[]> {
-  try {
-    if (fs.existsSync(SIGNBOARDS_FILE)) {
-      const parsed = JSON.parse(fs.readFileSync(SIGNBOARDS_FILE, 'utf-8'))
-      // 旧形式（配列）の場合は 'public' ルームのものとして移行する
-      if (Array.isArray(parsed)) return { public: parsed }
-      return parsed
-    }
-  } catch {}
-  return {}
+  const parsed = readDoc<Record<string, SignboardRecord[]> | SignboardRecord[]>('signboards', {})
+  // 旧形式（配列）の場合は 'public' ルームのものとして移行する
+  if (Array.isArray(parsed)) return { public: parsed }
+  return parsed
 }
 
 function loadSignboards(roomKey: string): SignboardRecord[] {
@@ -254,7 +204,7 @@ function saveSignboards(
     })
     const all = loadAllSignboards()
     all[roomKey] = records
-    fs.writeFileSync(SIGNBOARDS_FILE, JSON.stringify(all, null, 2), 'utf-8')
+    writeDoc('signboards', all)
   } catch (e) {
     console.error('[Signboards] 保存失敗:', e)
   }
@@ -271,20 +221,11 @@ interface AttendanceRecord {
 }
 
 function loadAttendance(): AttendanceRecord[] {
-  try {
-    if (fs.existsSync(ATTENDANCE_FILE)) {
-      return JSON.parse(fs.readFileSync(ATTENDANCE_FILE, 'utf-8'))
-    }
-  } catch {}
-  return []
+  return readDoc<AttendanceRecord[]>('attendance', [])
 }
 
 function saveAttendance(records: AttendanceRecord[]) {
-  try {
-    fs.writeFileSync(ATTENDANCE_FILE, JSON.stringify(records, null, 2), 'utf-8')
-  } catch (e) {
-    console.error('[Attendance] 保存失敗:', e)
-  }
+  writeDoc('attendance', records)
 }
 
 export function recordCheckIn(sessionId: string, name: string) {

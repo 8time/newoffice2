@@ -7,3 +7,10 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # 会議室の内容・画像の永続化に使うSupabaseの接続情報。
+      # Renderのディスクは再起動で消えるため、未設定だとデータは保存されない。
+      # 値はRenderのダッシュボードで設定する（sync:false = リポジトリには置かない）
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

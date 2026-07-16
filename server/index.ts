@@ -11,6 +11,7 @@ import { spawn, ChildProcess } from 'child_process'
 // import socialRoutes from "@colyseus/social/express"
 
 import { SkyOffice, getAttendanceForDate } from './rooms/SkyOffice'
+import { registerDoc, readDoc, writeDoc, hydrate, setLocalBlobDir, putBlob, getBlob } from './storage'
 
 const port = Number(process.env.PORT || 2567)
 const app = express()
@@ -112,8 +113,11 @@ app.post('/api/mission', (req, res) => {
 // ファイル本体はHTTP・WebSocketにはURLだけ、という分担にする。
 
 const UPLOADS_DIR = path.join(__dirname, 'uploads')
-const UPLOADS_INDEX = path.join(UPLOADS_DIR, 'index.json')
 const MAX_UPLOAD_SIZE = 50 * 1024 * 1024 // 50MB
+// 画像などの本体はSupabase Storage（未設定ならUPLOADS_DIR）へ、
+// 名前やMIMEなどの索引はJSONドキュメントとして保存する
+setLocalBlobDir(UPLOADS_DIR)
+registerDoc('uploadIndex', path.join(UPLOADS_DIR, 'index.json'))
 
 interface UploadRecord {
   name: string
@@ -123,20 +127,11 @@ interface UploadRecord {
 }
 
 function loadUploadIndex(): Record<string, UploadRecord> {
-  try {
-    if (fs.existsSync(UPLOADS_INDEX)) {
-      return JSON.parse(fs.readFileSync(UPLOADS_INDEX, 'utf-8'))
-    }
-  } catch {}
-  return {}
+  return readDoc<Record<string, UploadRecord>>('uploadIndex', {})
 }
 
 function saveUploadIndex(index: Record<string, UploadRecord>) {
-  try {
-    fs.writeFileSync(UPLOADS_INDEX, JSON.stringify(index), 'utf-8')
-  } catch (e) {
-    console.error('[Files] index保存失敗:', e)
-  }
+  writeDoc('uploadIndex', index)
 }
 
 const upload = multer({
@@ -144,13 +139,12 @@ const upload = multer({
   limits: { fileSize: MAX_UPLOAD_SIZE },
 })
 
-app.post('/api/files', upload.single('file'), (req, res) => {
+app.post('/api/files', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'file is required' })
-    if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true })
 
     const id = `f_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
-    fs.writeFileSync(path.join(UPLOADS_DIR, id), req.file.buffer)
+    await putBlob(id, req.file.buffer, req.file.mimetype || 'application/octet-stream')
 
     const index = loadUploadIndex()
     index[id] = {
@@ -168,12 +162,12 @@ app.post('/api/files', upload.single('file'), (req, res) => {
   }
 })
 
-app.get('/files/:id', (req, res) => {
+app.get('/files/:id', async (req, res) => {
   const id = req.params.id
   // idはサーバー生成の英数字のみ。パストラバーサルを防ぐため厳密に検証する
   if (!/^[a-zA-Z0-9_]+$/.test(id)) return res.status(400).end()
-  const filePath = path.join(UPLOADS_DIR, id)
-  if (!fs.existsSync(filePath)) return res.status(404).end()
+  const blob = await getBlob(id)
+  if (!blob) return res.status(404).end()
 
   const meta = loadUploadIndex()[id]
   const type = meta?.type || 'application/octet-stream'
@@ -188,7 +182,7 @@ app.get('/files/:id', (req, res) => {
   )
   // idは一意で内容が変わらないため、強くキャッシュさせる（再入室時の画像再取得を無くす）
   res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
-  res.sendFile(filePath)
+  res.send(blob)
 })
 
 // 知識DB API（馬データ・調査結果）
@@ -246,8 +240,19 @@ app.get('*', (req, res, next) => {
   res.sendFile(path.join(CLIENT_DIST, 'index.html'))
 })
 
-gameServer.listen(port)
-console.log(`Listening on ws://localhost:${port}`)
+// 保存済みデータ（会議室の内容・チャット・看板など）をメモリへ読み込んでから待ち受ける。
+// 読み込み前にルームが作られると、空の状態で上書き保存されてしまうため必ず先に完了させる。
+hydrate()
+  .then(() => {
+    gameServer.listen(port)
+    console.log(`Listening on ws://localhost:${port}`)
+  })
+  .catch((e) => {
+    // 読み込めないまま起動すると、空の状態を保存済みデータへ上書きしてしまう。
+    // データを守るためここでは起動せず終了する（Renderは自動で再起動する）。
+    console.error('[Storage] 保存データの読み込みに失敗したため起動を中止しました:', e)
+    process.exit(1)
+  })
 
 // GEMINI_API_KEY が設定されている場合はbotを自動起動
 if (process.env.GEMINI_API_KEY) {
