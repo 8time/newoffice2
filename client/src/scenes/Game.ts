@@ -67,6 +67,11 @@ export default class Game extends Phaser.Scene {
 
   // 看板（全員同期）
   private signboardMap = new Map<string, Phaser.GameObjects.Container>()
+  // 画像を読み込み中の看板テクスチャのキー。addBase64の完了を待つ間に
+  // 同じ看板が二重に追加されるのを防ぐ
+  private signboardTexLoading = new Set<string>()
+  // 読み込み中に届いた看板の編集内容。読み込み完了後にこの内容でやり直す
+  private pendingSignboardUpdate = new Map<string, any>()
   private scaleUpdateTimers = new Map<string, number>()
   // 看板の角ドラッグでの自由リサイズ用（全看板で共有する1つのつまみ）
   private signResizeHandle?: Phaser.GameObjects.Graphics
@@ -558,10 +563,24 @@ export default class Game extends Phaser.Scene {
       const key = `signtex_${data.id}`
       if (this.textures.exists(key)) {
         this.renderSignboard(data, key)
-      } else {
+      } else if (!this.signboardTexLoading.has(key)) {
+        // addBase64は画像のデコードを待つ非同期処理。同じ看板が二重に追加されると
+        // （サーバーのonAddと入室時のreplayなど）、まだテクスチャが登録されていないため
+        // 上のexists判定をすり抜けて二重にaddBase64してしまい、
+        // 「Texture key already in use」→ addImageがnull → onload内で未捕捉のTypeError
+        // となって看板が表示されなくなる。読み込み中のキーを覚えて二重起動を防ぐ。
+        this.signboardTexLoading.add(key)
         const onAdd = (addedKey: string) => {
           if (addedKey !== key) return
           this.textures.off('addtexture', onAdd)
+          this.signboardTexLoading.delete(key)
+          // 読み込み中に編集された場合は、古い内容を描かず最新の内容でやり直す
+          const pending = this.pendingSignboardUpdate.get(data.id)
+          if (pending) {
+            this.pendingSignboardUpdate.delete(data.id)
+            this.handleSignboardUpdated(pending)
+            return
+          }
           // 削除済みなら描画しない
           if (this.signboardMap.has(data.id)) return
           this.renderSignboard(data, key)
@@ -827,12 +846,18 @@ export default class Game extends Phaser.Scene {
     id: string; x: number; y: number; text: string; image: string; url: string
     bgColor: string; textColor: string; scale: number
   }) {
+    const texKey = `signtex_${data.id}`
+    // 画像の読み込み中に編集が来たら、いま作り直しても二重読み込みになる。
+    // 完了時にこの内容でやり直させる（onAddがpendingSignboardUpdateを見る）
+    if (this.signboardTexLoading.has(texKey)) {
+      this.pendingSignboardUpdate.set(data.id, data)
+      return
+    }
     const existing = this.signboardMap.get(data.id)
     if (existing) {
       existing.destroy(true)
       this.signboardMap.delete(data.id)
     }
-    const texKey = `signtex_${data.id}`
     if (this.textures.exists(texKey)) this.textures.remove(texKey)
     this.handleSignboardAdded({ ...data, createdBy: '' })
   }

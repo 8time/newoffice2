@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import styled from 'styled-components'
 import AccountCircleIcon from '@mui/icons-material/AccountCircle'
+import { resolveServerUrl } from '../services/serverUrl'
 
 interface AttendanceRecord {
   name: string
@@ -111,10 +112,10 @@ export default function AttendancePanel() {
 
   const load = async () => {
     try {
-      const protocol = window.location.protocol
-      const host = window.location.hostname
-      const url = `${protocol}//${host}:2567/api/attendance`
-      const res = await fetch(url)
+      // 以前は :2567 を決め打ちしていたため、本番では
+      // https://<配信元>:2567/api/attendance へ繋ごうとして必ずタイムアウトしていた。
+      // 解決規則はWebSocket接続先と共通のresolveServerUrlに任せる。
+      const res = await fetch(resolveServerUrl('/api/attendance'))
       if (res.ok) setRecords(await res.json())
     } catch (e) {
       console.warn('[Attendance] 取得失敗:', e)
