@@ -46,6 +46,9 @@ const FIXED_MEETING_ROOMS = [
   { id: 'meeting-room-1', name: '会議室1', x: 473, y: 440 },
 ]
 const FIXED_MEETING_ROOM_SIZE = { width: 96, height: 96 }
+// マップビルダーで設置した会議室が共通で使う部屋ID。設置物のIDに依存させないことで、
+// 入口を複数置いても・置き直しても、同じホワイトボードと議事録を使い続けられる
+const BUILDER_MEETING_ROOM_ID = 'builder-meeting-room'
 
 export default class Game extends Phaser.Scene {
   network!: Network
@@ -922,12 +925,17 @@ export default class Game extends Phaser.Scene {
           },
         ]
       : []
+    // マップビルダーで置いた会議室は、どの入口から入っても同じ部屋にする。
+    // 以前は設置物ごとのID（item.id）を部屋IDにしていたため、
+    //  ・同じ部屋に入口を2か所置くと、別々のホワイトボードになってしまう
+    //  ・置き直すとIDが変わり、それまでの中身が開けなくなる
+    // という問題があった。IDを固定にすることで入口を何か所置いても中身は1つに保たれる。
     const placedRooms = store
       .getState()
       .mapBuilder.placedItems.filter((item) => item.itemType === 'meetingroom')
-      .map((item, index) => ({
-        id: item.id,
-        name: `Meeting Room ${index + 1}`,
+      .map((item) => ({
+        id: BUILDER_MEETING_ROOM_ID,
+        name: 'ミーティングルーム',
         x: item.x,
         y: item.y,
         width: 128,
