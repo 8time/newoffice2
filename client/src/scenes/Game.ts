@@ -49,6 +49,10 @@ const FIXED_MEETING_ROOM_SIZE = { width: 96, height: 96 }
 // マップビルダーで設置した会議室が共通で使う部屋ID。設置物のIDに依存させないことで、
 // 入口を複数置いても・置き直しても、同じホワイトボードと議事録を使い続けられる
 const BUILDER_MEETING_ROOM_ID = 'builder-meeting-room'
+// 看板の文字に使うフォント。各OSの標準ゴシックを先に並べ、日本語がある場合でも
+// 明朝などに落ちないようにする（Inter/Arialは日本語のグリフを持たない）
+const SIGNBOARD_FONT =
+  '"Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", Meiryo, "Noto Sans JP", Inter, Arial, sans-serif'
 
 export default class Game extends Phaser.Scene {
   network!: Network
@@ -144,6 +148,36 @@ export default class Game extends Phaser.Scene {
         return
       }
       store.dispatch(setShowChat(false))
+    })
+
+    this.setupTypingGuard()
+  }
+
+  // DOMの入力欄（看板・名前・設定など）で打った文字は、そのままではPhaserにも届いてしまう。
+  // そのため看板のテキスト入力中にEnterを押すとチャットが開いてフォーカスを奪われ、
+  // 改行が入力できなかった。「w」でキャラが動くのも同じ原因。
+  // 入力欄にフォーカスがある間はゲームのキー操作を止める。
+  // （チャットはEnterでの送信もEscでの閉じるも自前で処理しているため影響しない）
+  private setupTypingGuard() {
+    const isTyping = () => {
+      const el = document.activeElement as HTMLElement | null
+      if (!el) return false
+      return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable
+    }
+    const onFocusIn = () => {
+      if (isTyping()) this.disableKeys()
+    }
+    const onFocusOut = () => {
+      // フォーカスの移動先が確定してから判定する（入力欄から入力欄への移動で誤って戻さない）
+      window.setTimeout(() => {
+        if (!isTyping()) this.enableKeys()
+      }, 0)
+    }
+    document.addEventListener('focusin', onFocusIn)
+    document.addEventListener('focusout', onFocusOut)
+    this.events.once('shutdown', () => {
+      document.removeEventListener('focusin', onFocusIn)
+      document.removeEventListener('focusout', onFocusOut)
     })
   }
 
@@ -499,8 +533,9 @@ export default class Game extends Phaser.Scene {
     let cursorY = PAD
 
     if (data.text) {
+      // 設置プレビューは実際の看板と同じ見た目にする（フォントが違うと大きさがズレる）
       const txt = this.add.text(PAD, cursorY, data.text, {
-        fontFamily: 'Inter, Arial, sans-serif',
+        fontFamily: SIGNBOARD_FONT,
         fontSize: '13px',
         color: data.textColor || '#1a1a1a',
         wordWrap: { width: MAX_W },
@@ -703,6 +738,11 @@ export default class Game extends Phaser.Scene {
       const dw = src.width * imgScale
       const dh = src.height * imgScale
       const img = this.add.image(PAD, cursorY, texKey).setOrigin(0, 0).setScale(imgScale)
+      // 看板の画像は元サイズ(最大480px)から1/3ほどに縮小して表示される。
+      // ゲーム設定がpixelArt(NEARESTフィルタ)のままだと縮小時に画素が間引かれ、
+      // 漫画やスクリーンショットの細い線・文字が潰れて読めなくなる。
+      // ドット絵ではないので、看板の画像だけ滑らかに補間する(LINEAR)。
+      this.textures.get(texKey).setFilter(Phaser.Textures.FilterMode.LINEAR)
       children.push(img)
       contentW = Math.max(contentW, dw)
       cursorY += dh + (data.text ? 6 : 0)
@@ -711,7 +751,9 @@ export default class Game extends Phaser.Scene {
     if (data.text) {
       const txt = this.add
         .text(PAD, cursorY, data.text, {
-          fontFamily: 'Inter, Arial, sans-serif',
+          // Inter/Arialは日本語のグリフを持たないため、日本語は環境任せのフォールバックになり
+          // Windowsでは細く滲んだ字面になっていた。各OSの標準ゴシックを明示して読みやすくする。
+          fontFamily: SIGNBOARD_FONT,
           fontSize: '13px',
           color: textColor,
           wordWrap: { width: MAX_W },
