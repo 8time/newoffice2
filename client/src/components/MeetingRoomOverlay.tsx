@@ -978,6 +978,28 @@ export default function MeetingRoomOverlay() {
     }
   }, [activeRoom, videoConnected])
 
+  // 「同じ会議室に入ったのに相手が表示されない」対策。
+  // 参加者が変わったとき（誰かが入室/接続したとき）と、入室直後に何度か、
+  // ピア映像を再マウントして取りこぼしを防ぐ。接続はできているのにDOMへの
+  // マウントが競合で漏れることがあり、以前は再入室しないと直らなかった。
+  const roomPeerKey = activeRoom
+    ? Array.from(playerMeetingRoomMap.entries())
+        .filter(([, rid]) => rid === activeRoom.id)
+        .map(([sid]) => sid)
+        .sort()
+        .join(',')
+    : ''
+  useEffect(() => {
+    if (!activeRoom) return
+    const remount = () => {
+      const target = peerContainerRef.current
+      if (target) getWebRTC()?.mountPeerVideos(target)
+    }
+    remount()
+    const timers = [400, 1200, 2500].map((ms) => window.setTimeout(remount, ms))
+    return () => timers.forEach((t) => window.clearTimeout(t))
+  }, [activeRoom, roomPeerKey, videoConnected])
+
   // 相手のカメラカードに挙手バッジを表示（WebRTCがDOMを直接構築しているため直接操作する）
   useEffect(() => {
     const container = peerContainerRef.current
