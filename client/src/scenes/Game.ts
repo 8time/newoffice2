@@ -687,6 +687,11 @@ export default class Game extends Phaser.Scene {
           wordWrap: { width: MAX_W },
         })
         .setOrigin(0, 0)
+      // 看板は拡大表示されることが多い。ゲーム設定がpixelArt(NEARESTフィルタ)なので
+      // テキストをそのまま拡大すると文字がガタガタ・ボヤけて見える。
+      // 高解像度でレンダリングし、テキスト用テクスチャだけ滑らかに補間する(LINEAR)。
+      txt.setResolution(Math.min(4, Math.ceil((window.devicePixelRatio || 1) * 3)))
+      txt.texture?.setFilter(Phaser.Textures.FilterMode.LINEAR)
       children.push(txt)
       contentW = Math.max(contentW, txt.width)
       cursorY += txt.height
