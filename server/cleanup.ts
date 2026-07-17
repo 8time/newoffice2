@@ -1,0 +1,89 @@
+/**
+ * 使われなくなった古いアップロードファイルを片付ける。
+ *
+ * ホワイトボードの画像やチャットの添付は /api/files に上がり、消す仕組みが無かったため
+ * 増える一方だった（テキストは1KB程度なのに対し、ファイルは1件あたり平均700KBある）。
+ * Supabaseの無料枠はストレージ1GBなので、放っておくといずれ満杯になる。
+ *
+ * 消してよいのは「充分に古く、かつどこからも参照されていない」ファイルだけ。
+ * 主にチャットの添付が該当する（チャット履歴にファイルは記録されないため、
+ * 時間が経つと誰からも開けない置き去りのファイルになる）。
+ * ホワイトボードに貼られた画像はスナップショットから参照され続けるので消さない。
+ */
+import { snapshotDocs, readDoc, writeDoc, deleteBlob } from './storage'
+
+// これより古く、かつ参照されていないファイルを削除の対象にする
+const FILE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000 // 30日
+const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000 // 1日ごと
+
+interface UploadRecord {
+  name: string
+  type: string
+  size: number
+  created: number
+}
+
+/**
+ * 保存中のデータから、まだ参照されているアップロードIDを集める。
+ * ホワイトボードは "/files/f_xxx" というURLで画像を参照している。
+ * 取りこぼすと使用中の画像を消してしまうため、特定のドキュメントに絞らず
+ * 全ドキュメントの中身を対象に探す（新しい機能が参照を増やしても安全side）。
+ */
+export function collectReferencedFileIds(): Set<string> {
+  const ids = new Set<string>()
+  const docs = snapshotDocs()
+  for (const [key, value] of Object.entries(docs)) {
+    // uploadIndexは全ファイルのIDを持つ台帳そのものなので、
+    // これを参照として数えると何一つ消せなくなる
+    if (key === 'uploadIndex') continue
+    const json = JSON.stringify(value)
+    if (!json) continue
+    const re = /\/files\/(f_[A-Za-z0-9_]+)/g
+    let m: RegExpExecArray | null
+    while ((m = re.exec(json)) !== null) ids.add(m[1])
+  }
+  return ids
+}
+
+export async function cleanupOldFiles() {
+  const index = readDoc<Record<string, UploadRecord>>('uploadIndex', {})
+  const entries = Object.entries(index)
+  if (entries.length === 0) return
+
+  const referenced = collectReferencedFileIds()
+  const cutoff = Date.now() - FILE_RETENTION_MS
+  const targets = entries.filter(
+    ([id, rec]) => rec && rec.created < cutoff && !referenced.has(id)
+  )
+  if (targets.length === 0) {
+    console.log(`[Cleanup] 削除対象なし（保存${entries.length}件 / 使用中${referenced.size}件）`)
+    return
+  }
+
+  let deleted = 0
+  let freed = 0
+  for (const [id, rec] of targets) {
+    try {
+      await deleteBlob(id)
+      delete index[id]
+      deleted++
+      freed += rec.size || 0
+    } catch (e) {
+      // 消せなかったものは台帳に残す（次回また試す）
+      console.error(`[Cleanup] 削除失敗 (${id}):`, e)
+    }
+  }
+  if (deleted > 0) writeDoc('uploadIndex', index)
+  console.log(
+    `[Cleanup] 古い未使用ファイルを${deleted}件削除（約${Math.round(freed / 1024)}KB / 残り${Object.keys(index).length}件）`
+  )
+}
+
+/** 起動時と1日ごとに片付ける */
+export function startFileCleanup() {
+  cleanupOldFiles().catch((e) => console.error('[Cleanup] 失敗:', e))
+  const timer = setInterval(() => {
+    cleanupOldFiles().catch((e) => console.error('[Cleanup] 失敗:', e))
+  }, CLEANUP_INTERVAL_MS)
+  timer.unref?.()
+}

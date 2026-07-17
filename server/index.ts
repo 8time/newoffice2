@@ -12,6 +12,7 @@ import { spawn, ChildProcess } from 'child_process'
 
 import { SkyOffice, getAttendanceForDate } from './rooms/SkyOffice'
 import { registerDoc, readDoc, writeDoc, hydrate, setLocalBlobDir, putBlob, getBlob, status as storageStatus } from './storage'
+import { startFileCleanup } from './cleanup'
 
 const port = Number(process.env.PORT || 2567)
 const app = express()
@@ -251,6 +252,8 @@ hydrate()
   .then(() => {
     gameServer.listen(port)
     console.log(`Listening on ws://localhost:${port}`)
+    // 保存済みデータを読み込んだ後に始める（参照の判定に全ドキュメントが要るため）
+    startFileCleanup()
   })
   .catch((e) => {
     // 読み込めないまま起動すると、空の状態を保存済みデータへ上書きしてしまう。

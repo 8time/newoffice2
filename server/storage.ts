@@ -96,6 +96,16 @@ export function readDoc<T>(key: string, fallback: T): T {
   return (v === undefined ? fallback : v) as T
 }
 
+/**
+ * 保存中の全ドキュメントを返す。古いファイルを消す際に
+ * 「まだどこかから参照されていないか」を調べるのに使う。
+ */
+export function snapshotDocs(): Record<string, unknown> {
+  const obj: Record<string, unknown> = {}
+  cache.forEach((value, key) => { obj[key] = value })
+  return obj
+}
+
 /** メモリを更新し、保存先への書き込みをまとめて流す */
 export function writeDoc(key: string, value: unknown) {
   cache.set(key, value)
@@ -169,6 +179,17 @@ export async function putBlob(id: string, data: Buffer, contentType: string) {
   if (!localBlobDir) throw new Error('localBlobDir未設定')
   if (!fs.existsSync(localBlobDir)) fs.mkdirSync(localBlobDir, { recursive: true })
   fs.writeFileSync(`${localBlobDir}/${id}`, data)
+}
+
+export async function deleteBlob(id: string) {
+  if (client) {
+    const { error } = await client.storage.from(BUCKET).remove([id])
+    if (error) throw error
+    return
+  }
+  if (!localBlobDir) return
+  const file = `${localBlobDir}/${id}`
+  if (fs.existsSync(file)) fs.unlinkSync(file)
 }
 
 export async function getBlob(id: string): Promise<Buffer | null> {
