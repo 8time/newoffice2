@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import styled from 'styled-components'
 import TextField from '@mui/material/TextField'
+import { getReconnectIntent, clearReconnectIntent } from '../util/reconnect'
 import Button from '@mui/material/Button'
 import Avatar from '@mui/material/Avatar'
 import Alert from '@mui/material/Alert'
@@ -159,6 +160,8 @@ export default function LoginDialog() {
     return 0
   })
   const [autoLogin, setAutoLogin] = useState<boolean>(() => localStorage.getItem('skyoffice_autoLogin_v3') === 'true')
+  // 切断から復帰してきた直後かどうか（元の部屋へそのまま戻すために使う）
+  const [isReconnecting] = useState<boolean>(() => getReconnectIntent() !== null)
   const [nameFieldEmpty, setNameFieldEmpty] = useState<boolean>(false)
   // カメラ/マイクの自動取得を試し終えたか（成功・失敗どちらでもtrue）。自動ログインの待ち合わせに使う
   const [mediaAttempted, setMediaAttempted] = useState<boolean>(false)
@@ -294,13 +297,19 @@ export default function LoginDialog() {
     dispatch(setAvatarName(avatars[avatarIndex].name))
     dispatch(setPlayerName(name))
     dispatch(setLoggedIn(true))
+    // 戻ってこられたので覚え書きは用済み
+    clearReconnectIntent()
   }
 
   // 自動ログインチェック。
   // カメラ/マイクの取得（成功・失敗どちらでも）が終わってから入室する。
   // 取得を待たずに入室すると、ストリームがWebRTCへ渡されず映像が出ないまま始まってしまう。
+  //
+  // 切断からの復帰時は、自動ログインを切っていても入り直す。
+  // サーバーの再起動のたびに名前を入れ直させるのは煩わしいだけで、
+  // 元々そこに居た人を元の場所へ戻すだけなので確認する意味がない。
   React.useEffect(() => {
-    if (roomJoined && autoLogin && name !== '' && mediaAttempted) {
+    if (roomJoined && (autoLogin || isReconnecting) && name !== '' && mediaAttempted) {
       joinRoom()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

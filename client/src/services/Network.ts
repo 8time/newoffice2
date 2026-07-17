@@ -6,6 +6,7 @@ import { ItemType } from '../../../types/Items'
 import WebRTC from '../web/WebRTC'
 import { phaserEvents, Event } from '../events/EventCenter'
 import { getClientId } from '../util/clientId'
+import { saveReconnectIntent } from '../util/reconnect'
 import store from '../stores'
 import {
   setSessionId,
@@ -132,7 +133,15 @@ export default class Network {
     // これを無視すると、古いタブはマップを描き続けるのに送信だけが届かず、
     // 「看板が置けない・消せない」という原因の分からない状態になる。
     this.room.onLeave((code) => {
-      store.dispatch(setDisconnectReason(code === KICKED_BY_OTHER_TAB ? 'other-tab' : 'lost'))
+      if (code === KICKED_BY_OTHER_TAB) {
+        // 別タブに追い出された場合は自動で戻らない。
+        // 戻すと今度は向こうを追い出すことになり、タブ同士で奪い合いになる。
+        store.dispatch(setDisconnectReason('other-tab'))
+        return
+      }
+      // サーバーの再起動や瞬断。復帰後に自動で同じ部屋へ戻れるよう控えておく
+      saveReconnectIntent({ roomKey: store.getState().room.roomKey || null })
+      store.dispatch(setDisconnectReason('lost'))
     })
 
     this.lobby.leave()

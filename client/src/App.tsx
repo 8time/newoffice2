@@ -4,6 +4,7 @@ import styled from 'styled-components'
 import { useAppSelector, useAppDispatch } from './hooks'
 import { setRoomKey } from './stores/RoomStore'
 import { getRoomKeyFromUrl } from './util/roomKey'
+import { getReconnectIntent } from './util/reconnect'
 import phaserGame from './PhaserGame'
 import Bootstrap from './scenes/Bootstrap'
 
@@ -165,7 +166,10 @@ function App() {
     if (autoJoinTried.current) return
     if (!lobbyJoined || roomJoined) return
     const key = getRoomKeyFromUrl()
-    if (!key) return
+    // 切断から復帰した直後は、元いた部屋へ自動で戻る。
+    // 合言葉の部屋はURLから、パブリックロビーは覚え書きから判断する。
+    const intent = getReconnectIntent()
+    if (!key && !intent) return
     autoJoinTried.current = true
 
     const enter = () => {
@@ -174,13 +178,12 @@ function App() {
         setTimeout(enter, 100)
         return
       }
-      bootstrap.network
-        .joinOrCreateKeyed(key)
-        .then(() => {
-          dispatch(setRoomKey(key))
-          bootstrap.launchGame()
-        })
-        .catch((error) => console.error('固定ルームへの自動入室に失敗:', error))
+      const joining = key
+        ? bootstrap.network.joinOrCreateKeyed(key).then(() => dispatch(setRoomKey(key)))
+        : bootstrap.network.joinOrCreatePublic()
+      joining
+        .then(() => bootstrap.launchGame())
+        .catch((error) => console.error('自動入室に失敗:', error))
     }
     enter()
   }, [lobbyJoined, roomJoined, dispatch])
