@@ -18,7 +18,7 @@ import Game from '../scenes/Game'
 
 import { useAppDispatch, useAppSelector } from '../hooks'
 import { MessageType, FileAttachment, setFocused, setShowChat, pushFileMessage } from '../stores/ChatStore'
-import { playChatSound } from '../util/sound'
+import { playChatSound, playStampSound } from '../util/sound'
 import { resolveServerUrl } from '../services/serverUrl'
 import { shrinkImageFile } from '../util/imageShrink'
 import { isEmojiOnlyMessage, parseStampMessage, buildStampMessage } from '../util/stampMode'
@@ -94,6 +94,14 @@ const ChatBox = styled(Box)<{ isDragging?: boolean }>`
   gap: 8px;
   position: relative;
   transition: border-color 0.15s;
+
+  /* スタンプ画像を「チャットメッセージエリア(このボックス)の横幅の50%」で
+     出すためのコンテナクエリの基準にする。このボックスは既に width:100% で
+     幅が確定しているため、内包する要素のサイズに幅が引っ張られる循環は起きない。
+     inline-size は幅方向だけのcontainmentなので、既存のoverflow-y:autoの
+     縦スクロールや高さの挙動には影響しない。 */
+  container-type: inline-size;
+  container-name: chat-messages;
 `
 
 const DropOverlay = styled.div`
@@ -255,11 +263,19 @@ const StampBody = styled.div`
   word-break: break-word;
 `
 
-// 登録スタンプの表示。吹き出しに入れず、そのまま大きく見せる
+// 登録スタンプの表示。吹き出しに入れず、そのまま大きく見せる（LINEのスタンプ相当のサイズ感）。
+// 横幅は「チャットメッセージエリア(ChatBox)の横幅の約50%」を基準にし、
+// 画面が広いときのために160〜200px程度で頭打ちにする。縦横比はheight:autoで保つ。
+// 50% は ChatBox に設定した container-type:inline-size を基準にした 50cqw で計算する
+// （BubbleGroup/MessageBodyは内容に合わせて伸縮する箱なので、そこを基準に%指定すると
+//   スタンプ自身のサイズに応じて基準の幅も変わってしまい、意図した50%にならない）。
 const StampImage = styled.img`
-  max-width: 160px;
-  max-height: 160px;
   display: block;
+  width: 50%;      /* コンテナクエリ非対応環境向けの控え。基本は下のcqw指定が効く */
+  width: 50cqw;
+  max-width: 180px;
+  min-width: 72px;  /* 極端に狭い画面でスタンプが判読できないほど縮まないように */
+  height: auto;     /* 縦横比を維持する */
   padding: 4px 6px 2px;
   user-select: none;
 `
@@ -824,7 +840,15 @@ export default function Chat() {
     if (chatMessages.length > prevMsgCountRef.current) {
       const last = chatMessages[chatMessages.length - 1]
       if (last && last.messageType !== MessageType.PLAYER_JOINED && last.messageType !== MessageType.PLAYER_LEFT) {
-        playChatSound()
+        // スタンプは通常のチャット通知音ではなく「ポン」を鳴らす。
+        // この効果は自分がスタンプを送ったときも(サーバーからの反映を経て)発火するため、
+        // ここだけで送信者・受信者どちらの「ポン」もまかなえる
+        // （送信直後にも別途鳴らすと二重に音が鳴ってしまうので、ここ一箇所に集約する）
+        if (parseStampMessage(last.chatMessage.content)) {
+          playStampSound()
+        } else {
+          playChatSound()
+        }
       }
     }
     prevMsgCountRef.current = chatMessages.length

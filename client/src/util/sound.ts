@@ -49,6 +49,11 @@ export function playChatSound() {
   beep(560, 640, 0.06, 0.05)
 }
 
+/** スタンプ送信：軽く弾む「ポン」という音（通常のチャット通知音とは別に鳴らす） */
+export function playStampSound() {
+  beep(700, 1050, 0.1, 0.22)
+}
+
 /** DM着信：やや目立つ2音 */
 export function playDmSound() {
   beep(784, 1047, 0.14, 0.3)
