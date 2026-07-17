@@ -36,7 +36,6 @@ import {
 import {
   pushChatMessage,
   pushFileMessage,
-  pushPlayerJoinedMessage,
   pushPlayerLeftMessage,
   updateChatReaders,
   FileAttachment,
@@ -153,10 +152,11 @@ export default class Network {
           phaserEvents.emit(Event.PLAYER_UPDATED, field, value, key)
 
           // when a new player finished setting up player name
+          // 入室はサイドバーの「今日の出社記録」と「在席メンバー」で分かるため、
+          // チャット欄には流さない（会話が埋もれるのを防ぐ）
           if (field === 'name' && value !== '') {
             phaserEvents.emit(Event.PLAYER_JOINED, player, key)
             store.dispatch(setPlayerNameMap({ id: key, name: value as string }))
-            store.dispatch(pushPlayerJoinedMessage(value as string))
           }
 
           // ステータス・離席理由の変化をストアに反映

@@ -65,16 +65,6 @@ export const chatSlice = createSlice({
         file,
       })
     },
-    pushPlayerJoinedMessage: (state, action: PayloadAction<string>) => {
-      state.chatMessages.push({
-        messageType: MessageType.PLAYER_JOINED,
-        chatMessage: {
-          createdAt: new Date().getTime(),
-          author: action.payload,
-          content: 'が入室しました',
-        } as IChatMessage,
-      })
-    },
     pushPlayerLeftMessage: (state, action: PayloadAction<string>) => {
       state.chatMessages.push({
         messageType: MessageType.PLAYER_LEFT,
@@ -99,7 +89,6 @@ export const chatSlice = createSlice({
 export const {
   pushChatMessage,
   pushFileMessage,
-  pushPlayerJoinedMessage,
   pushPlayerLeftMessage,
   setFocused,
   setShowChat,
