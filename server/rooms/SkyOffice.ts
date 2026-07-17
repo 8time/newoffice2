@@ -30,6 +30,7 @@ const DOCS = {
   meetingTabs: path.join(__dirname, '../../meeting-tabs.json'),
   chat: path.join(__dirname, '../../chat-history.json'),
   dm: path.join(__dirname, '../../dm-history.json'),
+  stamps: path.join(__dirname, '../../stamps.json'),
 } as const
 Object.entries(DOCS).forEach(([key, file]) => registerDoc(key, file))
 
@@ -79,6 +80,37 @@ function loadDmHistory(): Record<string, DMRecord[]> {
 
 function saveDmHistory(all: Record<string, DMRecord[]>) {
   writeDoc('dm', all)
+}
+
+// ─── スタンプの永続化 ─────────────────────────────────────────────────────────
+// 全員で共有する1つの台帳。誰でも登録でき、消せるのは登録した本人だけ。
+
+interface StampRecord {
+  name: string
+  category: string
+  // 画像は /api/files に上げ、ここには "/files/f_xxx" 形式のURLだけを持つ。
+  // この形で持つことで、古いファイルの自動削除（cleanup.ts）が
+  // 「使用中」と判定して消さずに残してくれる
+  url: string
+  type: string
+  // 登録者のブラウザ固定のキー(clientId)。名前は変えられるため、
+  // 削除できるかの判定にはこちらを使う
+  author: string
+  authorName: string
+  useCount: number
+  createdAt: number
+}
+
+const STAMP_CATEGORIES = ['挨拶', '仕事', '感情', 'その他']
+const STAMP_NAME_MAX = 30
+const STAMP_LIMIT = 500 // 台帳が無限に膨らまないようにする
+
+function loadStamps(): Record<string, StampRecord> {
+  return readDoc<Record<string, StampRecord>>('stamps', {})
+}
+
+function saveStamps(all: Record<string, StampRecord>) {
+  writeDoc('stamps', all)
 }
 
 // ─── ミーティングルームのホワイトボード永続化 ────────────────────────────────
@@ -523,6 +555,59 @@ export class SkyOffice extends Room<OfficeState> {
         { except: client }
       )
       this.scheduleChatSave()
+    })
+
+    // ─── スタンプ ──────────────────────────────────────────────────────────
+    // 台帳は全員で共有する。画像本体は /api/files 側にあり、ここではURLだけ扱う。
+
+    this.onMessage(Message.REQUEST_STAMPS, (client) => {
+      client.send(Message.STAMP_LIST, loadStamps())
+    })
+
+    this.onMessage(
+      Message.ADD_STAMP,
+      (client, message: { name: string; category: string; url: string; type: string }) => {
+        const player = this.state.players.get(client.sessionId)
+        const author = player?.userKey || ''
+        if (!author) return
+        // URLは必ず自分のサーバーの /files/ 形式に限る。
+        // 外部URLを許すと、他人のサイトの画像を全員に読み込ませることになる
+        if (!/^\/files\/[a-zA-Z0-9_]+$/.test(message?.url || '')) return
+        const name = (message?.name || '').trim().slice(0, STAMP_NAME_MAX)
+        if (!name) return
+        const category = STAMP_CATEGORIES.includes(message?.category) ? message.category : 'その他'
+
+        const all = loadStamps()
+        if (Object.keys(all).length >= STAMP_LIMIT) return
+        const id = `stp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+        all[id] = {
+          name,
+          category,
+          url: message.url,
+          type: message?.type || 'image/png',
+          author,
+          authorName: player?.name || '',
+          useCount: 0,
+          createdAt: Date.now(),
+        }
+        saveStamps(all)
+        // 全員の一覧を更新する（登録した本人にも返す）
+        this.broadcast(Message.STAMP_LIST, all)
+      }
+    )
+
+    this.onMessage(Message.REMOVE_STAMP, (client, message: { id: string }) => {
+      const player = this.state.players.get(client.sessionId)
+      const myKey = player?.userKey || ''
+      const all = loadStamps()
+      const stamp = all[message?.id]
+      if (!stamp) return
+      // 消せるのは登録した本人だけ。画面側でボタンを隠すだけでは、
+      // 直接メッセージを送られたときに他人のスタンプを消せてしまう
+      if (!myKey || stamp.author !== myKey) return
+      delete all[message.id]
+      saveStamps(all)
+      this.broadcast(Message.STAMP_LIST, all)
     })
 
     // 発言の取り消し（送信取消）。stateから消すと全員の画面からも消える

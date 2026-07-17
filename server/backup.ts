@@ -15,7 +15,7 @@ import crypto from 'crypto'
 import { readDoc, writeDoc, putBackup, listBackups, getBackup, deleteBackup } from './storage'
 
 // 失うと困るデータ。特にホワイトボードと議事録は会議の成果物そのもの
-const TARGETS = ['whiteboards', 'meetingDocs', 'meetingTabs', 'signboards', 'builder', 'chat'] as const
+const TARGETS = ['whiteboards', 'meetingDocs', 'meetingTabs', 'signboards', 'builder', 'chat', 'stamps'] as const
 type Target = typeof TARGETS[number]
 
 const CHECK_INTERVAL_MS = 10 * 60 * 1000 // 10分ごとに変化を確認

@@ -47,6 +47,11 @@ export enum Message {
   DM_HISTORY,
   // 自分の発言を取り消す（送信取消）
   REMOVE_CHAT_MESSAGE,
+  // スタンプ（登録・削除・一覧の取得・全員への配布）
+  ADD_STAMP,
+  REMOVE_STAMP,
+  REQUEST_STAMPS,
+  STAMP_LIST,
 }
 
 // ルームから追い出すときの切断コード。WebSocketの4000番台はアプリ独自に使える。

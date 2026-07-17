@@ -96,8 +96,104 @@ async function main() {
     if (box) box.scrollTop = box.scrollHeight
   })
   await wait(800)
-  const sidebar = A.locator('div').filter({ hasText: 'チャット' }).last()
   await A.screenshot({ path: '_e2e_out/stamp-mode.png', clip: { x: 880, y: 480, width: 520, height: 420 } })
+
+  // ─── フェーズ2: スタンプメーカー ─────────────────────────────────────────
+  log('\n\n########## フェーズ2: スタンプメーカー ##########')
+  const fs = require('fs')
+  const path = require('path')
+
+  log('== 設定の中に入口があるか ==')
+  await A.evaluate(() => {
+    const label = [...document.querySelectorAll('*')].filter(
+      (e) => e.children.length === 0 && e.textContent.trim() === '設定'
+    )[0]
+    label.parentElement.querySelector('button').click()
+  })
+  await wait(1200)
+  const inSettings = await A.locator('text=スタンプを管理').count()
+  check(inSettings > 0, '設定の中に「スタンプを管理」がある', '設定に入っていない')
+  await A.getByRole('button', { name: 'キャンセル' }).click()
+  await wait(600)
+
+  log('\n== アニメ画像を登録して、動きが失われないか ==')
+  await A.evaluate(() => window.__store.dispatch({ type: 'stamp/openStampManager' }))
+  await A.waitForSelector('text=スタンプを管理', { timeout: 10000 })
+  await wait(600)
+
+  // 2コマのアニメGIF。縮小処理を通されると1コマ目だけになり容量が変わる
+  const ANIM_GIF = Buffer.from(
+    'R0lGODlhCgAKAPIAAP///wAAAP8AAAD/AAAA/////wAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh' +
+    'BAkAAAAALAAAAAAKAAoAAAMWCLrcHiBAKMSC1KIuAAAh+QQJAAAAACwAAAAACgAKAIAAAAD/AAAC' +
+    'FIyPqcvtD6OctNqLs968+w+G4kQBADs=', 'base64'
+  )
+  const gifPath = path.join(__dirname, '..', '_e2e_out', `anim-${TAG}.gif`)
+  fs.writeFileSync(gifPath, ANIM_GIF)
+  const originalSize = fs.statSync(gifPath).size
+  log(`   元のファイル: ${originalSize} bytes（アニメGIF）`)
+
+  await A.setInputFiles('input[type="file"][accept="image/png,image/gif,image/webp,image/apng"]', gifPath)
+  await wait(900)
+  await A.getByLabel('スタンプの名前').fill(`テストスタンプ${TAG}`)
+  await A.getByRole('button', { name: '登録' }).click()
+  await wait(3000)
+
+  const registered = await A.evaluate((tag) => {
+    const st = window.__store.getState().stamp.stamps
+    const hit = Object.entries(st).find(([, s]) => s.name === `テストスタンプ${tag}`)
+    return hit ? { id: hit[0], ...hit[1] } : null
+  }, TAG)
+  log('   登録結果: ' + JSON.stringify(registered))
+  check(!!registered, 'スタンプが登録された', '登録できていない')
+  if (!registered) { log('=== 以降は判定不能 ==='); await browser.close(); process.exit(1) }
+  check(
+    /^\/files\/[a-zA-Z0-9_]+$/.test(registered.url),
+    'URLが /files/ 形式で保存された（自動削除から守られる）',
+    `URL形式が違う: ${registered.url}`
+  )
+
+  // 保存されたファイルの大きさが元と同じ＝縮小処理を通っていない＝アニメが生きている
+  const savedSize = await A.evaluate(async (url) => {
+    const r = await fetch(url)
+    return (await r.blob()).size
+  }, `http://localhost:2567${registered.url}`)
+  log(`   保存後のファイル: ${savedSize} bytes`)
+  check(
+    savedSize === originalSize,
+    `アニメが失われていない（${originalSize}→${savedSize} bytes で一致）`,
+    `★縮小された（${originalSize}→${savedSize}）= アニメが静止画になった疑い`
+  )
+  await A.screenshot({ path: '_e2e_out/stamp-manager.png' })
+
+  log('\n== 別のブラウザにも配られるか ==')
+  await wait(1500)
+  const onB = await B.evaluate((tag) => {
+    const st = window.__store.getState().stamp.stamps
+    return Object.values(st).some((s) => s.name === `テストスタンプ${tag}`)
+  }, TAG)
+  check(onB, '相手の画面にも同じスタンプが配られた', '相手に届いていない')
+
+  log('\n== 他人のスタンプは消せないか（サーバーが守るか）==')
+  await B.evaluate((id) => window.game.scene.keys.game.network.removeStamp(id), registered.id)
+  await wait(2500)
+  const stillThere = await A.evaluate((id) => !!window.__store.getState().stamp.stamps[id], registered.id)
+  check(stillThere, '★他人のスタンプはサーバーが守った（消せない）', '★他人のスタンプを消せてしまった')
+
+  log('\n== 1MBを超える画像は拒否するか ==')
+  const bigPath = path.join(__dirname, '..', '_e2e_out', `big-${TAG}.png`)
+  fs.writeFileSync(bigPath, Buffer.alloc(1024 * 1024 + 5000, 1))
+  await A.setInputFiles('input[type="file"][accept="image/png,image/gif,image/webp,image/apng"]', bigPath)
+  await wait(900)
+  const rejected = await A.locator('text=1MB以下').count()
+  check(rejected > 0, '1MB超は登録前に拒否される', '大きすぎる画像が通ってしまう')
+
+  log('\n== 自分のスタンプは消せるか（後片付け）==')
+  await A.evaluate((id) => window.game.scene.keys.game.network.removeStamp(id), registered.id)
+  await wait(2500)
+  const gone = await A.evaluate((id) => !window.__store.getState().stamp.stamps[id], registered.id)
+  check(gone, '自分のスタンプは消せた', '自分のスタンプが消せない')
+
+  try { fs.unlinkSync(gifPath); fs.unlinkSync(bigPath) } catch {}
 
   log(failed === 0 ? '\n=== 全項目 PASS ===' : `\n=== ${failed}件 FAIL ===`)
   await browser.close()

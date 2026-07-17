@@ -12,6 +12,7 @@ import FormControlLabel from '@mui/material/FormControlLabel'
 
 import { useAppDispatch, useAppSelector } from '../hooks'
 import { closeSettingsDialog } from '../stores/SettingsStore'
+import { openStampManager } from '../stores/StampStore'
 import { setPlayerName, setAvatarName, setShowJoystick, toggleBackgroundMode } from '../stores/UserStore'
 import { BackgroundMode } from '../../../types/BackgroundMode'
 import { buildRoomUrl } from '../util/roomKey'
@@ -95,6 +96,7 @@ export default function SettingsDialog() {
   const roomId = useAppSelector((state) => state.room.roomId)
   const roomKey = useAppSelector((state) => state.room.roomKey)
   const [copied, setCopied] = useState(false)
+  const stampCount = useAppSelector((state) => Object.keys(state.stamp.stamps).length)
 
   const [name, setName] = useState(currentName)
   const [avatar, setAvatar] = useState(currentAvatar)
@@ -173,6 +175,15 @@ export default function SettingsDialog() {
           }
           label={<span style={{ fontSize: 14 }}>ジョイスティックを表示（スマホ・タブレット用）</span>}
         />
+
+        <FieldLabel>スタンプ</FieldLabel>
+        <Button
+          size="small"
+          variant="outlined"
+          onClick={() => { dispatch(closeSettingsDialog()); dispatch(openStampManager()) }}
+        >
+          スタンプを管理（{stampCount}個）
+        </Button>
 
         <FieldLabel>ルーム情報</FieldLabel>
         <InfoBox>

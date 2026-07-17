@@ -26,6 +26,7 @@ import {
   removePlayerUserKey,
 } from '../stores/UserStore'
 import { addDmMessage, setDmHistory, setDmName, DMMessage } from '../stores/DMStore'
+import { setStamps, Stamp } from '../stores/StampStore'
 import {
   setLobbyJoined,
   setJoinedRoomData,
@@ -350,6 +351,12 @@ export default class Network {
       phaserEvents.emit(Event.UPDATE_DIALOG_BUBBLE, clientId, content)
     })
 
+    // スタンプの台帳。サーバーが配る一覧で丸ごと置き換える
+    this.room.onMessage(Message.STAMP_LIST, (stamps: Record<string, Stamp>) => {
+      store.dispatch(setStamps(stamps))
+    })
+    this.room.send(Message.REQUEST_STAMPS)
+
     // when a peer disconnects with myPeer
     this.room.onMessage(Message.DISCONNECT_STREAM, (clientId: string) => {
       this.webRTC?.deleteOnCalledVideoStream(clientId)
@@ -570,6 +577,16 @@ export default class Network {
 
   onStopScreenShare(id: string) {
     this.room?.send(Message.STOP_SCREEN_SHARE, { computerId: id })
+  }
+
+  // スタンプを登録する（画像は先に /api/files へ上げ、URLだけを渡す）
+  addStamp(data: { name: string; category: string; url: string; type: string }) {
+    this.room?.send(Message.ADD_STAMP, data)
+  }
+
+  // 自分が登録したスタンプを消す（サーバー側で本人か検証される）
+  removeStamp(id: string) {
+    this.room?.send(Message.REMOVE_STAMP, { id })
   }
 
   // 自分の発言を取り消す（サーバー側で本人か検証される）

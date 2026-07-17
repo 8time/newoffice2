@@ -9,3 +9,4 @@ _e2e_out/
 chat-history.json
 dm-history.json
 /server/backups/
+stamps.json

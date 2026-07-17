@@ -24,6 +24,7 @@ import KnockNotification from './components/KnockNotification'
 import SignboardDeleteConfirm from './components/SignboardDeleteConfirm'
 import ExitConfirmDialog from './components/ExitConfirmDialog'
 import SettingsDialog from './components/SettingsDialog'
+import StampManagerDialog from './components/StampManagerDialog'
 import DMDialog from './components/DMDialog'
 import DMNotification from './components/DMNotification'
 import SignboardEditDialog from './components/SignboardEditDialog'
@@ -251,6 +252,9 @@ function App() {
 
       {/* 設定ダイアログ（名前・アバター変更） */}
       {loggedIn && <SettingsDialog />}
+
+      {/* スタンプメーカー（設定から開く） */}
+      {loggedIn && <StampManagerDialog />}
 
       {/* ダイレクトメッセージ */}
       {loggedIn && <DMDialog />}
