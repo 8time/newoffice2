@@ -122,6 +122,29 @@ const SYNC_INTERVAL_MS = 80
 // 大きくブロックしていた（描画がカクつく主因）。画像は含めず、間隔も空ける。
 const LOCAL_SAVE_INTERVAL_MS = 1000
 
+// ─── 表示倍率(ズーム)の記憶 ───────────────────────────────────────────────────
+// 会議室に入るたびに倍率を調整し直すのは手間なので、前回の倍率で開けるようにする。
+// 倍率は「その人の見え方の好み」であり画面サイズにも左右されるため、
+// 全員には同期せず、自分の端末(localStorage)にだけ・部屋ごとに保存する。
+
+const ZOOM_PREFIX = 'skyoffice_wb_zoom_'
+// Excalidrawが受け付ける倍率の範囲。壊れた値で復元して操作不能にならないようにする
+const ZOOM_MIN = 0.1
+const ZOOM_MAX = 30
+
+function loadZoom(roomId: string): number | null {
+  try {
+    const saved = Number(localStorage.getItem(ZOOM_PREFIX + roomId))
+    if (Number.isFinite(saved) && saved >= ZOOM_MIN && saved <= ZOOM_MAX) return saved
+  } catch {}
+  return null
+}
+
+function saveZoom(roomId: string, value: number) {
+  if (!Number.isFinite(value) || value < ZOOM_MIN || value > ZOOM_MAX) return
+  try { localStorage.setItem(ZOOM_PREFIX + roomId, String(value)) } catch {}
+}
+
 function getNetwork() {
   const game = phaserGame.scene.keys.game as Game
   return game?.network
@@ -239,6 +262,18 @@ export default function CollaborativeWhiteboard({ roomId }: { roomId: string }) 
   // 次回送信に含める未送信ファイル（アップロード成功時はURL記述子、失敗時はbase64フォールバック）
   const pendingNewFiles = useRef<Record<string, any>>({})
 
+  // 表示倍率(ズーム)を自分の端末にだけ覚えておく。
+  // 拡大縮小のたびに書くと無駄なので、落ち着いてから書く。
+  const zoomSaveTimer = useRef<number>()
+  const saveZoomDebounced = (value: unknown) => {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return
+    if (zoomSaveTimer.current !== undefined) window.clearTimeout(zoomSaveTimer.current)
+    zoomSaveTimer.current = window.setTimeout(() => {
+      zoomSaveTimer.current = undefined
+      saveZoom(roomId, value)
+    }, 400)
+  }
+
   // localStorageへのデバウンス書き込み（画像は含めない）
   const localSaveTimer = useRef<number>()
   const localSavePending = useRef<any>(null)
@@ -270,6 +305,9 @@ export default function CollaborativeWhiteboard({ roomId }: { roomId: string }) 
   }
 
   const initialData = useMemo(() => {
+    // 前回この端末で使っていた表示倍率を復元する（毎回10%に戻ると調整し直しになるため）
+    const zoom = loadZoom(roomId)
+    const zoomState = zoom !== null ? { zoom: { value: zoom } } : {}
     // 図形はデフォルトで角丸ではなく直角にする
     try {
       const saved = localStorage.getItem(storageKey)
@@ -281,11 +319,18 @@ export default function CollaborativeWhiteboard({ roomId }: { roomId: string }) 
           filesRef.current = { ...parsed.files }
           Object.keys(parsed.files).forEach((id) => sentFileIds.current.add(id))
         }
-        return { ...parsed, appState: { ...parsed.appState, currentItemRoundness: 'sharp' } }
+        return {
+          ...parsed,
+          appState: { ...parsed.appState, currentItemRoundness: 'sharp', ...zoomState },
+        }
       }
     } catch {}
-    return { elements: [], appState: { viewBackgroundColor: '#fffaf0', currentItemRoundness: 'sharp' }, files: {} }
-  }, [storageKey])
+    return {
+      elements: [],
+      appState: { viewBackgroundColor: '#fffaf0', currentItemRoundness: 'sharp', ...zoomState },
+      files: {},
+    }
+  }, [storageKey, roomId])
 
   useEffect(() => {
     // 画像ファイルは「要素より先に」Excalidrawへ登録する必要がある。
@@ -437,6 +482,10 @@ export default function CollaborativeWhiteboard({ roomId }: { roomId: string }) 
     )
 
     const appStateToSync = { viewBackgroundColor: appState.viewBackgroundColor, theme: appState.theme, gridSize: appState.gridSize }
+
+    // 表示倍率は「その人の見え方の好み」なので、他の人には同期せず自分の端末にだけ覚えさせる
+    // （appStateToSyncに入れると全員の倍率が勝手に変わってしまう）
+    saveZoomDebounced(appState.zoom?.value)
 
     // ローカルキャッシュはデバウンスして書く（画像は含めない。復元はサーバースナップショットが担う）
     scheduleLocalSave(elements, appStateToSync)

@@ -82,6 +82,26 @@ function saveTabs(roomId: string, tabs: WBTab[]) {
   try { localStorage.setItem(TABS_PREFIX + roomId, JSON.stringify(tabs)) } catch {}
 }
 
+// ─── メモ欄とキャンバスの境目の位置 ───────────────────────────────────────────
+// 毎回同じ位置に調整し直すのは手間なので、ブラウザに覚えさせる。
+// 見え方の好みは人ごと・画面ごとに違うため、全員で共有はせず自分の端末だけに保存する。
+
+const DOC_WIDTH_KEY = 'skyoffice_meeting_doc_width'
+const DOC_WIDTH_DEFAULT = 420
+
+function loadDocWidth(): number {
+  try {
+    const saved = Number(localStorage.getItem(DOC_WIDTH_KEY))
+    // 画面幅は環境で変わるため、極端な値で復元して操作不能にならないようにする
+    if (Number.isFinite(saved) && saved >= 300 && saved <= 2000) return saved
+  } catch {}
+  return DOC_WIDTH_DEFAULT
+}
+
+function saveDocWidth(width: number) {
+  try { localStorage.setItem(DOC_WIDTH_KEY, String(Math.round(width))) } catch {}
+}
+
 // ─── サイズ定数 ───────────────────────────────────────────────────────────────
 const CAM_W = 280       // 右側カメラ列の幅（px）
 const CAM_ASPECT = 3/4  // 縦長（4:3 portrait）
@@ -752,7 +772,8 @@ function WhiteboardWithDoc({ roomId }: { roomId: string }) {
   const [switchNotice, setSwitchNotice] = useState<string | null>(null)
   const switchNoticeTimer = useRef<number>()
 
-  const [docWidth, setDocWidth] = useState(420)
+  // メモ欄とキャンバスの境目の位置。毎回調整し直さなくて済むようブラウザに覚えさせる
+  const [docWidth, setDocWidth] = useState(loadDocWidth)
   const dragging = useRef(false)
   const startX   = useRef(0)
   const startW   = useRef(0)
@@ -855,6 +876,8 @@ function WhiteboardWithDoc({ roomId }: { roomId: string }) {
     const onUp = () => {
       dragging.current = false
       handleRef.current?.classList.remove('dragging')
+      // ドラッグ中は毎フレーム保存すると無駄なので、離した時点で覚える
+      setDocWidth((w) => { saveDocWidth(w); return w })
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
     }
