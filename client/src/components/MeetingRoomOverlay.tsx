@@ -367,22 +367,67 @@ const DocScrollArea = styled.div`
   &::-webkit-scrollbar-thumb { background: #ccc; border-radius: 2px; }
 `
 
-const DocTextArea = styled.textarea`
+const DocEditable = styled.div`
   display: block;
   width: 100%;
   min-height: 100%;
   box-sizing: border-box;
   border: none;
   outline: none;
-  resize: none;
   padding: 40px 36px;
   font-size: 30px;
   line-height: 1.9;
   font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic Pro', 'Yu Gothic', sans-serif;
   color: #1a1a1a;
   background: #fff;
+  overflow-wrap: break-word;
 
-  &::placeholder { color: #bbb; }
+  &:empty::before {
+    content: attr(data-placeholder);
+    color: #b7b0a4;
+    white-space: pre-wrap;
+  }
+
+  h1 { font-size: 1.5em; margin: 0.6em 0 0.3em; }
+  h2 { font-size: 1.3em; margin: 0.6em 0 0.3em; }
+  h3 { font-size: 1.15em; margin: 0.6em 0 0.3em; }
+  h4 { font-size: 1.05em; margin: 0.6em 0 0.3em; }
+  ul, ol { padding-left: 1.4em; margin: 0.3em 0; }
+  blockquote {
+    margin: 0.4em 0;
+    padding-left: 0.8em;
+    border-left: 4px solid #d8d2c4;
+    color: #666;
+  }
+  code {
+    background: #f0ece3;
+    border-radius: 4px;
+    padding: 0.1em 0.3em;
+    font-family: monospace;
+    font-size: 0.9em;
+  }
+  hr { border: none; border-top: 2px solid #ddd6c8; margin: 0.8em 0; }
+
+  /* チェックリスト。行頭の記号をクリックで済/未を切り替える */
+  ul[data-check] {
+    list-style: none;
+    padding-left: 0.3em;
+  }
+  ul[data-check] > li::before {
+    content: '☐';
+    display: inline-block;
+    width: 1.3em;
+    cursor: pointer;
+    color: #777;
+  }
+  ul[data-check] > li[data-done='1'] {
+    color: #999;
+    text-decoration: line-through;
+  }
+  ul[data-check] > li[data-done='1']::before {
+    content: '☑';
+    color: #2e9e5b;
+  }
 `
 
 const DocToolbar = styled.div`
@@ -424,6 +469,86 @@ const DocSep = styled.div`
   background: #d4cdc0;
   margin: 0 8px;
   flex-shrink: 0;
+`
+
+// ＋ と T の押下で開くメニュー。ツールバーは下端にあるので上向きに開く
+const DocMenuWrap = styled.div`
+  position: relative;
+`
+
+const DocMenu = styled.div`
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 6px;
+  background: #fff;
+  border: 1px solid #d4cdc0;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  padding: 6px;
+  z-index: 50;
+  min-width: 190px;
+`
+
+const DocMenuItem = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: #333;
+  font-size: 15px;
+  text-align: left;
+  padding: 9px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+
+  .k {
+    min-width: 30px;
+    color: #888;
+    font-size: 13px;
+  }
+  &:hover { background: rgba(0, 0, 0, 0.07); }
+`
+
+// 太字などの装飾は横に並べる
+const DocMenuRow = styled.div`
+  display: flex;
+  gap: 4px;
+  padding: 4px 6px 2px;
+  border-top: 1px solid #ece7dd;
+  margin-top: 4px;
+`
+
+const DocMenuIconBtn = styled.button`
+  width: 40px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  color: #333;
+  &:hover { background: rgba(0, 0, 0, 0.07); }
+`
+
+// 文字色の見本。押すと選択中の文字がその色になる
+const ColorDot = styled.button<{ $color: string }>`
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 0, 0, 0.15);
+  background: ${(p) => p.$color};
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+
+  &:hover {
+    transform: scale(1.15);
+    border-color: rgba(0, 0, 0, 0.45);
+  }
 `
 
 /* ──── 右上：カメラ列（縦積み・右揃え） ───────────────────────────────────── */
@@ -660,15 +785,123 @@ function getNetwork() {
 
 // ─── ドキュメントエディタ ────────────────────────────────────────────────────
 
+// メニューの「▾」
+const Caret = styled.span`
+  font-size: 13px;
+  margin-left: 3px;
+  color: #999;
+`
+
+const todayLabel = () => {
+  const d = new Date()
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`
+}
+
+// 文字色に使う色。増やしすぎると選ぶのが手間なので、よく使う10色に絞る
+const TEXT_COLORS: { name: string; value: string }[] = [
+  { name: '黒', value: '#1a1a1a' },
+  { name: 'グレー', value: '#8a8a8a' },
+  { name: '赤', value: '#e03131' },
+  { name: 'オレンジ', value: '#f08c00' },
+  { name: '黄', value: '#f2c200' },
+  { name: '緑', value: '#2f9e44' },
+  { name: '青緑', value: '#0ca678' },
+  { name: '青', value: '#1971c2' },
+  { name: '紫', value: '#7048e8' },
+  { name: 'ピンク', value: '#e64980' },
+]
+
+// ─── メモ欄のHTMLの取り扱い ───────────────────────────────────────────────────
+// メモの内容は全員に配信され、他の人の画面でそのまま表示される。
+// HTMLをそのまま流すと <img onerror=...> などで任意のスクリプトを実行させられるため、
+// 表示・保存の前に必ず許可したタグ・属性だけに絞る。
+
+const ALLOWED_TAGS = new Set([
+  'DIV', 'P', 'BR', 'B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'FONT',
+  'H1', 'H2', 'H3', 'H4', 'UL', 'OL', 'LI', 'SPAN', 'BLOCKQUOTE', 'CODE', 'PRE', 'HR',
+])
+
+// 色だけ許可する（style経由の任意CSSは使わせない）
+const COLOR_RE = /^#[0-9a-f]{3,8}$|^rgb\(/i
+
+function sanitizeDocHtml(html: string): string {
+  const tpl = document.createElement('template')
+  tpl.innerHTML = html
+  const walk = (node: Element) => {
+    ;[...node.children].forEach((child) => {
+      if (!ALLOWED_TAGS.has(child.tagName)) {
+        // 許可しないタグは中身だけ残して包みを外す（テキストは失わない）
+        child.replaceWith(...Array.from(child.childNodes))
+        return
+      }
+      ;[...child.attributes].forEach((attr) => {
+        const n = attr.name.toLowerCase()
+        if (n === 'data-check' || n === 'data-done') return
+        if (n === 'color' && COLOR_RE.test(attr.value)) return
+        if (n === 'style') {
+          const color = /(?:^|;)\s*color\s*:\s*([^;]+)/i.exec(attr.value)?.[1]?.trim()
+          child.setAttribute('style', color && COLOR_RE.test(color) ? `color: ${color}` : '')
+          if (!color) child.removeAttribute('style')
+          return
+        }
+        child.removeAttribute(attr.name)
+      })
+      walk(child)
+    })
+  }
+  walk(tpl.content as unknown as Element)
+  return tpl.innerHTML
+}
+
+const escapeHtml = (s: string) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+// 以前のメモはプレーンテキストで保存されている。そのまま流し込むと改行が潰れるため、
+// HTMLらしくなければ1行ずつdivに包んで移行する
+function toDocHtml(stored: string): string {
+  if (!stored) return ''
+  if (/<(div|p|h[1-4]|ul|ol|li|br|span|b|i|u|s|blockquote|hr)\b/i.test(stored)) {
+    return sanitizeDocHtml(stored)
+  }
+  return stored
+    .split('\n')
+    .map((line) => `<div>${escapeHtml(line) || '<br>'}</div>`)
+    .join('')
+}
+
 function DocumentEditor({ roomId }: { roomId: string }) {
   const storageKey = `${DOC_STORAGE_PREFIX}${roomId}`
-  const taRef = useRef<HTMLTextAreaElement>(null)
-  const [content, setContent] = useState(() => {
-    try { return localStorage.getItem(storageKey) || '' } catch { return '' }
-  })
+  // 中身はHTML。Reactに再描画させるとカーソルが飛ぶため、DOM側を持ち主にして
+  // 初回とリモート更新のときだけこちらから流し込む
+  const edRef = useRef<HTMLDivElement>(null)
+  // ＋ と T のメニューの開閉
+  const [plusOpen, setPlusOpen] = useState(false)
+  const [textOpen, setTextOpen] = useState(false)
+  const plusRef = useRef<HTMLDivElement>(null)
+  const textRef = useRef<HTMLDivElement>(null)
 
   const sendTimer = useRef<number>()
   const pendingContent = useRef<string | null>(null)
+
+  // 直前に選んでいた範囲。ツールバーを操作すると選択が解除されることがあり、
+  // そのまま書式を適用すると「選択中の文字」ではなく「次に打つ文字」に効いてしまう。
+  // 覚えておいて、書式を適用する直前に選び直す。
+  const savedRange = useRef<Range | null>(null)
+
+  const rememberSelection = () => {
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0) return
+    if (!edRef.current?.contains(sel.anchorNode)) return
+    savedRange.current = sel.getRangeAt(0).cloneRange()
+  }
+
+  const restoreSelection = () => {
+    const r = savedRange.current
+    if (!r) return
+    const sel = window.getSelection()
+    sel?.removeAllRanges()
+    sel?.addRange(r)
+  }
 
   const flushSync = useCallback(() => {
     if (sendTimer.current) {
@@ -691,13 +924,32 @@ function DocumentEditor({ roomId }: { roomId: string }) {
     }, 300)
   }
 
+  const save = (html: string) => {
+    const clean = sanitizeDocHtml(html)
+    try { localStorage.setItem(storageKey, clean) } catch {}
+    scheduleSync(clean)
+  }
+
+  // 入力のたびに呼ばれる。ここで中身を書き換えるとカーソルが飛ぶので触らない
+  const handleInput = () => {
+    if (edRef.current) save(edRef.current.innerHTML)
+  }
+
+  // 初回に保存済みの内容を流し込む（部屋・タブが変わったときも）
+  useEffect(() => {
+    let stored = ''
+    try { stored = localStorage.getItem(storageKey) || '' } catch {}
+    if (edRef.current) edRef.current.innerHTML = toDocHtml(stored)
+  }, [storageKey])
+
   useEffect(() => {
     const handler = (remoteRoomId: string, remoteContent: string) => {
       if (remoteRoomId !== roomId) return
       // 自分が入力中（フォーカス中）のときはリモート更新で上書きしない
-      if (document.activeElement === taRef.current) return
-      setContent(remoteContent)
-      try { localStorage.setItem(storageKey, remoteContent) } catch {}
+      if (document.activeElement === edRef.current) return
+      const clean = toDocHtml(remoteContent)
+      if (edRef.current) edRef.current.innerHTML = clean
+      try { localStorage.setItem(storageKey, clean) } catch {}
     }
     phaserEvents.on(PhaserEvent.MEETING_DOC_REMOTE_UPDATE, handler)
     getNetwork()?.requestMeetingDocSnapshot(roomId)
@@ -707,55 +959,157 @@ function DocumentEditor({ roomId }: { roomId: string }) {
     }
   }, [roomId, storageKey, flushSync])
 
-  const save = (val: string) => {
-    setContent(val)
-    try { localStorage.setItem(storageKey, val) } catch {}
-    scheduleSync(val)
+  // メニューの外側をクリックしたら閉じる
+  useEffect(() => {
+    if (!plusOpen && !textOpen) return
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (plusRef.current?.contains(t) || textRef.current?.contains(t)) return
+      setPlusOpen(false)
+      setTextOpen(false)
+    }
+    window.addEventListener('mousedown', onDown)
+    return () => window.removeEventListener('mousedown', onDown)
+  }, [plusOpen, textOpen])
+
+  /**
+   * 書式を適用する。ブラウザ標準のexecCommandを使う（古いAPIだが、
+   * contentEditableの書式付けは今もこれが最も確実に動く）。
+   * 選択が外れていると効かないため、必ずエディタに焦点を戻してから実行する。
+   */
+  const exec = (cmd: string, value?: string) => {
+    edRef.current?.focus()
+    restoreSelection()
+    try {
+      // 色などをspanのstyleで表現させる（既定だと廃止済みの<font>タグになる）
+      document.execCommand('styleWithCSS', false, 'true')
+      document.execCommand(cmd, false, value)
+    } catch {}
+    handleInput()
+    setPlusOpen(false)
+    setTextOpen(false)
   }
 
-  const insertLinePrefix = (prefix: string) => {
-    const ta = taRef.current
-    if (!ta) return
-    const { selectionStart: s, value } = ta
-    const lineStart = value.lastIndexOf('\n', s - 1) + 1
-    const newVal = value.slice(0, lineStart) + prefix + value.slice(lineStart)
-    save(newVal)
-    setTimeout(() => { ta.selectionStart = ta.selectionEnd = s + prefix.length; ta.focus() }, 0)
+  // チェックリストは、箇条書きにした上で印を付けて見分ける
+  const applyChecklist = () => {
+    edRef.current?.focus()
+    restoreSelection()
+    document.execCommand('insertUnorderedList')
+    const sel = window.getSelection()
+    let node = sel?.anchorNode as HTMLElement | null
+    while (node && node !== edRef.current) {
+      if (node.tagName === 'UL') {
+        node.setAttribute('data-check', '1')
+        break
+      }
+      node = node.parentElement
+    }
+    handleInput()
   }
 
-  const insertAround = (pre: string, suf = '') => {
-    const ta = taRef.current
-    if (!ta) return
-    const { selectionStart: s, selectionEnd: e, value } = ta
-    const newVal = value.slice(0, s) + pre + value.slice(s, e) + suf + value.slice(e)
-    save(newVal)
-    setTimeout(() => { ta.selectionStart = s + pre.length; ta.selectionEnd = e + pre.length; ta.focus() }, 0)
+  // チェックの印をクリックしたら 済/未 を切り替える
+  const handleClick = (e: React.MouseEvent) => {
+    const li = (e.target as HTMLElement).closest('li')
+    if (!li || !li.parentElement?.hasAttribute('data-check')) return
+    // 印は行頭にあるので、その辺りを押したときだけ反応させる（本文の編集を邪魔しない）
+    if (e.clientX - li.getBoundingClientRect().left > 34) return
+    li.setAttribute('data-done', li.getAttribute('data-done') === '1' ? '0' : '1')
+    handleInput()
+  }
+
+  const clearAll = () => {
+    if (!window.confirm('ドキュメントをすべて削除しますか？')) return
+    if (edRef.current) edRef.current.innerHTML = ''
+    save('')
   }
 
   return (
     <>
       <DocScrollArea>
-        <DocTextArea
-          ref={taRef}
-          value={content}
-          onChange={(e) => save(e.target.value)}
+        <DocEditable
+          ref={edRef}
+          contentEditable
+          suppressContentEditableWarning
+          onInput={handleInput}
           onBlur={flushSync}
-          placeholder={'ここにメモや議事録を入力...\n\n例：\n○議題タイトル\n　内容や決定事項をここに書く\n\n■アクションアイテム\n　担当者・期限を記入'}
+          onClick={handleClick}
+          onKeyUp={rememberSelection}
+          onMouseUp={rememberSelection}
           spellCheck={false}
+          data-placeholder="ここにメモや議事録を入力..."
         />
       </DocScrollArea>
-      <DocToolbar>
-        <DocBtn title="大見出し" onClick={() => insertLinePrefix('# ')}>H1</DocBtn>
-        <DocBtn title="中見出し" onClick={() => insertLinePrefix('## ')}>H2</DocBtn>
-        <DocBtn title="小見出し" onClick={() => insertLinePrefix('### ')}>H3</DocBtn>
+      {/* ツールバーを押した瞬間にエディタから焦点が外れると、選択していた文字が
+          選択解除され、色や太字が「選択中の文字」ではなく「次に打つ文字」に
+          適用されてしまう。既定動作を止めて選択を保つ。 */}
+      <DocToolbar onMouseDown={(e) => e.preventDefault()}>
+        {/* ＋ : 挿入メニュー */}
+        <DocMenuWrap ref={plusRef}>
+          <DocBtn title="挿入" onClick={() => { setPlusOpen((v) => !v); setTextOpen(false) }}>
+            ＋ <Caret>▾</Caret>
+          </DocBtn>
+          {plusOpen && (
+            <DocMenu>
+              <DocMenuItem onClick={() => exec('insertHorizontalRule')}>
+                <span className="k">――</span> 区切り線
+              </DocMenuItem>
+              <DocMenuItem onClick={() => exec('insertText', todayLabel())}>
+                <span className="k">📅</span> 今日の日付
+              </DocMenuItem>
+              <DocMenuItem onClick={() => exec('formatBlock', 'blockquote')}>
+                <span className="k">❝</span> 引用
+              </DocMenuItem>
+              <DocMenuItem onClick={() => exec('formatBlock', 'pre')}>
+                <span className="k">&lt;/&gt;</span> コード
+              </DocMenuItem>
+            </DocMenu>
+          )}
+        </DocMenuWrap>
+
+        {/* T : 見出し・装飾・文字色 */}
+        <DocMenuWrap ref={textRef}>
+          <DocBtn title="文字のスタイル" onClick={() => { setTextOpen((v) => !v); setPlusOpen(false) }}>
+            T <Caret>▾</Caret>
+          </DocBtn>
+          {textOpen && (
+            <DocMenu>
+              {([1, 2, 3, 4] as const).map((n) => (
+                <DocMenuItem key={n} onClick={() => exec('formatBlock', `h${n}`)}>
+                  <span className="k">{`H${n}`}</span>
+                  <span style={{ fontSize: 21 - n * 1.5, fontWeight: 700 }}>見出し{n}</span>
+                </DocMenuItem>
+              ))}
+              <DocMenuItem onClick={() => exec('formatBlock', 'div')}>
+                <span className="k">―</span> 本文に戻す
+              </DocMenuItem>
+              <DocMenuRow>
+                <DocMenuIconBtn title="太字" onClick={() => exec('bold')}><b>B</b></DocMenuIconBtn>
+                <DocMenuIconBtn title="斜体" onClick={() => exec('italic')}><i>I</i></DocMenuIconBtn>
+                <DocMenuIconBtn title="打ち消し線" onClick={() => exec('strikeThrough')}><s>S</s></DocMenuIconBtn>
+                <DocMenuIconBtn title="下線" onClick={() => exec('underline')}><u>U</u></DocMenuIconBtn>
+              </DocMenuRow>
+              <DocMenuRow>
+                {TEXT_COLORS.map((c) => (
+                  <ColorDot
+                    key={c.value}
+                    title={c.name}
+                    $color={c.value}
+                    onClick={() => exec('foreColor', c.value)}
+                  />
+                ))}
+              </DocMenuRow>
+            </DocMenu>
+          )}
+        </DocMenuWrap>
+
         <DocSep />
-        <DocBtn title="箇条書き" onClick={() => insertLinePrefix('・')}>・リスト</DocBtn>
-        <DocBtn title="チェック" onClick={() => insertLinePrefix('☐ ')}>☐</DocBtn>
+
+        <DocBtn title="箇条書きリスト" onClick={() => exec('insertUnorderedList')}>☰</DocBtn>
+        <DocBtn title="番号付きリスト" onClick={() => exec('insertOrderedList')}>1.</DocBtn>
+        <DocBtn title="チェックリスト" onClick={applyChecklist}>☑</DocBtn>
+
         <DocSep />
-        <DocBtn title="太字【】" onClick={() => insertAround('【', '】')}>太字</DocBtn>
-        <DocBtn title="区切り線" onClick={() => insertAround('\n──────────\n')}>――</DocBtn>
-        <DocSep />
-        <DocBtn title="全削除" style={{ color: '#c44' }} onClick={() => { if (window.confirm('ドキュメントをすべて削除しますか？')) save('') }}>消去</DocBtn>
+        <DocBtn title="全削除" style={{ color: '#c44' }} onClick={clearAll}>消去</DocBtn>
       </DocToolbar>
     </>
   )
