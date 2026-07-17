@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import http from 'http'
 import express from 'express'
 import cors from 'cors'
@@ -125,6 +126,8 @@ interface UploadRecord {
   type: string
   size: number
   created: number
+  // 中身のハッシュ。同じ内容のファイルを二重に保存しないための目印
+  hash?: string
 }
 
 function loadUploadIndex(): Record<string, UploadRecord> {
@@ -144,15 +147,31 @@ app.post('/api/files', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'file is required' })
 
+    const index = loadUploadIndex()
+
+    // 同じ画像（会社ロゴ・資料など）は何度も貼られる。中身が同じなら保存し直さず、
+    // 既にあるファイルのURLを返して使い回す（容量とアップロード時間の両方を節約）。
+    const hash = crypto.createHash('sha256').update(req.file.buffer).digest('hex')
+    const existingId = Object.keys(index).find((k) => index[k]?.hash === hash)
+    if (existingId) {
+      const rec = index[existingId]
+      // 使い回す以上、これは「今使われた」ファイル。日付を更新しないと、
+      // 古いという理由で自動削除され、今貼ったものまで見られなくなる
+      rec.created = Date.now()
+      saveUploadIndex(index)
+      console.log(`[Files] 同じ内容が既にあるため使い回します (${existingId}, ${Math.round(rec.size / 1024)}KB)`)
+      return res.json({ id: existingId, url: `/files/${existingId}`, name: rec.name, type: rec.type, size: rec.size })
+    }
+
     const id = `f_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
     await putBlob(id, req.file.buffer, req.file.mimetype || 'application/octet-stream')
 
-    const index = loadUploadIndex()
     index[id] = {
       name: (req.file.originalname || 'file').slice(0, 300),
       type: req.file.mimetype || 'application/octet-stream',
       size: req.file.size,
       created: Date.now(),
+      hash,
     }
     saveUploadIndex(index)
 

@@ -20,6 +20,7 @@ import { useAppDispatch, useAppSelector } from '../hooks'
 import { MessageType, FileAttachment, setFocused, setShowChat, pushFileMessage } from '../stores/ChatStore'
 import { playChatSound } from '../util/sound'
 import { resolveServerUrl } from '../services/serverUrl'
+import { shrinkImageFile } from '../util/imageShrink'
 import ChatMessageContent from './ChatMessageContent'
 
 // ─── 吹き出し色パレット（3色ループ） ─────────────────────────────────────────
@@ -580,11 +581,15 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
 //   1. 数MBが1メッセージになり、転送中はチャットや移動など他の同期が全部詰まる
 //   2. ブラウザは data: URL へのトップレベル遷移をブロックするため、PDF等を
 //      「別タブで開く」ことがサイズに関係なく永久にできない
-async function readAndSendFile(file: File, myName: string, dispatch: any) {
-  if (file.size > MAX_FILE_SIZE) {
-    alert(`ファイルが大きすぎて送信できません（最大 ${MAX_FILE_SIZE / 1024 / 1024}MB）: ${file.name}`)
+async function readAndSendFile(original: File, myName: string, dispatch: any) {
+  if (original.size > MAX_FILE_SIZE) {
+    alert(`ファイルが大きすぎて送信できません（最大 ${MAX_FILE_SIZE / 1024 / 1024}MB）: ${original.name}`)
     return
   }
+
+  // 写真は数MBあるのに吹き出しでは数百px幅でしか表示されない。
+  // 送る前に縮小して、保存容量・通信量・相手の読み込み時間をまとめて減らす
+  const file = await shrinkImageFile(original)
 
   const id = `file_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
   try {
@@ -595,7 +600,8 @@ async function readAndSendFile(file: File, myName: string, dispatch: any) {
     const json = await res.json()
 
     const attachment: FileAttachment = {
-      name: file.name,
+      // 表示名は元のファイル名のまま（縮小で拡張子が変わっても利用者には関係ない）
+      name: original.name,
       type: file.type || json.type || 'application/octet-stream',
       url: resolveServerUrl(json.url),
       size: file.size,
@@ -605,7 +611,7 @@ async function readAndSendFile(file: File, myName: string, dispatch: any) {
     game.network.sendFileMessage(attachment, id)
   } catch (e) {
     console.error('[Chat] ファイルのアップロードに失敗:', e)
-    alert(`ファイルの送信に失敗しました: ${file.name}`)
+    alert(`ファイルの送信に失敗しました: ${original.name}`)
   }
 }
 

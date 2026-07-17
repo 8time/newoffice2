@@ -7,6 +7,7 @@ import phaserGame from '../PhaserGame'
 import Game from '../scenes/Game'
 import { phaserEvents, Event as PhaserEvent } from '../events/EventCenter'
 import { resolveServerUrl } from '../services/serverUrl'
+import { shrinkDataUrl } from '../util/imageShrink'
 
 /* ── Excalidraw ツールバーをグローバルに上書き ─────────────────────────────── */
 export const ExcalidrawGlobal = createGlobalStyle`
@@ -203,8 +204,10 @@ function dataURLToBlob(dataURL: string): Blob {
 }
 
 async function uploadWhiteboardImage(file: any): Promise<any> {
-  const blob = dataURLToBlob(file.dataURL)
-  const ext = (file.mimeType || 'image/png').split('/')[1] || 'png'
+  // 原寸のまま送ると、写真1枚で数MBを保存・配信することになる。
+  // ホワイトボード上の表示に足りる大きさへ縮めてから送る
+  const { blob, mimeType } = await shrinkDataUrl(file.dataURL, file.mimeType)
+  const ext = (mimeType || 'image/png').split('/')[1] || 'png'
   const form = new FormData()
   form.append('file', blob, `${file.id}.${ext}`)
   const res = await fetch(resolveServerUrl('/api/files'), { method: 'POST', body: form })
