@@ -7,9 +7,14 @@ import DialogActions from '@mui/material/DialogActions'
 import Button from '@mui/material/Button'
 import TextField from '@mui/material/TextField'
 
+import Switch from '@mui/material/Switch'
+import FormControlLabel from '@mui/material/FormControlLabel'
+
 import { useAppDispatch, useAppSelector } from '../hooks'
 import { closeSettingsDialog } from '../stores/SettingsStore'
-import { setPlayerName, setAvatarName } from '../stores/UserStore'
+import { setPlayerName, setAvatarName, setShowJoystick, toggleBackgroundMode } from '../stores/UserStore'
+import { BackgroundMode } from '../../../types/BackgroundMode'
+import { buildRoomUrl } from '../util/roomKey'
 
 import phaserGame from '../PhaserGame'
 import Game from '../scenes/Game'
@@ -50,6 +55,29 @@ const AvatarPick = styled.button<{ selected: boolean }>`
   span { font-size: 12px; color: #cdd; }
 `
 
+// ルーム情報・操作ガイドは、以前はMAP右下の白い丸アイコンから開いていたが、
+// 画面の隅を占領して他の表示とぶつかるため、設定の中にまとめた
+const InfoBox = styled.div`
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.8;
+  word-break: break-all;
+
+  .row { display: flex; gap: 6px; }
+  .k { color: #666; flex-shrink: 0; }
+  .v { font-weight: 600; }
+`
+
+const GuideList = styled.ul`
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.9;
+  li strong { color: #1a6b2a; }
+`
+
 const FieldLabel = styled.p`
   margin: 16px 0 4px;
   font-size: 14px;
@@ -61,6 +89,12 @@ export default function SettingsDialog() {
   const open = useAppSelector((state) => state.settings.settingsDialogOpen)
   const currentName = useAppSelector((state) => state.user.playerName)
   const currentAvatar = useAppSelector((state) => state.user.avatarName)
+  const showJoystick = useAppSelector((state) => state.user.showJoystick)
+  const backgroundMode = useAppSelector((state) => state.user.backgroundMode)
+  const roomName = useAppSelector((state) => state.room.roomName)
+  const roomId = useAppSelector((state) => state.room.roomId)
+  const roomKey = useAppSelector((state) => state.room.roomKey)
+  const [copied, setCopied] = useState(false)
 
   const [name, setName] = useState(currentName)
   const [avatar, setAvatar] = useState(currentAvatar)
@@ -74,6 +108,13 @@ export default function SettingsDialog() {
   }, [open, currentName, currentAvatar])
 
   const getGame = () => phaserGame.scene.keys.game as Game
+
+  const copyRoomUrl = () => {
+    navigator.clipboard?.writeText(buildRoomUrl(roomKey)).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }).catch(() => undefined)
+  }
 
   const handleSave = () => {
     const game = getGame()
@@ -115,6 +156,50 @@ export default function SettingsDialog() {
             </AvatarPick>
           ))}
         </AvatarRow>
+
+        <FieldLabel>表示</FieldLabel>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={backgroundMode === BackgroundMode.NIGHT}
+              onChange={() => dispatch(toggleBackgroundMode())}
+            />
+          }
+          label={<span style={{ fontSize: 14 }}>背景を夜にする</span>}
+        />
+        <FormControlLabel
+          control={
+            <Switch checked={showJoystick} onChange={() => dispatch(setShowJoystick(!showJoystick))} />
+          }
+          label={<span style={{ fontSize: 14 }}>ジョイスティックを表示（スマホ・タブレット用）</span>}
+        />
+
+        <FieldLabel>ルーム情報</FieldLabel>
+        <InfoBox>
+          <div className="row"><span className="k">名前:</span><span className="v">{roomName || '—'}</span></div>
+          <div className="row"><span className="k">ID:</span><span className="v">{roomId || '—'}</span></div>
+          {roomKey && (
+            <div className="row"><span className="k">合言葉:</span><span className="v">{roomKey}</span></div>
+          )}
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={copyRoomUrl}
+            style={{ marginTop: 8 }}
+          >
+            {copied ? 'コピーしました' : '招待URLをコピー'}
+          </Button>
+        </InfoBox>
+
+        <FieldLabel>操作方法</FieldLabel>
+        <GuideList>
+          <li><strong>W, A, S, D または 矢印キー</strong> で移動</li>
+          <li><strong>E</strong> キーで座る（椅子の前で）</li>
+          <li><strong>R</strong> キーで画面共有（コンピュータの前で）</li>
+          <li><strong>Enter</strong> キーでチャットを開く</li>
+          <li><strong>ESC</strong> キーでチャットを閉じる</li>
+          <li>他の人に近づくとビデオ接続が始まります</li>
+        </GuideList>
       </DialogContent>
       <DialogActions>
         <Button onClick={() => dispatch(closeSettingsDialog())} color="inherit">キャンセル</Button>

@@ -9,9 +9,10 @@ const EMOTES = ['👍', '😂', '❓', '🎉', '👏', '😮', '❤️', '🙏']
 const Wrapper = styled.div`
   position: fixed;
   bottom: 16px;
-  /* 右下の操作ガイド（サイドバー幅525px + 余白）の左隣に置く。
-     左下は保存容量メーターの場所として空ける */
-  right: 621px;
+  /* 下部バー（画面共有〜設定）はMAP幅いっぱいに広がり、かつ手前に描かれる。
+     重なると絵文字がバーの下に隠れてしまうため、バーの右端より外側
+     （MAPの右下の隅・サイドバーの手前）に置く */
+  right: 529px;
   z-index: 200;
   display: flex;
   flex-direction: column;

@@ -15,7 +15,6 @@ import ComputerDialog from './components/ComputerDialog'
 import WhiteboardDialog from './components/WhiteboardDialog'
 import VideoConnectionDialog from './components/VideoConnectionDialog'
 import Chat from './components/Chat'
-import HelperButtonGroup from './components/HelperButtonGroup'
 import MobileVirtualJoystick from './components/MobileVirtualJoystick'
 import MapBuilder from './components/MapBuilder'
 import JukeboxDialog from './components/JukeboxDialog'
@@ -224,7 +223,6 @@ function App() {
 
       <Backdrop>
         {ui}
-        {loggedIn && !computerDialogOpen && !whiteboardDialogOpen && <HelperButtonGroup />}
         {loggedIn && isBuilderMode && <MapBuilder />}
         {loggedIn && <JukeboxDialog />}
         {loggedIn && <PredictionBoardDialog />}
