@@ -52,6 +52,8 @@ export enum Message {
   REMOVE_STAMP,
   REQUEST_STAMPS,
   STAMP_LIST,
+  // 入室時に自分宛のDM（置手紙）をまとめて受け取る
+  REQUEST_DM_INBOX,
 }
 
 // ルームから追い出すときの切断コード。WebSocketの4000番台はアプリ独自に使える。

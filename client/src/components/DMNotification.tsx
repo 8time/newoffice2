@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import styled, { keyframes } from 'styled-components'
-import { phaserEvents, Event } from '../events/EventCenter'
 import { playDmSound } from '../util/sound'
-import { useAppDispatch } from '../hooks'
+import { useAppDispatch, useAppSelector } from '../hooks'
 import { openDm, setDmName } from '../stores/DMStore'
+import { getClientId } from '../util/clientId'
 
 interface DmToast {
   id: number
@@ -89,22 +89,43 @@ function showBrowserNotification(name: string, content: string) {
 export default function DMNotification() {
   const dispatch = useAppDispatch()
   const [toasts, setToasts] = useState<DmToast[]>([])
+  const messagesByKey = useAppSelector((s) => s.dm.messagesByKey)
+  const lastReadByKey = useAppSelector((s) => s.dm.lastReadByKey)
+  const openKey = useAppSelector((s) => s.dm.openKey)
+  const myKey = getClientId()
+  // 一度知らせたメッセージのidを覚えておき、再通知を防ぐ
+  const shownIds = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission()
     }
-    const handler = (fromUserKey: string, fromName: string, content: string) => {
+  }, [])
+
+  // 未読のDM（その場にいなかった相手からの置手紙も含む）を検出して知らせる。
+  // 一時イベントではなくRedux状態から判定するので、入室時にまとめて届く受信箱でも
+  // マウント競合で取りこぼさない。ライブのDMも同じ経路で通知される。
+  useEffect(() => {
+    for (const [otherKey, msgs] of Object.entries(messagesByKey)) {
+      if (otherKey === openKey) continue // 開いている会話は通知しない
+      const lastRead = lastReadByKey[otherKey] || 0
+      const unread = msgs.filter(
+        (m) => m.fromUserKey !== myKey && m.createdAt > lastRead && !shownIds.current.has(m.id)
+      )
+      if (unread.length === 0) continue
+      unread.forEach((m) => shownIds.current.add(m.id))
+      const latest = unread[unread.length - 1]
       playDmSound()
-      showBrowserNotification(fromName, content)
+      showBrowserNotification(latest.fromName, latest.content)
       const id = Date.now() + Math.random()
       // 同じ相手の古いトーストは置き換える
-      setToasts((prev) => [...prev.filter((t) => t.fromUserKey !== fromUserKey), { id, fromUserKey, fromName, content }])
+      setToasts((prev) => [
+        ...prev.filter((t) => t.fromUserKey !== otherKey),
+        { id, fromUserKey: otherKey, fromName: latest.fromName, content: latest.content },
+      ])
       setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 7000)
     }
-    phaserEvents.on(Event.DM_RECEIVED, handler)
-    return () => { phaserEvents.off(Event.DM_RECEIVED, handler) }
-  }, [])
+  }, [messagesByKey, lastReadByKey, openKey, myKey])
 
   const dismiss = (id: number, e?: React.MouseEvent) => {
     e?.stopPropagation()

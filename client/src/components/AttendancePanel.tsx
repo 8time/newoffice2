@@ -1,11 +1,16 @@
 import React, { useEffect, useState } from 'react'
 import styled from 'styled-components'
 import AccountCircleIcon from '@mui/icons-material/AccountCircle'
+import MailOutlineIcon from '@mui/icons-material/MailOutline'
 import { resolveServerUrl } from '../services/serverUrl'
+import { useAppDispatch } from '../hooks'
+import { openDm, setDmName } from '../stores/DMStore'
+import { getClientId } from '../util/clientId'
 
 interface AttendanceRecord {
   name: string
   sessionId: string
+  userKey?: string
   date: string
   checkIn: string
   checkOut: string | null
@@ -88,6 +93,23 @@ const RecordItem = styled.li`
     font-size: 28px !important;
     flex-shrink: 0;
   }
+
+  /* 置手紙（DM）ボタン。普段は控えめで、行にホバーしたとき目立たせる */
+  .dm-btn {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: #7f9bd8;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    border-radius: 6px;
+    opacity: 0.35;
+    transition: opacity 0.12s, background 0.12s;
+  }
+  &:hover .dm-btn { opacity: 1; }
+  .dm-btn:hover { background: rgba(127, 155, 216, 0.2); }
 `
 
 const Empty = styled.p`
@@ -117,7 +139,17 @@ function getColorForName(name: string) {
 const DEFAULT_VISIBLE = 4
 
 export default function AttendancePanel() {
+  const dispatch = useAppDispatch()
+  const myKey = getClientId()
   const [records, setRecords] = useState<AttendanceRecord[]>([])
+
+  // 出社記録から置手紙（DM）を開く。相手が今いなくても送れる。
+  // 宛先はブラウザ固定のuserKey。古い記録でuserKeyが無い場合はDMを開けない
+  const openLetter = (r: AttendanceRecord) => {
+    if (!r.userKey) return
+    dispatch(setDmName({ userKey: r.userKey, name: r.name }))
+    dispatch(openDm(r.userKey))
+  }
   const [showAll, setShowAll] = useState(false)
 
   const load = async () => {
@@ -174,6 +206,11 @@ export default function AttendancePanel() {
                 {fmt(r.checkIn)}
                 {r.checkOut ? ` → ${fmt(r.checkOut)}` : ' 〜 在席'}
               </span>
+              {r.userKey && r.userKey !== myKey && (
+                <button className="dm-btn" title={`${r.name}に置手紙を送る`} onClick={() => openLetter(r)}>
+                  <MailOutlineIcon style={{ fontSize: 22 }} />
+                </button>
+              )}
             </RecordItem>
           ))}
         </RecordList>

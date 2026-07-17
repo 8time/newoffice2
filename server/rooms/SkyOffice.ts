@@ -249,6 +249,9 @@ function saveSignboards(
 interface AttendanceRecord {
   name: string
   sessionId: string
+  // 出社記録からDM（置手紙）を送るための宛先。ブラウザ固定のキー(clientId)。
+  // sessionIdは接続ごとに変わるためDMの宛先には使えない。古い記録には無い場合がある
+  userKey?: string
   date: string        // YYYY-MM-DD
   checkIn: string     // ISO timestamp
   checkOut: string | null
@@ -274,15 +277,20 @@ function saveAttendance(records: AttendanceRecord[]) {
   writeDoc('attendance', pruneAttendance(records))
 }
 
-export function recordCheckIn(sessionId: string, name: string) {
+export function recordCheckIn(sessionId: string, name: string, userKey?: string) {
   const records = loadAttendance()
   const now = new Date()
   const date = now.toISOString().slice(0, 10)
   const existing = records.find((r) => r.sessionId === sessionId && r.date === date)
   if (!existing) {
-    records.push({ name, sessionId, date, checkIn: now.toISOString(), checkOut: null })
+    records.push({ name, sessionId, userKey, date, checkIn: now.toISOString(), checkOut: null })
     saveAttendance(records)
     console.log(`[Attendance] 出社記録: ${name} (${sessionId}) at ${now.toISOString()}`)
+  } else if (userKey && existing.userKey !== userKey) {
+    // 名前を付け直したときなど、後からuserKeyが分かった場合に埋める
+    existing.userKey = userKey
+    if (existing.name !== name) existing.name = name
+    saveAttendance(records)
   }
 }
 
@@ -500,9 +508,10 @@ export class SkyOffice extends Room<OfficeState> {
         client,
         name: message.name,
       })
-      // 名前が設定されたタイミングで勤怠を記録
+      // 名前が設定されたタイミングで勤怠を記録。DMの宛先に使うuserKey(clientId)も一緒に残す
       if (message.name) {
-        recordCheckIn(client.sessionId, message.name)
+        const userKey = this.state.players.get(client.sessionId)?.userKey || this.clientIdBySession.get(client.sessionId)
+        recordCheckIn(client.sessionId, message.name, userKey)
       }
     })
 
@@ -1001,6 +1010,25 @@ export class SkyOffice extends Room<OfficeState> {
         withUserKey: message.withUserKey,
         messages: all[convId] || [],
       })
+    })
+
+    // 入室時に、自分宛のDM（置手紙を含む）を全部届ける。
+    // 以前はDMダイアログを開いた相手の分しか取得しておらず、いなくなった相手から
+    // 届いた置手紙に気づけなかった。会話IDは "userKeyA__userKeyB" 形式なので、
+    // 自分のuserKeyを含む会話を集めれば自分宛の全DMになる。
+    // onJoinで即送信するとクライアントの受信ハンドラ登録前に届いて取りこぼすため、
+    // クライアントが準備できてから要求してもらう。
+    this.onMessage(Message.REQUEST_DM_INBOX, (client) => {
+      const me = this.state.players.get(client.sessionId)
+      if (!me || !me.userKey) return
+      const myKey = me.userKey
+      const all = loadDmHistory()
+      for (const [convId, messages] of Object.entries(all)) {
+        const parties = convId.split('__')
+        if (!parties.includes(myKey) || !Array.isArray(messages) || messages.length === 0) continue
+        const otherKey = parties.find((k) => k !== myKey) || parties[0]
+        client.send(Message.DM_HISTORY, { withUserKey: otherKey, messages })
+      }
     })
   }
 

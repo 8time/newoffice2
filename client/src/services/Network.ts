@@ -384,23 +384,19 @@ export default class Network {
       phaserEvents.emit(Event.MEETING_ACTIVE_TAB_REMOTE_UPDATE, roomId, tabId, byName)
     })
 
-    // DM受信（自分が送った分のエコーも含む）
+    // DM受信（自分が送った分のエコーも含む）。通知（ポップアップ＋音）はDMNotificationが
+    // Redux状態から検出して出すので、ここではストアに入れるだけ
     this.room.onMessage(Message.DM_MESSAGE, (msg: DMMessage) => {
-      const myKey = getClientId()
-      store.dispatch(addDmMessage({ myUserKey: myKey, msg }))
-      // 相手から届いたDMで、その会話を開いていない場合はポップアップ＋音で知らせる
-      if (msg.fromUserKey !== myKey) {
-        const openKey = store.getState().dm.openKey
-        if (openKey !== msg.fromUserKey) {
-          phaserEvents.emit(Event.DM_RECEIVED, msg.fromUserKey, msg.fromName, msg.content)
-        }
-      }
+      store.dispatch(addDmMessage({ myUserKey: getClientId(), msg }))
     })
 
-    // DM履歴の受信
+    // DM履歴の受信（入室時にまとめて届く受信箱も含む）
     this.room.onMessage(Message.DM_HISTORY, ({ withUserKey, messages }: { withUserKey: string; messages: DMMessage[] }) => {
       store.dispatch(setDmHistory({ otherKey: withUserKey, messages }))
     })
+    // 自分宛のDM（いなくなった相手からの置手紙も含む）をまとめて受け取る。
+    // DM_HISTORYハンドラ登録の「後」に要求するので、応答を取りこぼさない
+    this.room.send(Message.REQUEST_DM_INBOX)
 
     this.room.onMessage(Message.JUKEBOX_SYNC, (message) => {
       phaserEvents.emit('network-jukebox-sync', message)
