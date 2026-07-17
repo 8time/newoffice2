@@ -54,6 +54,20 @@ export async function cleanupOldFiles() {
   if (entries.length === 0) return
 
   const referenced = collectReferencedFileIds()
+
+  // 安全弁。ホワイトボードに画像が貼ってあるのに参照が1つも見つからない場合、
+  // 参照の探し方が壊れている可能性が高い。そのまま進めると使用中の画像を
+  // 全部消してしまい、二度と直せない「ダミー画像」になる。何もせず中止する。
+  const whiteboards = readDoc<Record<string, any>>('whiteboards', {})
+  const hasImageOnBoard = Object.values(whiteboards).some((snap) =>
+    Array.isArray(snap?.elements) && snap.elements.some((el: any) => el?.type === 'image' && !el?.isDeleted)
+  )
+  if (hasImageOnBoard && referenced.size === 0) {
+    console.error('[Cleanup] 中止: ホワイトボードに画像があるのに参照を検出できませんでした。' +
+      '参照の判定が壊れている可能性があるため、削除は行いません。')
+    return
+  }
+
   const cutoff = Date.now() - FILE_RETENTION_MS
   const targets = entries.filter(
     ([id, rec]) => rec && rec.created < cutoff && !referenced.has(id)

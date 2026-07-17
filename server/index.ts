@@ -12,7 +12,8 @@ import { spawn, ChildProcess } from 'child_process'
 // import socialRoutes from "@colyseus/social/express"
 
 import { SkyOffice, getAttendanceForDate } from './rooms/SkyOffice'
-import { registerDoc, readDoc, writeDoc, hydrate, setLocalBlobDir, putBlob, getBlob, status as storageStatus } from './storage'
+import { registerDoc, readDoc, writeDoc, hydrate, setLocalBlobDir, setLocalBackupDir, putBlob, getBlob, status as storageStatus } from './storage'
+import { startBackups, getBackupList, readBackup, restoreBackup, backupNow } from './backup'
 import { startFileCleanup, getUsage, deleteFileManually } from './cleanup'
 
 const port = Number(process.env.PORT || 2567)
@@ -119,6 +120,7 @@ const MAX_UPLOAD_SIZE = 50 * 1024 * 1024 // 50MB
 // 画像などの本体はSupabase Storage（未設定ならUPLOADS_DIR）へ、
 // 名前やMIMEなどの索引はJSONドキュメントとして保存する
 setLocalBlobDir(UPLOADS_DIR)
+setLocalBackupDir(path.join(__dirname, 'backups'))
 registerDoc('uploadIndex', path.join(UPLOADS_DIR, 'index.json'))
 
 interface UploadRecord {
@@ -201,6 +203,53 @@ app.delete('/api/files/:id', async (req, res) => {
   } catch (e) {
     console.error('[Files] 手動削除に失敗:', e)
     res.status(500).json({ error: 'delete failed' })
+  }
+})
+
+// ─── バックアップ（世代管理） ────────────────────────────────────────────────
+// 会議室の内容が壊れたり誤って消されたりしたときに戻せるようにする
+
+app.get('/api/backups', async (req, res) => {
+  try {
+    res.json(await getBackupList())
+  } catch (e) {
+    console.error('[Backup] 一覧の取得に失敗:', e)
+    res.status(500).json({ error: 'list failed' })
+  }
+})
+
+// 中身の確認・手元への保存用（戻す前に中身を見られるように）
+app.get('/api/backups/:name', async (req, res) => {
+  try {
+    const snap = await readBackup(req.params.name)
+    if (!snap) return res.status(404).json({ error: 'not found' })
+    res.json(snap)
+  } catch (e) {
+    res.status(500).json({ error: 'read failed' })
+  }
+})
+
+// 指定した世代に戻す。戻す前に今の状態も自動でバックアップされる
+app.post('/api/backups/restore', async (req, res) => {
+  const { name } = req.body || {}
+  if (!name || typeof name !== 'string') return res.status(400).json({ error: 'name is required' })
+  try {
+    const r = await restoreBackup(name)
+    if (!r.ok) return res.status(r.reason === 'not-found' ? 404 : 400).json({ error: r.reason })
+    res.json({ ok: true })
+  } catch (e) {
+    console.error('[Backup] 復元に失敗:', e)
+    res.status(500).json({ error: 'restore failed' })
+  }
+})
+
+// 今すぐバックアップを取る（大きな変更の前に手動で残したいとき用）
+app.post('/api/backups/now', async (req, res) => {
+  try {
+    await backupNow('手動')
+    res.json({ ok: true })
+  } catch (e) {
+    res.status(500).json({ error: 'backup failed' })
   }
 })
 
@@ -295,6 +344,8 @@ hydrate()
     console.log(`Listening on ws://localhost:${port}`)
     // 保存済みデータを読み込んだ後に始める（参照の判定に全ドキュメントが要るため）
     startFileCleanup()
+    // 起動直後の状態を残す。デプロイで壊した場合でも、この時点に戻せる
+    startBackups()
   })
   .catch((e) => {
     // 読み込めないまま起動すると、空の状態を保存済みデータへ上書きしてしまう。

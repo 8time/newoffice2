@@ -84,10 +84,75 @@ export async function hydrate() {
   }
   // ここで失敗したままローカルの内容で起動すると、空・古い状態を保存済みデータへ
   // 上書きしてしまう（＝データ消失）。読めなかったら起動させない方が安全なので投げる。
-  const { data, error } = await client.from(TABLE).select('key, value')
+  // バックアップ(backup:)は件数が増え続けるうえ普段は使わないので、メモリには載せない。
+  const { data, error } = await client.from(TABLE).select('key, value').not('key', 'like', `${BACKUP_PREFIX}%`)
   if (error) throw error
   data?.forEach((row: any) => cache.set(row.key, row.value))
   console.log(`[Storage] Supabaseから${data?.length ?? 0}件読み込みました`)
+}
+
+// ─── バックアップ（世代管理） ─────────────────────────────────────────────────
+// 通常のドキュメントは常に上書きされるため、壊れた状態を保存してしまうと元に戻せない。
+// バックアップはメモリに載せず、保存先へ直接読み書きする（件数が増えても起動が重くならない）。
+
+export const BACKUP_PREFIX = 'backup:'
+
+export async function putBackup(name: string, value: unknown) {
+  const key = BACKUP_PREFIX + name
+  if (client) {
+    const { error } = await client
+      .from(TABLE)
+      .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    if (error) throw error
+    return
+  }
+  if (!localBackupDir) return
+  if (!fs.existsSync(localBackupDir)) fs.mkdirSync(localBackupDir, { recursive: true })
+  fs.writeFileSync(backupFile(name), JSON.stringify(value), 'utf-8')
+}
+
+export async function listBackups(): Promise<string[]> {
+  if (client) {
+    const { data, error } = await client.from(TABLE).select('key').like('key', `${BACKUP_PREFIX}%`)
+    if (error) throw error
+    return (data || []).map((r: any) => r.key.slice(BACKUP_PREFIX.length))
+  }
+  if (!localBackupDir || !fs.existsSync(localBackupDir)) return []
+  return fs.readdirSync(localBackupDir).map(backupName)
+}
+
+export async function getBackup(name: string): Promise<unknown | null> {
+  if (client) {
+    const { data, error } = await client.from(TABLE).select('value').eq('key', BACKUP_PREFIX + name).maybeSingle()
+    if (error) throw error
+    return data ? (data as any).value : null
+  }
+  if (!localBackupDir) return null
+  const f = backupFile(name)
+  if (!fs.existsSync(f)) return null
+  return JSON.parse(fs.readFileSync(f, 'utf-8'))
+}
+
+export async function deleteBackup(name: string) {
+  if (client) {
+    const { error } = await client.from(TABLE).delete().eq('key', BACKUP_PREFIX + name)
+    if (error) throw error
+    return
+  }
+  if (!localBackupDir) return
+  const f = backupFile(name)
+  if (fs.existsSync(f)) fs.unlinkSync(f)
+}
+
+// バックアップ名（"whiteboards:2026-07-17T..."）にはファイル名に使えない ':' が入る。
+// 単純に置換すると元の名前に戻せず一覧が壊れるため、可逆な変換を使う。
+const backupFile = (name: string) => `${localBackupDir}/${encodeURIComponent(name)}.json`
+const backupName = (file: string) => decodeURIComponent(file.replace(/\.json$/, ''))
+
+let localBackupDir: string | null = null
+/** ローカル実行時のバックアップ置き場 */
+export function setLocalBackupDir(dir: string) {
+  localBackupDir = dir
 }
 
 /** メモリキャッシュから同期的に読む（hydrate済み前提） */
