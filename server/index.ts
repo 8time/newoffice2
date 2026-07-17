@@ -12,7 +12,7 @@ import { spawn, ChildProcess } from 'child_process'
 
 import { SkyOffice, getAttendanceForDate } from './rooms/SkyOffice'
 import { registerDoc, readDoc, writeDoc, hydrate, setLocalBlobDir, putBlob, getBlob, status as storageStatus } from './storage'
-import { startFileCleanup } from './cleanup'
+import { startFileCleanup, getUsage, deleteFileManually } from './cleanup'
 
 const port = Number(process.env.PORT || 2567)
 const app = express()
@@ -160,6 +160,28 @@ app.post('/api/files', upload.single('file'), async (req, res) => {
   } catch (e) {
     console.error('[Files] アップロード失敗:', e)
     res.status(500).json({ error: 'upload failed' })
+  }
+})
+
+// 容量の使用状況。MAP左下のメーターと、ファイルを消す画面が使う
+app.get('/api/storage-usage', (req, res) => {
+  res.json(getUsage())
+})
+
+// 利用者が画面から不要なファイルを消す。使用中のものはサーバー側で拒否する
+app.delete('/api/files/:id', async (req, res) => {
+  const id = req.params.id
+  if (!/^[a-zA-Z0-9_]+$/.test(id)) return res.status(400).json({ error: 'bad id' })
+  try {
+    const r = await deleteFileManually(id)
+    if (!r.ok) {
+      const status = r.reason === 'in-use' ? 409 : 404
+      return res.status(status).json({ error: r.reason })
+    }
+    res.json({ ok: true })
+  } catch (e) {
+    console.error('[Files] 手動削除に失敗:', e)
+    res.status(500).json({ error: 'delete failed' })
   }
 })
 

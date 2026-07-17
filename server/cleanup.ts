@@ -15,6 +15,9 @@ import { snapshotDocs, readDoc, writeDoc, deleteBlob } from './storage'
 // これより古く、かつ参照されていないファイルを削除の対象にする
 const FILE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000 // 30日
 const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000 // 1日ごと
+// Supabase無料枠のストレージ上限（1GB）。使用量の目安に使う。
+// 環境変数で上げられるようにしておく（有料プランに変えたときのため）
+const STORAGE_LIMIT_BYTES = Number(process.env.STORAGE_LIMIT_BYTES) || 1024 * 1024 * 1024
 
 interface UploadRecord {
   name: string
@@ -77,6 +80,58 @@ export async function cleanupOldFiles() {
   console.log(
     `[Cleanup] 古い未使用ファイルを${deleted}件削除（約${Math.round(freed / 1024)}KB / 残り${Object.keys(index).length}件）`
   )
+}
+
+/**
+ * 今どれだけ容量を使っているかを返す。利用者が自分で見て消せるようにするための情報。
+ * 参照中かどうかも返し、使用中のファイルを誤って消させないようにする。
+ */
+export function getUsage() {
+  const index = readDoc<Record<string, UploadRecord>>('uploadIndex', {})
+  const referenced = collectReferencedFileIds()
+  const files = Object.entries(index).map(([id, rec]) => ({
+    id,
+    name: rec.name,
+    type: rec.type,
+    size: rec.size || 0,
+    created: rec.created,
+    // 使用中＝ホワイトボード等から参照されている。消すと画像が表示されなくなる
+    inUse: referenced.has(id),
+  }))
+  files.sort((a, b) => b.size - a.size)
+  const usedBytes = files.reduce((s, f) => s + f.size, 0)
+
+  // 保存しているJSON（チャット・看板など）の大きさ
+  const docs = snapshotDocs()
+  let docBytes = 0
+  for (const value of Object.values(docs)) {
+    try { docBytes += JSON.stringify(value)?.length || 0 } catch {}
+  }
+
+  return {
+    // Supabase無料枠のストレージ上限。これに対してどれだけ使っているかを見せる
+    limitBytes: STORAGE_LIMIT_BYTES,
+    usedBytes,
+    docBytes,
+    percent: Math.min(100, Math.round((usedBytes / STORAGE_LIMIT_BYTES) * 1000) / 10),
+    fileCount: files.length,
+    retentionDays: FILE_RETENTION_MS / (24 * 60 * 60 * 1000),
+    files,
+  }
+}
+
+/** 利用者が画面から手動で消す。使用中のファイルは拒否する */
+export async function deleteFileManually(id: string): Promise<{ ok: boolean; reason?: string }> {
+  const index = readDoc<Record<string, UploadRecord>>('uploadIndex', {})
+  if (!index[id]) return { ok: false, reason: 'not-found' }
+  if (collectReferencedFileIds().has(id)) {
+    // 使用中のものを消すと、ホワイトボードの画像が二度と直せないダミーになる
+    return { ok: false, reason: 'in-use' }
+  }
+  await deleteBlob(id)
+  delete index[id]
+  writeDoc('uploadIndex', index)
+  return { ok: true }
 }
 
 /** 起動時と1日ごとに片付ける */

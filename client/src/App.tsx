@@ -5,6 +5,7 @@ import { useAppSelector, useAppDispatch } from './hooks'
 import { setRoomKey } from './stores/RoomStore'
 import { getRoomKeyFromUrl } from './util/roomKey'
 import { getReconnectIntent } from './util/reconnect'
+import { resolveServerUrl } from './services/serverUrl'
 import phaserGame from './PhaserGame'
 import Bootstrap from './scenes/Bootstrap'
 
@@ -35,6 +36,8 @@ import StatusToggle from './components/StatusToggle'
 import MeetingRoomOverlay from './components/MeetingRoomOverlay'
 import RendererWarning from './components/RendererWarning'
 import DisconnectedNotice from './components/DisconnectedNotice'
+import StorageMeter, { Usage } from './components/StorageMeter'
+import StorageDialog from './components/StorageDialog'
 
 // ReactのUIオーバーレイの最外枠
 const Backdrop = styled.div`
@@ -151,6 +154,9 @@ function App() {
   const editBoard = useAppSelector((state) => state.signboard.editBoard)
   const dispatch = useAppDispatch()
   const autoJoinTried = useRef(false)
+  // 保存容量の使用状況（MAP左下のメーターと内訳画面で共有する）
+  const [usage, setUsage] = useState<Usage | null>(null)
+  const [storageOpen, setStorageOpen] = useState(false)
 
   useEffect(() => {
     if (loggedIn) {
@@ -259,6 +265,24 @@ function App() {
 
       {/* エモートパネル（画面下中央） */}
       {loggedIn && !activeMeetingRoom && <EmotePanel />}
+
+      {/* 保存容量のメーター（MAP左下）。会議室の中はMAPが見えないので出さない */}
+      {loggedIn && !activeMeetingRoom && (
+        <StorageMeter usage={usage} setUsage={setUsage} onOpen={() => setStorageOpen(true)} />
+      )}
+      {loggedIn && storageOpen && usage && (
+        <StorageDialog
+          usage={usage}
+          onClose={() => setStorageOpen(false)}
+          onChanged={() => {
+            // 消した直後の数字を出すため取り直す
+            fetch(resolveServerUrl('/api/storage-usage'), { cache: 'no-store' })
+              .then((r) => r.json())
+              .then(setUsage)
+              .catch(() => undefined)
+          }}
+        />
+      )}
 
       {/* 右サイドバー */}
       {loggedIn && (
