@@ -12,7 +12,10 @@ import Game from '../scenes/Game'
 
 const Backdrop = styled.div`
   position: fixed;
-  bottom: 60px;
+  /* 60pxだとMAP下部の操作バー（画面共有〜設定、高さ約200px）や、
+     左下の保存容量メーター（狭い画面ではbottom:230〜326pxの範囲）と
+     重なっていた。両方より確実に上になる340pxまで上げる。 */
+  bottom: 340px;
   left: 0;
   height: 460px;
   width: 500px;
