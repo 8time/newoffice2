@@ -28,6 +28,11 @@ const Title = styled.h3`
   justify-content: space-between;
 `
 
+const BtnRow = styled.div`
+  display: flex;
+  gap: 6px;
+`
+
 const RefreshBtn = styled.button`
   background: none;
   border: 1px solid #555;
@@ -45,15 +50,16 @@ const RefreshBtn = styled.button`
   }
 `
 
-const RecordList = styled.ul`
+const RecordList = styled.ul<{ $scroll: boolean }>`
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 220px;
-  overflow-y: auto;
+  /* 既定は最新4件だけなので高さを取らない。
+     「すべて表示」にしたときだけ、伸びすぎないよう制限してスクロールさせる */
+  ${(p) => (p.$scroll ? 'max-height: 220px; overflow-y: auto;' : '')}
 `
 
 const RecordItem = styled.li`
@@ -107,8 +113,12 @@ function getColorForName(name: string) {
   return AVATAR_COLORS[sum % AVATAR_COLORS.length]
 }
 
+// 既定で見せる件数。全部出すとチャットの表示領域を圧迫するため、最新の数件だけにする
+const DEFAULT_VISIBLE = 4
+
 export default function AttendancePanel() {
   const [records, setRecords] = useState<AttendanceRecord[]>([])
+  const [showAll, setShowAll] = useState(false)
 
   const load = async () => {
     try {
@@ -128,18 +138,32 @@ export default function AttendancePanel() {
     return () => clearInterval(id)
   }, [])
 
+  // 新しいものから見たいので、出社時刻の新しい順に並べる
+  const sorted = [...records].sort(
+    (a, b) => new Date(b.checkIn).getTime() - new Date(a.checkIn).getTime()
+  )
+  const visible = showAll ? sorted : sorted.slice(0, DEFAULT_VISIBLE)
+  const hiddenCount = sorted.length - visible.length
+
   return (
     <Container>
       <Title>
         今日の出社記録
-        <RefreshBtn onClick={load}>更新</RefreshBtn>
+        <BtnRow>
+          <RefreshBtn onClick={load}>更新</RefreshBtn>
+          {(showAll || hiddenCount > 0) && (
+            <RefreshBtn onClick={() => setShowAll((v) => !v)}>
+              {showAll ? '最新のみ' : `すべて表示${hiddenCount > 0 ? ` (${sorted.length})` : ''}`}
+            </RefreshBtn>
+          )}
+        </BtnRow>
       </Title>
 
-      {records.length === 0 ? (
+      {sorted.length === 0 ? (
         <Empty>記録がありません</Empty>
       ) : (
-        <RecordList>
-          {records.map((r, i) => (
+        <RecordList $scroll={showAll}>
+          {visible.map((r, i) => (
             <RecordItem key={i}>
               <AccountCircleIcon 
                 className="person-icon" 
