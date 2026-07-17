@@ -9,11 +9,14 @@ const EMOTES = ['👍', '😂', '❓', '🎉', '👏', '😮', '❤️', '🙏']
 const Wrapper = styled.div`
   position: fixed;
   bottom: 16px;
-  left: 16px;
+  /* 右下の操作ガイド（サイドバー幅525px + 余白）の左隣に置く。
+     左下は保存容量メーターの場所として空ける */
+  right: 621px;
   z-index: 200;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  /* 右寄せなので、絵文字の一覧も右端を揃えて開く */
+  align-items: flex-end;
   gap: 6px;
   pointer-events: auto;
 `

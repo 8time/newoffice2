@@ -39,18 +39,19 @@ const levelColor = (percent: number) =>
 
 const Wrapper = styled.div`
   position: fixed;
-  left: 12px;
-  /* 画面下部の操作バー（画面共有・看板を設置…）が下端いっぱいに広がるため、その上に置く */
-  bottom: 210px;
+  left: 16px;
+  /* 左下の隅は「画面共有」ボタンとラベルが占有しているため、その真上に置く。
+     隅に置くとボタンを覆ってしまう（絵文字を右下へ退かしても場所は空かない） */
+  bottom: 200px;
   z-index: 900;
   background: rgba(12, 18, 32, 0.82);
   border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 10px;
-  padding: 7px 10px;
-  width: 168px;
+  border-radius: 12px;
+  padding: 11px 15px;
+  width: 252px;
   color: #dfe6ff;
   font-family: 'Roboto', sans-serif;
-  font-size: 11px;
+  font-size: 16px;
   cursor: pointer;
   backdrop-filter: blur(6px);
   user-select: none;
@@ -62,15 +63,15 @@ const Row = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 5px;
+  margin-bottom: 7px;
   .label { color: #aab4d4; }
   .value { font-weight: 700; }
 `
 
 const Bar = styled.div`
-  height: 7px;
+  height: 10px;
   background: rgba(255, 255, 255, 0.13);
-  border-radius: 4px;
+  border-radius: 5px;
   overflow: hidden;
 `
 const Fill = styled.div<{ $percent: number }>`
@@ -82,8 +83,8 @@ const Fill = styled.div<{ $percent: number }>`
 
 const Toast = styled.div`
   position: fixed;
-  left: 12px;
-  bottom: 272px;
+  left: 16px;
+  bottom: 306px;
   z-index: 901;
   width: 260px;
   background: #b3271e;
@@ -162,7 +163,7 @@ export default function StorageMeter({ onOpen, usage, setUsage }: Props) {
         <Bar>
           <Fill $percent={usage.percent} />
         </Bar>
-        <Row style={{ marginTop: 5, marginBottom: 0 }}>
+        <Row style={{ marginTop: 7, marginBottom: 0 }}>
           <span className="label">
             {fmtSize(usage.usedBytes)} / {fmtSize(usage.limitBytes)}
           </span>
