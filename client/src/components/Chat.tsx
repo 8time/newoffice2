@@ -21,6 +21,7 @@ import { MessageType, FileAttachment, setFocused, setShowChat, pushFileMessage }
 import { playChatSound } from '../util/sound'
 import { resolveServerUrl } from '../services/serverUrl'
 import { shrinkImageFile } from '../util/imageShrink'
+import { isEmojiOnlyMessage } from '../util/stampMode'
 import ChatMessageContent from './ChatMessageContent'
 
 // ─── 吹き出し色パレット（3色ループ） ─────────────────────────────────────────
@@ -238,6 +239,17 @@ const Bubble = styled.div<{ isMine: boolean }>`
     border-left: ${({ isMine }) => (isMine ? '0' : '6px solid transparent')};
     margin-top: -2px;
   }
+`
+
+// スタンプ表示。吹き出し・背景・影を出さず、絵文字だけを大きく見せる。
+// 周りに余白を持たせて存在感を出す（LINE・Discordと同じ考え方）
+const StampBody = styled.div`
+  font-size: 64px;
+  line-height: 1.1;
+  padding: 4px 6px 2px;
+  user-select: none;
+  /* 絵文字が並んだときに折り返せるようにしておく */
+  word-break: break-word;
 `
 
 const MetaContainer = styled.div<{ isMine: boolean }>`
@@ -501,6 +513,9 @@ function Message({ chatMessage, messageType, file, colorIndex, myName, sessionId
   const isMine = chatMessage.author === myName
   const avatarBg = AVATAR_COLORS[colorIndex % AVATAR_COLORS.length]
   const readCount = chatMessage.readers ? chatMessage.readers.length : 0
+  // ファイル添付はスタンプ扱いしない（本文が空でも画像を出す必要があるため）
+  const isStamp =
+    messageType !== MessageType.FILE_MESSAGE && isEmojiOnlyMessage(chatMessage.content)
 
   // 自分の発言を右クリックすると「送信取消」を出す。
   // 消せるのは全員に配られる本文だけなので、他人の発言では出さない
@@ -523,13 +538,19 @@ function Message({ chatMessage, messageType, file, colorIndex, myName, sessionId
         {!isMine && <AuthorName color="#bbb">{chatMessage.author}</AuthorName>}
 
         <MessageBody isMine={isMine}>
-          <Bubble isMine={isMine}>
-            {messageType === MessageType.FILE_MESSAGE && file ? (
-              <FilePreview file={file} textColor="#111" />
-            ) : (
-              <ChatMessageContent content={chatMessage.content} />
-            )}
-          </Bubble>
+          {/* 絵文字だけの発言は吹き出しに入れず、スタンプのように大きく出す。
+              文中の絵文字（「了解👍」）は今までどおり吹き出しの中に文字の大きさで出す */}
+          {isStamp ? (
+            <StampBody>{chatMessage.content}</StampBody>
+          ) : (
+            <Bubble isMine={isMine}>
+              {messageType === MessageType.FILE_MESSAGE && file ? (
+                <FilePreview file={file} textColor="#111" />
+              ) : (
+                <ChatMessageContent content={chatMessage.content} />
+              )}
+            </Bubble>
+          )}
           <MetaContainer isMine={isMine}>
             {isMine && readCount > 0 && <ReadLabel>既読 {readCount}</ReadLabel>}
             <TimeLabel>{timeFmt.format(chatMessage.createdAt)}</TimeLabel>
