@@ -47,6 +47,14 @@ const msgs = (p) => p.evaluate(()=>window.__store.getState().chat.chatMessages.m
   const mb = await msgs(B)
   log('   Bのチャット: ' + JSON.stringify(mb))
   check(mb.some(x=>String(x.c).includes('こんにちは')), '通常のチャットは相手に届く', 'チャットが届かない＝壊した')
+
+  log('== Bが退室（退室メッセージも出ないこと）==')
+  await B.close()
+  await wait(3500)
+  m = await msgs(A)
+  log('   Aのチャット: ' + JSON.stringify(m))
+  check(!m.some(x=>String(x.c).includes('退室しました')), '退室メッセージも出ない', '退室メッセージが出ている')
+
   await A.screenshot({path:'_e2e_out/chat-no-join.png'})
 
   log(failed===0?'\n=== 全項目 PASS ===':`\n=== ${failed}件 FAIL ===`)

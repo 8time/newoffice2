@@ -36,7 +36,6 @@ import {
 import {
   pushChatMessage,
   pushFileMessage,
-  pushPlayerLeftMessage,
   updateChatReaders,
   FileAttachment,
 } from '../stores/ChatStore'
@@ -205,10 +204,11 @@ export default class Network {
 
     // an instance removed from the players MapSchema
     this.room.state.players.onRemove = (player: IPlayer, key: string) => {
+      // 退室も入室と同様、サイドバーの「今日の出社記録」「在席メンバー」で分かるため
+      // チャット欄には流さない（会話が埋もれるのを防ぐ）
       phaserEvents.emit(Event.PLAYER_LEFT, key)
       this.webRTC?.deleteVideoStream(key)
       this.webRTC?.deleteOnCalledVideoStream(key)
-      store.dispatch(pushPlayerLeftMessage(player.name))
       store.dispatch(removePlayerNameMap(key))
       store.dispatch(removePlayerStatus(key))
       store.dispatch(removePlayerHandRaised(key))

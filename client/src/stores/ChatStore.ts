@@ -65,16 +65,6 @@ export const chatSlice = createSlice({
         file,
       })
     },
-    pushPlayerLeftMessage: (state, action: PayloadAction<string>) => {
-      state.chatMessages.push({
-        messageType: MessageType.PLAYER_LEFT,
-        chatMessage: {
-          createdAt: new Date().getTime(),
-          author: action.payload,
-          content: 'が退室しました',
-        } as IChatMessage,
-      })
-    },
     setFocused: (state, action: PayloadAction<boolean>) => {
       const game = phaserGame.scene.keys.game as Game
       action.payload ? game.disableKeys() : game.enableKeys()
@@ -89,7 +79,6 @@ export const chatSlice = createSlice({
 export const {
   pushChatMessage,
   pushFileMessage,
-  pushPlayerLeftMessage,
   setFocused,
   setShowChat,
   updateChatReaders,
