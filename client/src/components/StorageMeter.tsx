@@ -40,9 +40,14 @@ const levelColor = (percent: number) =>
 const Wrapper = styled.div`
   position: fixed;
   left: 16px;
-  /* 左下の隅は「画面共有」ボタンとラベルが占有しているため、その真上に置く。
-     隅に置くとボタンを覆ってしまう（絵文字を右下へ退かしても場所は空かない） */
-  bottom: 200px;
+  /* 下部バー（画面共有〜設定・幅877px固定）はMAPの中央に置かれるため、
+     左に空く幅は画面の広さで変わる。狭い画面ではバーが左端まで迫り、
+     隅に置くと「画面共有」ボタンを覆ってしまうのでバーの上に逃がす。
+     十分に広い画面（左に284px以上空く＝画面幅1970px以上）では左下の隅に置く。 */
+  bottom: 230px;
+  @media (min-width: 1970px) {
+    bottom: 16px;
+  }
   z-index: 900;
   background: rgba(12, 18, 32, 0.82);
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -84,7 +89,11 @@ const Fill = styled.div<{ $percent: number }>`
 const Toast = styled.div`
   position: fixed;
   left: 16px;
-  bottom: 306px;
+  /* メーターの真上に出す（メーターの位置が画面幅で変わるので合わせる） */
+  bottom: 336px;
+  @media (min-width: 1970px) {
+    bottom: 122px;
+  }
   z-index: 901;
   width: 260px;
   background: #b3271e;
