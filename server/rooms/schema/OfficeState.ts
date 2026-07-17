@@ -38,6 +38,8 @@ export class Whiteboard extends Schema implements IWhiteboard {
 export class ChatMessage extends Schema implements IChatMessage {
   @type('string') id = ''
   @type('string') author = ''
+  // 送信取消の本人判定用（名前は変えられるのでキーで判定する）
+  @type('string') authorKey = ''
   @type('number') createdAt = new Date().getTime()
   @type('string') content = ''
   @type(['string']) readers = new ArraySchema<string>()

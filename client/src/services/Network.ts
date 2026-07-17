@@ -36,6 +36,7 @@ import {
 } from '../stores/RoomStore'
 import {
   pushChatMessage,
+  removeChatMessage,
   pushFileMessage,
   updateChatReaders,
   FileAttachment,
@@ -247,6 +248,11 @@ export default class Network {
       whiteboard.connectedUser.onRemove = (item, index) => {
         phaserEvents.emit(Event.ITEM_USER_REMOVED, item, key, ItemType.WHITEBOARD)
       }
+    }
+
+    // 送信取消された発言をこちらの画面からも消す
+    this.room.state.chatMessages.onRemove = (item) => {
+      store.dispatch(removeChatMessage(item.id))
     }
 
     // new instance added to the chatMessages ArraySchema
@@ -564,6 +570,11 @@ export default class Network {
 
   onStopScreenShare(id: string) {
     this.room?.send(Message.STOP_SCREEN_SHARE, { computerId: id })
+  }
+
+  // 自分の発言を取り消す（サーバー側で本人か検証される）
+  removeChatMessage(id: string) {
+    this.room?.send(Message.REMOVE_CHAT_MESSAGE, { id })
   }
 
   addChatMessage(content: string) {

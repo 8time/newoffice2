@@ -24,6 +24,7 @@ export default class ChatMessageUpdateCommand extends Command<IOfficeState, Payl
     const newMessage = new ChatMessage()
     newMessage.id = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
     newMessage.author = player.name
+    newMessage.authorKey = player.userKey || ''
     newMessage.content = content
     chatMessages.push(newMessage)
   }

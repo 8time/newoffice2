@@ -38,6 +38,8 @@ Object.entries(DOCS).forEach(([key, file]) => registerDoc(key, file))
 interface ChatRecord {
   id: string
   author: string
+  // 送信取消の本人判定用。再起動後も本人だと分かるように保存する
+  authorKey?: string
   createdAt: number
   content: string
 }
@@ -220,12 +222,24 @@ interface AttendanceRecord {
   checkOut: string | null
 }
 
+// 出社記録を残す日数。サイドバーに出すのは当日分だけで、遡って見る画面も無いため
+// 長く持つ意味がない。上限が無いと毎日の出退勤が永久に積み上がる。
+const ATTENDANCE_RETENTION_DAYS = 2
+
 function loadAttendance(): AttendanceRecord[] {
   return readDoc<AttendanceRecord[]>('attendance', [])
 }
 
+// 古い記録を落とす。recordはYYYY-MM-DDのdateを持つので日付で比較する
+function pruneAttendance(records: AttendanceRecord[]): AttendanceRecord[] {
+  const cutoff = new Date(Date.now() - ATTENDANCE_RETENTION_DAYS * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10)
+  return records.filter((r) => r && typeof r.date === 'string' && r.date >= cutoff)
+}
+
 function saveAttendance(records: AttendanceRecord[]) {
-  writeDoc('attendance', records)
+  writeDoc('attendance', pruneAttendance(records))
 }
 
 export function recordCheckIn(sessionId: string, name: string) {
@@ -309,6 +323,7 @@ export class SkyOffice extends Room<OfficeState> {
         const m = new ChatMessage()
         m.id = rec.id
         m.author = rec.author
+        m.authorKey = rec.authorKey || ''
         m.createdAt = rec.createdAt
         m.content = rec.content
         this.state.chatMessages.push(m)
@@ -507,6 +522,24 @@ export class SkyOffice extends Room<OfficeState> {
         { clientId: client.sessionId, content: message.content },
         { except: client }
       )
+      this.scheduleChatSave()
+    })
+
+    // 発言の取り消し（送信取消）。stateから消すと全員の画面からも消える
+    this.onMessage(Message.REMOVE_CHAT_MESSAGE, (client, message: { id: string }) => {
+      if (!message?.id) return
+      const idx = this.state.chatMessages.findIndex((m) => m.id === message.id)
+      if (idx === -1) return
+      const msg = this.state.chatMessages[idx]
+      const player = this.state.players.get(client.sessionId)
+      // 取り消せるのは本人の発言だけ。名前は変更できるためキーで判定する。
+      // authorKeyを持たない古い発言だけは、やむを得ず名前で判定する。
+      const myKey = player?.userKey || ''
+      const isOwn = msg.authorKey
+        ? !!myKey && msg.authorKey === myKey
+        : !!player?.name && msg.author === player.name
+      if (!isOwn) return
+      this.state.chatMessages.splice(idx, 1)
       this.scheduleChatSave()
     })
 
@@ -917,6 +950,7 @@ export class SkyOffice extends Room<OfficeState> {
     all[this.chatKey] = this.state.chatMessages.slice(-CHAT_HISTORY_LIMIT).map((m) => ({
       id: m.id,
       author: m.author,
+      authorKey: m.authorKey,
       createdAt: m.createdAt,
       content: m.content,
     }))

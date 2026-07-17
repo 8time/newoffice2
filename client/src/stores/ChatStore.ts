@@ -65,6 +65,10 @@ export const chatSlice = createSlice({
         file,
       })
     },
+    // 送信取消された発言を消す（サーバーのstateから消えたら全員の画面からも消す）
+    removeChatMessage: (state, action: PayloadAction<string>) => {
+      state.chatMessages = state.chatMessages.filter((m) => m.chatMessage.id !== action.payload)
+    },
     setFocused: (state, action: PayloadAction<boolean>) => {
       const game = phaserGame.scene.keys.game as Game
       action.payload ? game.disableKeys() : game.enableKeys()
@@ -78,6 +82,7 @@ export const chatSlice = createSlice({
 
 export const {
   pushChatMessage,
+  removeChatMessage,
   pushFileMessage,
   setFocused,
   setShowChat,

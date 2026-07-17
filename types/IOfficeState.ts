@@ -29,6 +29,9 @@ export interface IWhiteboard extends Schema {
 export interface IChatMessage extends Schema {
   id: string
   author: string
+  // 投稿者のブラウザ固定のキー(clientId)。名前は変更できるため、
+  // 送信取消の本人判定には名前ではなくこちらを使う
+  authorKey: string
   createdAt: number
   content: string
   readers: ArraySchema<string>

@@ -472,9 +472,10 @@ interface MessageProps {
   colorIndex: number
   myName: string
   sessionId: string
+  onRequestUnsend: (target: { id: string; x: number; y: number }) => void
 }
 
-function Message({ chatMessage, messageType, file, colorIndex, myName, sessionId }: MessageProps) {
+function Message({ chatMessage, messageType, file, colorIndex, myName, sessionId, onRequestUnsend }: MessageProps) {
   const isSystem =
     messageType === MessageType.PLAYER_JOINED || messageType === MessageType.PLAYER_LEFT
 
@@ -500,8 +501,17 @@ function Message({ chatMessage, messageType, file, colorIndex, myName, sessionId
   const avatarBg = AVATAR_COLORS[colorIndex % AVATAR_COLORS.length]
   const readCount = chatMessage.readers ? chatMessage.readers.length : 0
 
+  // 自分の発言を右クリックすると「送信取消」を出す。
+  // 消せるのは全員に配られる本文だけなので、他人の発言では出さない
+  const handleContextMenu = (e: React.MouseEvent) => {
+    if (!isMine || !chatMessage.id) return
+    e.preventDefault()
+    e.stopPropagation()
+    onRequestUnsend({ id: chatMessage.id, x: e.clientX, y: e.clientY })
+  }
+
   return (
-    <BubbleRow isMine={isMine}>
+    <BubbleRow isMine={isMine} onContextMenu={handleContextMenu}>
       {!isMine && (
         <Avatar bg={avatarBg}>
           {chatMessage.author.charAt(0).toUpperCase()}
@@ -528,6 +538,34 @@ function Message({ chatMessage, messageType, file, colorIndex, myName, sessionId
     </BubbleRow>
   )
 }
+
+// 発言を右クリックしたときに出る小さなメニュー
+const ContextMenu = styled.div<{ x: number; y: number }>`
+  position: fixed;
+  top: ${(p) => p.y}px;
+  left: ${(p) => p.x}px;
+  z-index: 30000;
+  background: #2a3050;
+  border: 1px solid rgba(150, 175, 255, 0.4);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+
+  button {
+    display: block;
+    width: 100%;
+    background: none;
+    border: none;
+    color: #ff8f8f;
+    font-size: 13px;
+    padding: 8px 16px;
+    text-align: left;
+    cursor: pointer;
+    border-radius: 5px;
+    white-space: nowrap;
+    &:hover { background: rgba(255, 255, 255, 0.08); }
+  }
+`
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────
 
@@ -581,6 +619,8 @@ function processDroppedFiles(files: FileList, myName: string, dispatch: any) {
 
 export default function Chat() {
   const [inputValue, setInputValue] = useState('')
+  // 右クリックした自分の発言（送信取消メニューの表示位置と対象）
+  const [unsendTarget, setUnsendTarget] = useState<{ id: string; x: number; y: number } | null>(null)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [readyToSubmit, setReadyToSubmit] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
@@ -667,6 +707,24 @@ export default function Chat() {
 
   useEffect(() => { if (focused) inputRef.current?.focus() }, [focused])
 
+  // 送信取消メニューは、どこかをクリックしたら閉じる
+  useEffect(() => {
+    if (!unsendTarget) return
+    const close = () => setUnsendTarget(null)
+    window.addEventListener('click', close)
+    window.addEventListener('scroll', close, true)
+    return () => {
+      window.removeEventListener('click', close)
+      window.removeEventListener('scroll', close, true)
+    }
+  }, [unsendTarget])
+
+  const handleUnsend = () => {
+    if (!unsendTarget) return
+    game.network.removeChatMessage(unsendTarget.id)
+    setUnsendTarget(null)
+  }
+
   // 過去にさかのぼって読んでいる間は自動で最下部へ飛ばさない。
   // 最下部付近にいるとき（＝最新を追っている）だけ新着でスクロールする。
   const chatBoxRef = useRef<HTMLDivElement>(null)
@@ -701,6 +759,17 @@ export default function Chat() {
   }, [chatMessages])
 
   return (
+    <>
+      {unsendTarget && (
+        <ContextMenu
+          x={unsendTarget.x}
+          y={unsendTarget.y}
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <button onClick={handleUnsend}>🗑 送信取消</button>
+        </ContextMenu>
+      )}
     <Backdrop>
       <Wrapper>
         {showChat ? (
@@ -751,6 +820,7 @@ export default function Chat() {
                       colorIndex={getColorIndex(chatMessage.author)}
                       myName={myName}
                       sessionId={sessionId}
+                      onRequestUnsend={setUnsendTarget}
                     />
                   </React.Fragment>
                 )
@@ -826,5 +896,6 @@ export default function Chat() {
         )}
       </Wrapper>
     </Backdrop>
+    </>
   )
 }
