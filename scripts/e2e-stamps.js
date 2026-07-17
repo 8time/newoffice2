@@ -187,9 +187,75 @@ async function main() {
   const rejected = await A.locator('text=1MB以下').count()
   check(rejected > 0, '1MB超は登録前に拒否される', '大きすぎる画像が通ってしまう')
 
-  log('\n== 自分のスタンプは消せるか（後片付け）==')
+  // ─── フェーズ3: チャットからの送信 ───────────────────────────────────────
+  log('\n\n########## フェーズ3: スタンプの送信 ##########')
+  await A.getByRole('button', { name: '閉じる' }).click()
+  await wait(800)
+
+  log('== ピッカーから送れるか ==')
+  await A.locator('[aria-label="stamp"]').click()
+  await wait(900)
+  const pickerShown = await A.locator('img[alt="テストスタンプ' + TAG + '"]').count()
+  check(pickerShown > 0, 'スタンプ一覧に登録したスタンプが出る', 'ピッカーに出ていない')
+  await A.screenshot({ path: '_e2e_out/stamp-picker.png' })
+
+  await A.locator('img[alt="テストスタンプ' + TAG + '"]').first().click()
+  await wait(2500)
+
+  // 送った本文が [stamp:xxx] の形で、画像として表示されているか
+  const sentOnA = await A.evaluate((id) => {
+    const msgs = window.__store.getState().chat.chatMessages
+    const m = msgs.find((x) => x.chatMessage.content === `[stamp:${id}]`)
+    if (!m) return null
+    const img = document.querySelector(`img[alt="${window.__store.getState().stamp.stamps[id]?.name}"]`)
+    return { content: m.chatMessage.content, shownAsImage: !!img }
+  }, registered.id)
+  log('   ' + JSON.stringify(sentOnA))
+  check(!!sentOnA, 'スタンプが本文の印として送られた', '送信されていない')
+  check(sentOnA?.shownAsImage, '画像として表示されている', '画像になっていない')
+
+  log('\n== 相手にも画像として届くか ==')
+  await wait(1500)
+  const onBmsg = await B.evaluate((id) => {
+    const msgs = window.__store.getState().chat.chatMessages
+    const has = msgs.some((x) => x.chatMessage.content === `[stamp:${id}]`)
+    const stamps = window.__store.getState().stamp.stamps
+    const imgs = [...document.querySelectorAll('img')].filter((i) => i.alt === stamps[id]?.name)
+    // 吹き出しに入っていないこと（親に背景が付いていない）
+    const bare = imgs.length > 0 && getComputedStyle(imgs[0].parentElement).backgroundColor === 'rgba(0, 0, 0, 0)'
+    return { has, imgCount: imgs.length, bare }
+  }, registered.id)
+  log('   ' + JSON.stringify(onBmsg))
+  check(onBmsg.has && onBmsg.imgCount > 0, '相手の画面にスタンプが届いた', '相手に届いていない')
+  check(onBmsg.bare, '吹き出しなしで表示されている', '吹き出しに入ってしまっている')
+
+  log('\n== 使用回数が数えられているか（よく使う順の土台）==')
+  const used = await A.evaluate((id) => window.__store.getState().stamp.stamps[id]?.useCount, registered.id)
+  log(`   useCount: ${used}`)
+  check(used >= 1, '送信で使用回数が増えた', `増えていない: ${used}`)
+
+  log('\n== 送信取消できるか ==')
+  const msgId = await A.evaluate((id) => {
+    const m = window.__store.getState().chat.chatMessages.find((x) => x.chatMessage.content === `[stamp:${id}]`)
+    return m?.chatMessage.id
+  }, registered.id)
+  await A.evaluate((mid) => window.game.scene.keys.game.network.removeChatMessage(mid), msgId)
+  await wait(2500)
+  const goneBoth = await Promise.all([
+    A.evaluate((id) => !window.__store.getState().chat.chatMessages.some((x) => x.chatMessage.content === `[stamp:${id}]`), registered.id),
+    B.evaluate((id) => !window.__store.getState().chat.chatMessages.some((x) => x.chatMessage.content === `[stamp:${id}]`), registered.id),
+  ])
+  check(goneBoth[0] && goneBoth[1], 'スタンプの発言も両者から取り消せた', `取り消せない: ${JSON.stringify(goneBoth)}`)
+
+  log('\n== 台帳から消えたスタンプの発言はどうなるか ==')
+  await A.evaluate((id) => window.game.scene.keys.game.network.addChatMessage(`[stamp:${id}]`), registered.id)
+  await wait(2000)
   await A.evaluate((id) => window.game.scene.keys.game.network.removeStamp(id), registered.id)
   await wait(2500)
+  const fallback = await A.locator('text=(削除されたスタンプ)').count()
+  check(fallback > 0, '削除済みスタンプの発言は文言で退避される（画像切れにならない）', '退避表示が出ない')
+
+  log('\n== 自分のスタンプは消せるか（後片付け）==')
   const gone = await A.evaluate((id) => !window.__store.getState().stamp.stamps[id], registered.id)
   check(gone, '自分のスタンプは消せた', '自分のスタンプが消せない')
 

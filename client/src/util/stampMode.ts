@@ -43,6 +43,21 @@ function countEmoji(text: string): number {
 }
 
 /**
+ * 登録スタンプの送信は、本文に "[stamp:stp_xxx]" という印を入れた
+ * 普通のチャットとして送る。専用のメッセージ種別を作らないことで、
+ * 履歴の保存・日付区切り・既読・送信取消がそのまま効く。
+ */
+const STAMP_MARKER = /^\[stamp:([a-zA-Z0-9_]+)\]$/
+
+export const buildStampMessage = (id: string) => `[stamp:${id}]`
+
+/** 本文が登録スタンプ1個だけなら、そのIDを返す */
+export function parseStampMessage(content: string): string | null {
+  const m = STAMP_MARKER.exec((content || '').trim())
+  return m ? m[1] : null
+}
+
+/**
  * この本文をスタンプとして大きく表示すべきか。
  * 文字が1文字でも混ざっていれば false（通常の吹き出し）。
  */

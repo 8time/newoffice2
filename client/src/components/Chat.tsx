@@ -21,7 +21,10 @@ import { MessageType, FileAttachment, setFocused, setShowChat, pushFileMessage }
 import { playChatSound } from '../util/sound'
 import { resolveServerUrl } from '../services/serverUrl'
 import { shrinkImageFile } from '../util/imageShrink'
-import { isEmojiOnlyMessage } from '../util/stampMode'
+import { isEmojiOnlyMessage, parseStampMessage, buildStampMessage } from '../util/stampMode'
+import { Stamp } from '../stores/StampStore'
+import StampPicker from './StampPicker'
+import StickyNote2Icon from '@mui/icons-material/StickyNote2'
 import ChatMessageContent from './ChatMessageContent'
 
 // ─── 吹き出し色パレット（3色ループ） ─────────────────────────────────────────
@@ -250,6 +253,21 @@ const StampBody = styled.div`
   user-select: none;
   /* 絵文字が並んだときに折り返せるようにしておく */
   word-break: break-word;
+`
+
+// 登録スタンプの表示。吹き出しに入れず、そのまま大きく見せる
+const StampImage = styled.img`
+  max-width: 160px;
+  max-height: 160px;
+  display: block;
+  padding: 4px 6px 2px;
+  user-select: none;
+`
+
+const DeletedStamp = styled.span`
+  font-size: 13px;
+  color: #999;
+  padding: 4px 6px;
 `
 
 const MetaContainer = styled.div<{ isMine: boolean }>`
@@ -486,9 +504,11 @@ interface MessageProps {
   myName: string
   sessionId: string
   onRequestUnsend: (target: { id: string; x: number; y: number }) => void
+  // 登録スタンプの画像を引くための台帳（本文の [stamp:xxx] から解決する）
+  stamps: Record<string, Stamp>
 }
 
-function Message({ chatMessage, messageType, file, colorIndex, myName, sessionId, onRequestUnsend }: MessageProps) {
+function Message({ chatMessage, messageType, file, colorIndex, myName, sessionId, onRequestUnsend, stamps }: MessageProps) {
   const isSystem =
     messageType === MessageType.PLAYER_JOINED || messageType === MessageType.PLAYER_LEFT
 
@@ -514,8 +534,12 @@ function Message({ chatMessage, messageType, file, colorIndex, myName, sessionId
   const avatarBg = AVATAR_COLORS[colorIndex % AVATAR_COLORS.length]
   const readCount = chatMessage.readers ? chatMessage.readers.length : 0
   // ファイル添付はスタンプ扱いしない（本文が空でも画像を出す必要があるため）
-  const isStamp =
+  const stampId =
+    messageType !== MessageType.FILE_MESSAGE ? parseStampMessage(chatMessage.content) : null
+  const stamp = stampId ? stamps[stampId] : undefined
+  const isEmojiStamp =
     messageType !== MessageType.FILE_MESSAGE && isEmojiOnlyMessage(chatMessage.content)
+  const isStamp = !!stampId || isEmojiStamp
 
   // 自分の発言を右クリックすると「送信取消」を出す。
   // 消せるのは全員に配られる本文だけなので、他人の発言では出さない
@@ -540,7 +564,14 @@ function Message({ chatMessage, messageType, file, colorIndex, myName, sessionId
         <MessageBody isMine={isMine}>
           {/* 絵文字だけの発言は吹き出しに入れず、スタンプのように大きく出す。
               文中の絵文字（「了解👍」）は今までどおり吹き出しの中に文字の大きさで出す */}
-          {isStamp ? (
+          {stampId ? (
+            // 登録スタンプ。台帳から画像を引く。GIF/アニメWebPはimgのまま動く
+            stamp ? (
+              <StampImage src={resolveServerUrl(stamp.url)} alt={stamp.name} title={stamp.name} />
+            ) : (
+              <DeletedStamp>(削除されたスタンプ)</DeletedStamp>
+            )
+          ) : isEmojiStamp ? (
             <StampBody>{chatMessage.content}</StampBody>
           ) : (
             <Bubble isMine={isMine}>
@@ -649,6 +680,8 @@ export default function Chat() {
   // 右クリックした自分の発言（送信取消メニューの表示位置と対象）
   const [unsendTarget, setUnsendTarget] = useState<{ id: string; x: number; y: number } | null>(null)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [showStampPicker, setShowStampPicker] = useState(false)
+  const stamps = useAppSelector((state) => state.stamp.stamps)
   const [readyToSubmit, setReadyToSubmit] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const dragCounterRef = useRef(0)
@@ -745,6 +778,14 @@ export default function Chat() {
       window.removeEventListener('scroll', close, true)
     }
   }, [unsendTarget])
+
+  // スタンプは本文に印を入れた普通のチャットとして送る。
+  // これで履歴・既読・送信取消がそのまま効く
+  const sendStamp = (id: string) => {
+    game.network.addChatMessage(buildStampMessage(id))
+    game.myPlayer.updateDialogBubble('')
+    setShowStampPicker(false)
+  }
 
   const handleUnsend = () => {
     if (!unsendTarget) return
@@ -848,11 +889,14 @@ export default function Chat() {
                       myName={myName}
                       sessionId={sessionId}
                       onRequestUnsend={setUnsendTarget}
+                      stamps={stamps}
                     />
                   </React.Fragment>
                 )
               })}
               <div ref={messagesEndRef} />
+
+              {showStampPicker && <StampPicker onPick={sendStamp} />}
 
               {showEmojiPicker && (
                 <EmojiPickerWrapper>
@@ -902,8 +946,16 @@ export default function Chat() {
                 <AttachFileIcon style={{ fontSize: 32 }} />
               </IconButton>
               <IconButton
+                aria-label="stamp"
+                title="スタンプ"
+                onClick={() => { setShowStampPicker((v) => !v); setShowEmojiPicker(false) }}
+                style={{ padding: '10px' }}
+              >
+                <StickyNote2Icon style={{ fontSize: 32 }} />
+              </IconButton>
+              <IconButton
                 aria-label="emoji"
-                onClick={() => setShowEmojiPicker((v) => !v)}
+                onClick={() => { setShowEmojiPicker((v) => !v); setShowStampPicker(false) }}
                 style={{ padding: '10px' }}
               >
                 <InsertEmoticonIcon style={{ fontSize: 32 }} />

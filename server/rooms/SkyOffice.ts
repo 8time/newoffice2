@@ -545,6 +545,18 @@ export class SkyOffice extends Room<OfficeState> {
     })
 
     this.onMessage(Message.ADD_CHAT_MESSAGE, (client, message: { content: string }) => {
+      // スタンプを送ったら使用回数を数える（ピッカーの「よく使う」順に使う）。
+      // 本文が [stamp:xxx] 単体のときだけ数え、文中に書かれたものは数えない
+      const stampId = /^\[stamp:([a-zA-Z0-9_]+)\]$/.exec((message?.content || '').trim())?.[1]
+      if (stampId) {
+        const all = loadStamps()
+        if (all[stampId]) {
+          all[stampId].useCount = (all[stampId].useCount || 0) + 1
+          saveStamps(all)
+          // 数えるだけでは各自の画面の台帳が古いままで、「よく使う」順に反映されない
+          this.broadcast(Message.STAMP_LIST, all)
+        }
+      }
       this.dispatcher.dispatch(new ChatMessageUpdateCommand(), {
         client,
         content: message.content,
