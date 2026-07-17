@@ -382,8 +382,11 @@ const InputTextField = styled(InputBase)`
 
 const EmojiPickerWrapper = styled.div`
   position: absolute;
-  bottom: 54px;
+  /* Wrapper(padding:16px)を基準に、入力欄のすぐ上へ出す。
+     入力欄の高さ + 余白ぶん下端から離す */
+  bottom: 70px;
   right: 16px;
+  z-index: 20;
 `
 
 // ─── 定数 ─────────────────────────────────────────────────────────────────────
@@ -923,25 +926,29 @@ export default function Chat() {
                 )
               })}
               <div ref={messagesEndRef} />
-
-              {showStampPicker && <StampPicker onPick={sendStamp} />}
-
-              {showEmojiPicker && (
-                <EmojiPickerWrapper>
-                  <Picker
-                    theme="dark"
-                    showSkinTones={false}
-                    showPreview={false}
-                    onSelect={(emoji) => {
-                      setInputValue((v) => v + emoji.native)
-                      setShowEmojiPicker(false)
-                      dispatch(setFocused(true))
-                    }}
-                    exclude={['recent', 'flags']}
-                  />
-                </EmojiPickerWrapper>
-              )}
             </ChatBox>
+
+            {/* スタンプ・絵文字のピッカーは ChatBox の外に置く。
+                ChatBox の中に置くとスクロールされるコンテンツを基準に絶対配置され、
+                上へスクロールするとピッカーも一緒に流れて見失う。
+                スクロールしない Wrapper を基準にすることで、入力欄のそばに固定される。 */}
+            {showStampPicker && <StampPicker onPick={sendStamp} />}
+
+            {showEmojiPicker && (
+              <EmojiPickerWrapper>
+                <Picker
+                  theme="dark"
+                  showSkinTones={false}
+                  showPreview={false}
+                  onSelect={(emoji) => {
+                    setInputValue((v) => v + emoji.native)
+                    setShowEmojiPicker(false)
+                    dispatch(setFocused(true))
+                  }}
+                  exclude={['recent', 'flags']}
+                />
+              </EmojiPickerWrapper>
+            )}
 
             <InputWrapper onSubmit={handleSubmit}>
               <InputTextField

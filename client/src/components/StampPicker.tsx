@@ -11,7 +11,10 @@ import { loadFavorites, toggleFavorite } from '../util/stampFavorites'
  */
 const Wrapper = styled.div`
   position: absolute;
-  bottom: 54px;
+  /* チャットの Wrapper(padding:16px) を基準に、入力欄のすぐ上へ固定表示する。
+     以前は ChatBox(スクロール領域)の内側に置いていたため、
+     上へスクロールするとピッカーも一緒に流れて見失っていた */
+  bottom: 70px;
   right: 16px;
   width: 340px;
   max-height: 320px;
