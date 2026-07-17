@@ -784,6 +784,10 @@ export default function Chat() {
   const sendStamp = (id: string) => {
     game.network.addChatMessage(buildStampMessage(id))
     game.myPlayer.updateDialogBubble('')
+    // チャットに送るだけでなく、既存のエモート経路(SEND_EMOTE)に乗せて
+    // アバターの頭上にも約2秒スタンプを表示する。誰がリアクションしたのか、
+    // チャット欄を見ていなくても部屋の中で分かるようにするため
+    game.network.sendEmote('', id)
     setShowStampPicker(false)
   }
 

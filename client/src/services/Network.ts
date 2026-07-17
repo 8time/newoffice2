@@ -412,9 +412,12 @@ export default class Network {
     })
 
     // エモート受信（Phaser側で頭上に表示）
-    this.room.onMessage(Message.SEND_EMOTE, (message: { sessionId: string; emoji: string }) => {
-      phaserEvents.emit(Event.EMOTE_RECEIVED, message.sessionId, message.emoji)
-    })
+    this.room.onMessage(
+      Message.SEND_EMOTE,
+      (message: { sessionId: string; emoji: string; stampId?: string }) => {
+        phaserEvents.emit(Event.EMOTE_RECEIVED, message.sessionId, message.emoji, message.stampId)
+      }
+    )
 
     // ファイル受信（チャットに表示）
     this.room.onMessage(
@@ -687,8 +690,9 @@ export default class Network {
     this.room?.send(Message.REQUEST_DM_HISTORY, { withUserKey })
   }
 
-  sendEmote(emoji: string) {
-    this.room?.send(Message.SEND_EMOTE, { emoji })
+  // 頭上に出す。絵文字か、登録スタンプ（stampId）のどちらか
+  sendEmote(emoji: string, stampId?: string) {
+    this.room?.send(Message.SEND_EMOTE, { emoji, stampId })
   }
 
   sendFileMessage(file: FileAttachment, id: string) {

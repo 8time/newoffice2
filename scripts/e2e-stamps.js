@@ -199,8 +199,95 @@ async function main() {
   check(pickerShown > 0, 'スタンプ一覧に登録したスタンプが出る', 'ピッカーに出ていない')
   await A.screenshot({ path: '_e2e_out/stamp-picker.png' })
 
+  // ─── フェーズ4: お気に入り ─────────────────────────────────────────────
+  log('\n\n########## フェーズ4: お気に入り ##########')
+
+  log('== ☆を押すとお気に入りに入るか ==')
+  const favBefore = await A.evaluate(() => {
+    try { return JSON.parse(localStorage.getItem('skyoffice_stamp_favorites') || '[]') } catch { return [] }
+  })
+  check(!favBefore.includes(registered.id), '最初はお気に入りに入っていない（前提）', '最初から入っている＝検証できない')
+
+  await A.locator(`[aria-label="favorite-${registered.id}"]`).click()
+  await wait(500)
+  const favAfter = await A.evaluate(() => {
+    try { return JSON.parse(localStorage.getItem('skyoffice_stamp_favorites') || '[]') } catch { return [] }
+  })
+  log('   お気に入り: ' + JSON.stringify(favAfter))
+  check(favAfter.includes(registered.id), '☆を押すとお気に入りに保存された', 'お気に入りに入らない')
+
+  log('\n== 「お気に入り」タブに出るか ==')
+  await A.getByText('お気に入り', { exact: true }).click()
+  await wait(500)
+  const inFavTab = await A.locator('img[alt="テストスタンプ' + TAG + '"]').count()
+  check(inFavTab > 0, 'お気に入りタブに出てくる', 'お気に入りタブに出ない')
+
+  log('\n== ☆をもう一度押すと外れるか ==')
+  await A.locator(`[aria-label="favorite-${registered.id}"]`).click()
+  await wait(500)
+  const favRemoved = await A.evaluate(() => {
+    try { return JSON.parse(localStorage.getItem('skyoffice_stamp_favorites') || '[]') } catch { return [] }
+  })
+  check(!favRemoved.includes(registered.id), 'もう一度押すとお気に入りから外れた', '外れていない')
+
+  log('\n== 別のブラウザには影響しないか（個人設定）==')
+  const favOnB = await B.evaluate(() => {
+    try { return JSON.parse(localStorage.getItem('skyoffice_stamp_favorites') || '[]') } catch { return [] }
+  })
+  check(favOnB.length === 0, '相手のお気に入りには影響していない', '相手にも伝わってしまっている')
+
+  // 送信タブへ戻す（「よく使う」からでもクリックできる）
+  await A.getByText('よく使う', { exact: true }).click()
+  await wait(500)
+
+  // ─── フェーズ5: マップ上の頭上スタンプ ─────────────────────────────────
+  log('\n\n########## フェーズ5: 頭上スタンプ ##########')
+  const stampTexKey = `stamptex_${registered.id}`
+
+  log('== 送信するとアバターの頭上に表示されるか ==')
   await A.locator('img[alt="テストスタンプ' + TAG + '"]').first().click()
-  await wait(2500)
+  // 表示は2200msのtweenでフェードして消えるため、A・Bとも同じタイミングで
+  // 早めに（消える前に）確認する。片方を確認してからもう片方…と順番に待つと、
+  // 後から見た方はもう消えた後、という誤検知になる
+  await wait(1200)
+
+  const hasTexA = await A.evaluate(
+    (key) => window.game.scene.keys.game.textures.exists(key),
+    stampTexKey
+  )
+  check(hasTexA, '自分の画面でスタンプ画像のテクスチャが読み込まれた', 'テクスチャが読み込まれていない')
+
+  const hasImgObjA = await A.evaluate((key) => {
+    const scene = window.game.scene.keys.game
+    return scene.children.list.some((o) => o.texture && o.texture.key === key)
+  }, stampTexKey)
+  check(hasImgObjA, '自分のアバターの頭上に画像が出た', '頭上に画像が出ていない')
+
+  log('\n== 相手の頭上にも表示されるか（SEND_EMOTEの中継）==')
+  const hasImgObjB = await B.evaluate((key) => {
+    const scene = window.game.scene.keys.game
+    return scene.children.list.some((o) => o.texture && o.texture.key === key)
+  }, stampTexKey)
+  check(hasImgObjB, '相手の画面にも頭上スタンプが中継された', '相手の画面に出ていない')
+  await A.screenshot({ path: '_e2e_out/stamp-above-head.png' })
+
+  log('\n== 約2秒で自動的に消えるか ==')
+  await wait(2000) // ここまでの経過(1200ms)と合わせてtween(2200ms)を過ぎる
+  const stillThereA = await A.evaluate((key) => {
+    const scene = window.game.scene.keys.game
+    return scene.children.list.some((o) => o.texture && o.texture.key === key)
+  }, stampTexKey)
+  check(!stillThereA, '一定時間で消えて残らない', 'いつまでも頭上に残っている')
+
+  log('\n== 通常の絵文字リアクション（EmotePanel経由）は今までどおりか ==')
+  // stampIdを渡さない従来のsendEmote呼び出しが壊れていないことを確認する
+  await A.evaluate(() => window.game.scene.keys.game.network.sendEmote('🎉'))
+  await wait(1200)
+  const hasEmojiText = await A.evaluate(() => {
+    const scene = window.game.scene.keys.game
+    return scene.children.list.some((o) => o.type === 'Text' && o.text === '🎉')
+  })
+  check(hasEmojiText, '通常の絵文字エモートは今までどおり文字で頭上に出る', '絵文字エモートが壊れている')
 
   // 送った本文が [stamp:xxx] の形で、画像として表示されているか
   const sentOnA = await A.evaluate((id) => {

@@ -16,6 +16,7 @@ import MyPlayer from '../characters/MyPlayer'
 import OtherPlayer from '../characters/OtherPlayer'
 import PlayerSelector from '../characters/PlayerSelector'
 import Network from '../services/Network'
+import { resolveServerUrl } from '../services/serverUrl'
 import { IPlayer } from '../../../types/IOfficeState'
 import { PlayerBehavior } from '../../../types/PlayerBehavior'
 import { ItemType } from '../../../types/Items'
@@ -482,7 +483,7 @@ export default class Game extends Phaser.Scene {
   }
 
   // ─── エモート（頭上フロートテキスト） ────────────────────────────────────────────
-  private handleEmote(sessionId: string, emoji: string) {
+  private handleEmote(sessionId: string, emoji: string, stampId?: string) {
     let target: Phaser.GameObjects.Sprite | null = null
     if (sessionId === this.network?.mySessionId) {
       target = this.myPlayer
@@ -493,6 +494,14 @@ export default class Game extends Phaser.Scene {
 
     const x = target.x
     const y = target.y - 56
+
+    // 登録スタンプなら画像を頭上に出す。誰がリアクションしたのかが
+    // チャットを見ていなくても部屋の中で分かるようにする
+    if (stampId) {
+      this.showStampAbovePlayer(x, y, stampId)
+      return
+    }
+
     const text = this.add
       .text(x, y, emoji, {
         fontSize: '32px',
@@ -510,6 +519,47 @@ export default class Game extends Phaser.Scene {
       ease: 'Power2',
       onComplete: () => text.destroy(),
     })
+  }
+
+  // 頭上に出したスタンプ画像のテクスチャキー（読み込み中の二重取得を防ぐ）
+  private stampTexLoading = new Set<string>()
+
+  private showStampAbovePlayer(x: number, y: number, stampId: string) {
+    const stamp = store.getState().stamp.stamps[stampId]
+    if (!stamp) return
+    const key = `stamptex_${stampId}`
+
+    const draw = () => {
+      const img = this.add.image(x, y - 10, key).setDepth(20000).setOrigin(0.5)
+      // 元画像の大きさはまちまちなので、頭上に収まる高さに揃える
+      const scale = Math.min(1, 64 / Math.max(img.height, 1))
+      img.setScale(scale)
+      // 画像は写真ではないが、縮小時にガタつかないよう滑らかに補間する
+      this.textures.get(key).setFilter(Phaser.Textures.FilterMode.LINEAR)
+      this.tweens.add({
+        targets: img,
+        y: y - 46,
+        alpha: 0,
+        duration: 2200,
+        ease: 'Power2',
+        onComplete: () => img.destroy(),
+      })
+    }
+
+    if (this.textures.exists(key)) {
+      draw()
+      return
+    }
+    // 同じスタンプが連続で飛んできても二重に読み込まない
+    // （読み込み中に再度addすると「Texture key already in use」で例外になる）
+    if (this.stampTexLoading.has(key)) return
+    this.stampTexLoading.add(key)
+    this.load.image(key, resolveServerUrl(stamp.url))
+    this.load.once('complete', () => {
+      this.stampTexLoading.delete(key)
+      if (this.textures.exists(key)) draw()
+    })
+    this.load.start()
   }
 
   // ─── 看板（全員同期） ────────────────────────────────────────────────────────

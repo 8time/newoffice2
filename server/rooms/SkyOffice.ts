@@ -890,10 +890,15 @@ export class SkyOffice extends Room<OfficeState> {
     })
 
     // エモート: 全員にブロードキャスト（送信者含む）
-    this.onMessage(Message.SEND_EMOTE, (client, message: { emoji: string }) => {
+    this.onMessage(Message.SEND_EMOTE, (client, message: { emoji?: string; stampId?: string }) => {
+      // スタンプを送ったときは、頭上にもそのスタンプを出す。
+      // 台帳に無いIDは中継しない（他人の画面で画像切れにならないように）
+      const stampId =
+        message?.stampId && loadStamps()[message.stampId] ? message.stampId : undefined
       this.broadcast(Message.SEND_EMOTE, {
         sessionId: client.sessionId,
-        emoji: (message.emoji || '👍').slice(0, 4),
+        emoji: stampId ? '' : (message.emoji || '👍').slice(0, 4),
+        stampId,
       })
     })
 
