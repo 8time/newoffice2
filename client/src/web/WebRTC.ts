@@ -3,6 +3,7 @@ import Network from '../services/Network'
 import store from '../stores'
 import { setVideoConnected } from '../stores/UserStore'
 import { phaserEvents, Event } from '../events/EventCenter'
+import { AUDIO_PROCESSING } from '../util/audioConstraints'
 import Adam from '../images/login/Adam_login.png'
 import Ash from '../images/login/Ash_login.png'
 import Lucy from '../images/login/Lucy_login.png'
@@ -269,7 +270,7 @@ export default class WebRTC {
 
   getUserMedia(alertOnError = true) {
     navigator.mediaDevices
-      ?.getUserMedia({ video: true, audio: true })
+      ?.getUserMedia({ video: true, audio: AUDIO_PROCESSING })
       .then((stream) => {
         this.setMediaStream(stream)
       })

@@ -30,6 +30,7 @@ import { getAvatarString, getColorByString } from '../util'
 
 import phaserGame from '../PhaserGame'
 import Game from '../scenes/Game'
+import { buildAudioConstraints } from '../util/audioConstraints'
 
 const Wrapper = styled.form`
   position: fixed;
@@ -213,7 +214,8 @@ export default function LoginDialog() {
     try {
       const constraints: MediaStreamConstraints = {
         video: cameraId ? { deviceId: { exact: cameraId } } : true,
-        audio: micId ? { deviceId: { exact: micId } } : true,
+        // エコー除去・ノイズ抑制・自動音量調整を有効にする（ハウリングや環境音を抑える）
+        audio: buildAudioConstraints(micId),
       }
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
       
