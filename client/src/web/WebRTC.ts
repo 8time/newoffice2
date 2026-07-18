@@ -4,6 +4,7 @@ import store from '../stores'
 import { setVideoConnected } from '../stores/UserStore'
 import { phaserEvents, Event } from '../events/EventCenter'
 import { AUDIO_PROCESSING } from '../util/audioConstraints'
+import { preferOpusDtxFec } from '../util/sdpOpus'
 import Adam from '../images/login/Adam_login.png'
 import Ash from '../images/login/Ash_login.png'
 import Lucy from '../images/login/Lucy_login.png'
@@ -158,6 +159,11 @@ export default class WebRTC {
   }
 
   constructor(userId: string, network: Network) {
+    // 開発時のみ、E2EからOpus SDP変換の実関数を検証できるように公開する
+    // （本番ビルドでは import.meta.env.DEV が false 畳み込みで除去される）
+    if (import.meta.env.DEV) {
+      ;(window as unknown as { __preferOpusDtxFec?: typeof preferOpusDtxFec }).__preferOpusDtxFec = preferOpusDtxFec
+    }
     const sanitizedId = this.replaceInvalidId(userId)
     this.myPeer = new Peer(sanitizedId)
     this.network = network
@@ -247,7 +253,8 @@ export default class WebRTC {
   initialize() {
     this.myPeer.on('call', (call) => {
       if (!this.onCalledPeers.has(call.peer)) {
-        call.answer(this.getOutboundStream())
+        // 応答側のSDPにもOpusのFEC/DTXを入れて、双方向で頑丈にする
+        call.answer(this.getOutboundStream(), { sdpTransform: preferOpusDtxFec })
         const video = document.createElement('video')
 
         call.on('stream', (userVideoStream) => {
@@ -320,7 +327,8 @@ export default class WebRTC {
     if (this.myStream) {
       const sanitizedId = this.replaceInvalidId(userId)
       if (!this.peers.has(sanitizedId)) {
-        const call = this.myPeer.call(sanitizedId, this.getOutboundStream()!)
+        // 発信側のSDPのOpusにFEC/DTXを入れる（パケットロス耐性・帯域節約）
+        const call = this.myPeer.call(sanitizedId, this.getOutboundStream()!, { sdpTransform: preferOpusDtxFec })
         const video = document.createElement('video')
 
         call.on('stream', (userVideoStream) => {
