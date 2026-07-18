@@ -301,6 +301,12 @@ const gameServer = new Server({
   transport: new WebSocketTransport({
     server,
     maxPayload: 64 * 1024 * 1024, // 64MB
+    // 切断判定を緩める。既定は 3000ms×2回 ＝ 約6秒無応答で強制切断だったため、
+    // WiFiの瞬断・モバイル回線の切替・PCのスリープ復帰・回線の一時的な詰まりで
+    // すぐ「接続が切れました」になっていた。約20秒までは待って、TCPが生きていれば
+    // そのまま自動回復させる。本当に落ちた相手の検出が20秒に延びるだけで害は小さい。
+    pingInterval: 5000,
+    pingMaxRetries: 4,
   }),
 })
 
@@ -336,16 +342,40 @@ app.get('*', (req, res, next) => {
   res.sendFile(path.join(CLIENT_DIST, 'index.html'))
 })
 
+// Render無料枠は15分間HTTPアクセスが無いとスピンダウンし、次に開いた人は
+// 50秒前後のコールドスタート待ち＋接続失敗になる（「不安定」の大きな原因）。
+// Render上（RENDER_EXTERNAL_URLが自動注入される）でのみ、10分ごとに自分自身へ
+// HTTPリクエストを送って眠らせない。ローカル開発では何もしない。
+// 注意: 無料枠の月間稼働時間(750h)を常時消費する（1インスタンスなら31日分でほぼ丁度）。
+function startKeepAlive() {
+  const selfUrl = process.env.RENDER_EXTERNAL_URL
+  if (!selfUrl) return
+  const ping = () => {
+    try {
+      const mod = selfUrl.startsWith('https') ? require('https') : require('http')
+      mod.get(`${selfUrl}/api/storage-status`, (res: http.IncomingMessage): void => { res.resume() })
+        .on('error', (): void => undefined)
+    } catch {}
+  }
+  setInterval(ping, 10 * 60 * 1000)
+  console.log(`[KeepAlive] スピンダウン防止のため10分ごとに自身へアクセスします: ${selfUrl}`)
+}
+
 // 保存済みデータ（会議室の内容・チャット・看板など）をメモリへ読み込んでから待ち受ける。
 // 読み込み前にルームが作られると、空の状態で上書き保存されてしまうため必ず先に完了させる。
 hydrate()
   .then(() => {
     gameServer.listen(port)
     console.log(`Listening on ws://localhost:${port}`)
+    // 切断判定の設定が実際に効いているかを起動ログで確認できるようにする
+    // （transportインスタンスが持つ実値を読む。定数の写しではない）
+    const t = gameServer.transport as any
+    console.log(`[WS] ping設定: interval=${t.pingIntervalMS}ms retries=${t.pingMaxRetries} （無応答 約${(t.pingIntervalMS * t.pingMaxRetries) / 1000}秒で切断）`)
     // 保存済みデータを読み込んだ後に始める（参照の判定に全ドキュメントが要るため）
     startFileCleanup()
     // 起動直後の状態を残す。デプロイで壊した場合でも、この時点に戻せる
     startBackups()
+    startKeepAlive()
   })
   .catch((e) => {
     // 読み込めないまま起動すると、空の状態を保存済みデータへ上書きしてしまう。
