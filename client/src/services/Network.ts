@@ -7,6 +7,7 @@ import WebRTC from '../web/WebRTC'
 import { phaserEvents, Event } from '../events/EventCenter'
 import { getClientId } from '../util/clientId'
 import { saveReconnectIntent } from '../util/reconnect'
+import { recordDisconnect, printDisconnectLog, clearDisconnectLog } from '../util/disconnectLog'
 import store from '../stores'
 import {
   setSessionId,
@@ -67,6 +68,12 @@ export default class Network {
   mySessionId!: string
 
   constructor() {
+    // 前回までの切断履歴をコンソールへ出す（再接続後もここで必ず見える）。
+    // いつでも window.__disconnectLog() で再表示・__clearDisconnectLog() で消せる。
+    printDisconnectLog()
+    ;(window as unknown as { __disconnectLog?: () => void; __clearDisconnectLog?: () => void }).__disconnectLog = printDisconnectLog
+    ;(window as unknown as { __clearDisconnectLog?: () => void }).__clearDisconnectLog = clearDisconnectLog
+
     const protocol = window.location.protocol.replace('http', 'ws')
     const endpoint =
       process.env.NODE_ENV === 'production'
@@ -154,7 +161,10 @@ export default class Network {
       // 1000=正常, 1001=離脱(タブ閉じ等), 1006=異常終了(closeフレーム無し＝中継や
       // ネットワークが無言でTCPを切った＝「突然の沈黙」), 4000番台=アプリ独自。
       // 定期的に1006で切れるなら経路のアイドル切断が濃厚。
-      console.warn(`[Network] 切断されました code=${code} (${describeCloseCode(code)})`)
+      const reason = describeCloseCode(code)
+      console.warn(`[Network] 切断されました code=${code} (${reason})`)
+      // リロードで消えないよう履歴に残す。再接続後の読み込み時にまとめて表示される
+      recordDisconnect(code, reason)
       // 心拍を止める（再入室後に多重起動しないように）
       this.stopHeartbeat()
       if (code === KICKED_BY_OTHER_TAB) {
