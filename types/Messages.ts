@@ -54,6 +54,9 @@ export enum Message {
   STAMP_LIST,
   // 入室時に自分宛のDM（置手紙）をまとめて受け取る
   REQUEST_DM_INBOX,
+  // クライアント→サーバーの心拍。中継（Render等）がアイドルと判断して
+  // WebSocketを無言で切るのを防ぐため、実データを定期的に流す
+  HEARTBEAT,
 }
 
 // ルームから追い出すときの切断コード。WebSocketの4000番台はアプリ独自に使える。

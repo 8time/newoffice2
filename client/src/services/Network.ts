@@ -43,11 +43,26 @@ import {
   FileAttachment,
 } from '../stores/ChatStore'
 
+// WebSocketのcloseコードを人が読める説明にする（切断原因の切り分け用）
+function describeCloseCode(code: number): string {
+  switch (code) {
+    case 1000: return '正常終了'
+    case 1001: return '離脱（タブを閉じた/リロード等）'
+    case 1006: return '異常終了・closeフレーム無し＝経路が無言で切断'
+    case 1011: return 'サーバー内部エラー'
+    case 1012: return 'サーバー再起動'
+    case 4000: return '別タブに追い出された'
+    default: return code >= 4000 ? 'アプリ独自コード' : 'その他'
+  }
+}
+
 export default class Network {
   private client: Client
   private room?: Room<IOfficeState>
   private lobby!: Room
   webRTC?: WebRTC
+  // アイドル切断を防ぐための心拍タイマー
+  private heartbeatTimer?: ReturnType<typeof setInterval>
 
   mySessionId!: string
 
@@ -135,6 +150,13 @@ export default class Network {
     // これを無視すると、古いタブはマップを描き続けるのに送信だけが届かず、
     // 「看板が置けない・消せない」という原因の分からない状態になる。
     this.room.onLeave((code) => {
+      // 切断の原因を特定できるよう、必ずコードを残す。
+      // 1000=正常, 1001=離脱(タブ閉じ等), 1006=異常終了(closeフレーム無し＝中継や
+      // ネットワークが無言でTCPを切った＝「突然の沈黙」), 4000番台=アプリ独自。
+      // 定期的に1006で切れるなら経路のアイドル切断が濃厚。
+      console.warn(`[Network] 切断されました code=${code} (${describeCloseCode(code)})`)
+      // 心拍を止める（再入室後に多重起動しないように）
+      this.stopHeartbeat()
       if (code === KICKED_BY_OTHER_TAB) {
         // 別タブに追い出された場合は自動で戻らない。
         // 戻すと今度は向こうを追い出すことになり、タブ同士で奪い合いになる。
@@ -145,6 +167,11 @@ export default class Network {
       saveReconnectIntent({ roomKey: store.getState().room.roomKey || null })
       store.dispatch(setDisconnectReason('lost'))
     })
+
+    // 中継（Render等）がアイドルとみなしてWebSocketを無言で切るのを防ぐため、
+    // 実データのメッセージを25秒ごとに送る。プロトコルのping/pongを数えない
+    // 中継でも、これは本物のデータフレームなので確実に「通信中」と認識される。
+    this.startHeartbeat()
 
     this.lobby.leave()
     this.mySessionId = this.room.sessionId
@@ -537,6 +564,22 @@ export default class Network {
   // 他プレイヤーの同期済み状態を参照する（WebRTC側でカメラOFF/画面共有の表示判定に使う）
   getPlayerState(sessionId: string): IPlayer | undefined {
     return this.room?.state.players.get(sessionId)
+  }
+
+  // 経路のアイドル切断を防ぐ心拍。25秒ごとに実データを送る。
+  // 30〜60秒あたりで無言のWebSocketを切る中継が多いので、それより短くする。
+  private startHeartbeat() {
+    this.stopHeartbeat()
+    this.heartbeatTimer = setInterval(() => {
+      try { this.room?.send(Message.HEARTBEAT) } catch {}
+    }, 25000)
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer)
+      this.heartbeatTimer = undefined
+    }
   }
 
   // method to send ready-to-connect signal to Colyseus server

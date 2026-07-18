@@ -540,6 +540,10 @@ export class SkyOffice extends Room<OfficeState> {
       if (player) player.readyToConnect = true
     })
 
+    // 経路のアイドル切断を防ぐための心拍。受け取るだけでよい（実データの往復が
+    // 発生し、中継が「通信中」と認識する）。状態は変えないので処理は空。
+    this.onMessage(Message.HEARTBEAT, () => {})
+
     this.onMessage(Message.VIDEO_CONNECTED, (client) => {
       const player = this.state.players.get(client.sessionId)
       if (player) player.videoConnected = true
