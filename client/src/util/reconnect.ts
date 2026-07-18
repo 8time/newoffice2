@@ -16,7 +16,19 @@ export interface ReconnectIntent {
   roomKey: string | null
 }
 
+// 退社（明示的な離脱）のときは自動で戻りたくない。ところが退社はページを
+// 読み込み直して実現しており、その最中の切断で onLeave が発火して覚え書きを
+// 保存してしまう＝せっかく退社したのに自動で入り直してしまう。
+// そこで「これは意図した離脱だから保存しないでほしい」という抑止フラグを立てる。
+// モジュール変数なので読み込み直せば false に戻る（＝次のセッションには持ち越さない）。
+let suppressed = false
+
+export function suppressReconnectSave() {
+  suppressed = true
+}
+
 export function saveReconnectIntent(intent: ReconnectIntent) {
+  if (suppressed) return
   try { sessionStorage.setItem(KEY, JSON.stringify(intent)) } catch {}
 }
 

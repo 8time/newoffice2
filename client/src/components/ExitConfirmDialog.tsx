@@ -7,6 +7,7 @@ import Button from '@mui/material/Button'
 
 import { useAppDispatch, useAppSelector } from '../hooks'
 import { closeExitDialog } from '../stores/UiStore'
+import { clearReconnectIntent, suppressReconnectSave } from '../util/reconnect'
 
 export default function ExitConfirmDialog() {
   const dispatch = useAppDispatch()
@@ -17,6 +18,10 @@ export default function ExitConfirmDialog() {
   }
 
   const handleExit = () => {
+    // 退社は明示的な操作なので、次に開いたとき自動で入り直さないようにする。
+    // 覚え書きを消し、さらにリロード中の切断で onLeave が再保存しないよう抑止する。
+    suppressReconnectSave()
+    clearReconnectIntent()
     window.location.reload()
   }
 
