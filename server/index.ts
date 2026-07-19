@@ -343,22 +343,34 @@ app.get('*', (req, res, next) => {
 })
 
 // Render無料枠は15分間HTTPアクセスが無いとスピンダウンし、次に開いた人は
-// 50秒前後のコールドスタート待ち＋接続失敗になる（「不安定」の大きな原因）。
-// Render上（RENDER_EXTERNAL_URLが自動注入される）でのみ、10分ごとに自分自身へ
-// HTTPリクエストを送って眠らせない。ローカル開発では何もしない。
-// 注意: 無料枠の月間稼働時間(750h)を常時消費する（1インスタンスなら31日分でほぼ丁度）。
+// 50秒前後のコールドスタート待ちになる。それを防ぐため10分ごとに自分自身を叩く。
+//
+// ただし24時間叩き続けると無料枠の月間稼働時間(750h≒31日)を使い切り、月末に
+// サービスが止まって「全面503」になりうる（コールドスタートよりはるかに悪い）。
+// そこでアクティブ時間帯(JST 7:00-23:00)だけ起こし、夜間は眠らせる。
+// これで月あたり約16h×31≒496hに収まり、無料枠を使い切らない。
+// 夜間は最初のアクセスだけコールドスタートを許容する。
+// Render上でのみ動作（RENDER_EXTERNAL_URLが自動注入される）。ローカルでは何もしない。
 function startKeepAlive() {
   const selfUrl = process.env.RENDER_EXTERNAL_URL
   if (!selfUrl) return
+  const isActiveHour = () => {
+    const jstHour = (new Date().getUTCHours() + 9) % 24 // RenderはUTC。JSTに直す
+    return jstHour >= 7 && jstHour < 23
+  }
   const ping = () => {
+    if (!isActiveHour()) return
     try {
       const mod = selfUrl.startsWith('https') ? require('https') : require('http')
-      mod.get(`${selfUrl}/api/storage-status`, (res: http.IncomingMessage): void => { res.resume() })
-        .on('error', (): void => undefined)
+      mod.get(`${selfUrl}/api/storage-status`, (res: http.IncomingMessage): void => {
+        // Renderのログで self-ping が 200 を返しているか確認できるようにする
+        console.log(`[KeepAlive] self-ping -> ${res.statusCode}`)
+        res.resume()
+      }).on('error', (e: Error): void => { console.log('[KeepAlive] self-ping失敗: ' + e.message) })
     } catch {}
   }
   setInterval(ping, 10 * 60 * 1000)
-  console.log(`[KeepAlive] スピンダウン防止のため10分ごとに自身へアクセスします: ${selfUrl}`)
+  console.log(`[KeepAlive] JST 7:00-23:00 の間だけ10分ごとに自身へアクセスします: ${selfUrl}`)
 }
 
 // 保存済みデータ（会議室の内容・チャット・看板など）をメモリへ読み込んでから待ち受ける。
