@@ -38,6 +38,44 @@ export function clearDisconnectLog() {
   try { localStorage.removeItem(KEY) } catch {}
 }
 
+// closeコードを短いラベルにする（パネル・console.table共通）
+export function codeLabel(code: number): string {
+  switch (code) {
+    case -1: return '通話(PeerJS)'
+    case 1000: return '正常終了'
+    case 1001: return '離脱'
+    case 1006: return '経路が無言で切断'
+    case 1011: return 'サーバー内部エラー'
+    case 1012: return 'サーバー再起動'
+    case 4000: return '別タブ'
+    default: return `code=${code}`
+  }
+}
+
+// 秒を「X秒」「X分Y秒」に整形
+export function formatGap(sec: number): string {
+  if (sec < 60) return `${sec}秒`
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return s ? `${m}分${s}秒` : `${m}分`
+}
+
+// console.table用に、時刻・種別・説明・前回からの間隔を人が読める形へ
+export function getDisconnectLogRows() {
+  const log = getDisconnectLog()
+  let prev = 0
+  return log.map((e) => {
+    const row = {
+      時刻: new Date(e.t).toLocaleString(),
+      種別: `${codeLabel(e.code)} (code=${e.code})`,
+      前回から: prev ? formatGap(Math.round((e.t - prev) / 1000)) : '-',
+      説明: e.reason,
+    }
+    prev = e.t
+    return row
+  })
+}
+
 // 再接続後の読み込み時に、貯まった切断履歴をコンソールへ出す。
 // 前回からの間隔も出すので、1〜3分周期などの規則性が一目で分かる。
 export function printDisconnectLog() {
@@ -53,5 +91,7 @@ export function printDisconnectLog() {
   }
   console.log('%ccodeの意味: 1006=経路が無言で切断(アイドル切断が濃厚) / 1001=離脱 / 1011・1012=サーバー側 / 4000=別タブ / -1=PeerJS(通話の署名サーバー)切断', 'color:#888')
   console.log('履歴を消すには window.__clearDisconnectLog()')
+  // 表形式でも出す（見やすい）。コンソールに入力できなくても、これは自動で出る
+  try { console.table(getDisconnectLogRows()) } catch {}
   console.groupEnd()
 }

@@ -38,6 +38,7 @@ import RendererWarning from './components/RendererWarning'
 import DisconnectedNotice from './components/DisconnectedNotice'
 import StorageMeter, { Usage } from './components/StorageMeter'
 import StorageDialog from './components/StorageDialog'
+import DisconnectLogPanel from './components/DisconnectLogPanel'
 
 // ReactのUIオーバーレイの最外枠
 const Backdrop = styled.div`
@@ -221,6 +222,9 @@ function App() {
 
       {/* 別タブで開いて切断された等、操作が届かなくなったことを知らせる */}
       <DisconnectedNotice />
+
+      {/* 接続の切断履歴をページ内で確認するパネル（コンソール入力が使えない環境向け） */}
+      <DisconnectLogPanel />
 
       <Backdrop>
         {ui}
