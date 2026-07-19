@@ -5,6 +5,11 @@ import { setVideoConnected } from '../stores/UserStore'
 import { phaserEvents, Event } from '../events/EventCenter'
 import { AUDIO_PROCESSING } from '../util/audioConstraints'
 import { preferOpusDtxFec } from '../util/sdpOpus'
+import { recordDisconnect } from '../util/disconnectLog'
+
+// 切断履歴で「PeerJS(通話の署名サーバー)の切断」を表す擬似コード。
+// WebSocketのcloseコード(1000番台/4000番台)と被らない負の値にする。
+const PEERJS_DISCONNECT_CODE = -1
 import Adam from '../images/login/Adam_login.png'
 import Ash from '../images/login/Ash_login.png'
 import Lucy from '../images/login/Lucy_login.png'
@@ -167,9 +172,35 @@ export default class WebRTC {
     const sanitizedId = this.replaceInvalidId(userId)
     this.myPeer = new Peer(sanitizedId)
     this.network = network
+
+    // 通話の署名サーバー(PeerJS)との接続が切れたら、同じIDで自動的に繋ぎ直す。
+    // 既定の公開クラウド(0.peerjs.com)は不安定で頻繁に切れる。放置すると以降の
+    // 近接通話が始められなくなる（既存の通話はP2Pなので維持されるが、新規の
+    // 呼び出し/応答には署名サーバーが要る）。以前は error を出すだけで再接続が無かった。
+    let peerReconnectDelay = 1000
+    this.myPeer.on('disconnected', () => {
+      if (this.myPeer.destroyed) return
+      // ゲーム(Colyseus)の切断と区別できるよう履歴にも残す。頻度が分かる
+      recordDisconnect(PEERJS_DISCONNECT_CODE, 'PeerJS署名サーバー切断（通話の仲介）— 自動で繋ぎ直します')
+      const delay = peerReconnectDelay
+      peerReconnectDelay = Math.min(peerReconnectDelay * 2, 30000) // 連続失敗で間隔を伸ばす
+      console.warn(`[WebRTC] 通話の署名サーバーから切断。${delay}ms後に繋ぎ直します`)
+      setTimeout(() => {
+        if (this.myPeer.destroyed) return
+        try {
+          this.myPeer.reconnect() // 同じIDで繋ぎ直す（disconnected状態のときだけ有効）
+        } catch (e) {
+          console.error('[WebRTC] 署名サーバーへの再接続に失敗', e)
+        }
+      }, delay)
+    })
+    this.myPeer.on('open', () => {
+      peerReconnectDelay = 1000 // 復帰したら間隔をリセット
+    })
     this.myPeer.on('error', (err) => {
-      console.log(err.type)
-      console.error(err)
+      // 'network'/'socket-error' は上の disconnected→reconnect で回復を試みる。
+      // 'peer-unavailable'(相手が居ない)等は通話ごとの一時的なもので放置してよい。
+      console.warn(`[WebRTC] PeerJSエラー type=${(err as { type?: string }).type}: ${err.message || err}`)
     })
 
     this.myVideo.muted = true

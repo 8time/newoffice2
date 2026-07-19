@@ -51,7 +51,7 @@ export function printDisconnectLog() {
     console.log(`${time}  code=${e.code} ${e.reason} ${gap}`)
     prev = e.t
   }
-  console.log('%ccodeの意味: 1006=経路が無言で切断(アイドル切断が濃厚) / 1001=離脱 / 1011・1012=サーバー側 / 4000=別タブ', 'color:#888')
+  console.log('%ccodeの意味: 1006=経路が無言で切断(アイドル切断が濃厚) / 1001=離脱 / 1011・1012=サーバー側 / 4000=別タブ / -1=PeerJS(通話の署名サーバー)切断', 'color:#888')
   console.log('履歴を消すには window.__clearDisconnectLog()')
   console.groupEnd()
 }
