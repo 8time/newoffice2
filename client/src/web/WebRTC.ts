@@ -10,6 +10,24 @@ import { recordDisconnect } from '../util/disconnectLog'
 // 切断履歴で「PeerJS(通話の署名サーバー)の切断」を表す擬似コード。
 // WebSocketのcloseコード(1000番台/4000番台)と被らない負の値にする。
 const PEERJS_DISCONNECT_CODE = -1
+
+// PeerJSの接続先を環境変数から組み立てる。
+//  VITE_PEER_HOST   自己ホストの署名サーバーのホスト名（例: peer.example.com）
+//  VITE_PEER_PORT   ポート（TLS前段があれば443。既定443）
+//  VITE_PEER_PATH   パス（サーバーと一致させる。既定 '/'）
+//  VITE_PEER_SECURE 'false'でws、既定はwss(true)
+// VITE_PEER_HOST 未設定なら undefined を返し、PeerJSは公開クラウドへ繋ぐ（ローカル開発）。
+function buildPeerOptions(): import('peerjs').PeerJSOption | undefined {
+  const env = import.meta.env as unknown as Record<string, string | undefined>
+  const host = env.VITE_PEER_HOST
+  if (!host) return undefined
+  return {
+    host,
+    port: Number(env.VITE_PEER_PORT || 443),
+    path: env.VITE_PEER_PATH || '/',
+    secure: env.VITE_PEER_SECURE !== 'false',
+  }
+}
 import Adam from '../images/login/Adam_login.png'
 import Ash from '../images/login/Ash_login.png'
 import Lucy from '../images/login/Lucy_login.png'
@@ -170,7 +188,9 @@ export default class WebRTC {
       ;(window as unknown as { __preferOpusDtxFec?: typeof preferOpusDtxFec }).__preferOpusDtxFec = preferOpusDtxFec
     }
     const sanitizedId = this.replaceInvalidId(userId)
-    this.myPeer = new Peer(sanitizedId)
+    // 自己ホストのPeerServerへ繋ぐ設定。VITE_PEER_HOST が無ければ従来どおり
+    // 公開クラウド(0.peerjs.com)を使う（ローカル開発用）。
+    this.myPeer = new Peer(sanitizedId, buildPeerOptions())
     this.network = network
 
     // 通話の署名サーバー(PeerJS)との接続が切れたら、同じIDで自動的に繋ぎ直す。

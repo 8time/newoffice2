@@ -6,6 +6,7 @@ import multer from 'multer'
 import { Server, LobbyRoom } from 'colyseus'
 import { WebSocketTransport } from '@colyseus/ws-transport'
 import { monitor } from '@colyseus/monitor'
+import { PeerServer } from 'peer'
 import { RoomType } from '../types/Rooms'
 import { spawn, ChildProcess } from 'child_process'
 
@@ -351,6 +352,19 @@ app.get('*', (req, res, next) => {
 // これで月あたり約16h×31≒496hに収まり、無料枠を使い切らない。
 // 夜間は最初のアクセスだけコールドスタートを許容する。
 // Render上でのみ動作（RENDER_EXTERNAL_URLが自動注入される）。ローカルでは何もしない。
+// 通話(WebRTC)の署名サーバーを自分でホストする。既定では公開クラウド(0.peerjs.com)を
+// 使っていたが不安定なため、Colyseusと同じ箱で立てて依存を断つ。
+// 既定ポート9000。前段にTLSリバースプロキシ(Cloudflare Tunnel等)を置く前提なので
+// proxied:true でX-Forwarded-Forを信頼する。PEER_ENABLE=0 で無効化できる。
+function startPeerServer() {
+  if (process.env.PEER_ENABLE === '0') return
+  const peerPort = Number(process.env.PEER_PORT || 9000)
+  const peerPath = process.env.PEER_PATH || '/'
+  PeerServer({ port: peerPort, path: peerPath, proxied: true }, () => {
+    console.log(`[PeerServer] 通話の署名サーバーを起動: port=${peerPort} path=${peerPath}`)
+  })
+}
+
 function startKeepAlive() {
   const selfUrl = process.env.RENDER_EXTERNAL_URL
   if (!selfUrl) return
@@ -388,6 +402,7 @@ hydrate()
     // 起動直後の状態を残す。デプロイで壊した場合でも、この時点に戻せる
     startBackups()
     startKeepAlive()
+    startPeerServer()
   })
   .catch((e) => {
     // 読み込めないまま起動すると、空の状態を保存済みデータへ上書きしてしまう。
