@@ -10,3 +10,9 @@ chat-history.json
 dm-history.json
 /server/backups/
 stamps.json
+# サーバーが実行時に書き出すデータ（各環境のローカル状態なのでリポジトリには含めない）
+attendance.json
+builder.json
+meeting-docs.json
+meeting-tabs.json
+meeting-whiteboards.json
