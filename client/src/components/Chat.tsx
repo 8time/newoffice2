@@ -9,9 +9,10 @@ import InsertEmoticonIcon from '@mui/icons-material/InsertEmoticon'
 import AttachFileIcon from '@mui/icons-material/AttachFile'
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline'
 import CloseIcon from '@mui/icons-material/Close'
-import 'emoji-mart/css/emoji-mart.css'
-import { Picker } from 'emoji-mart'
-import * as XLSX from 'xlsx'
+// 絵文字ピッカー(emoji-mart)とExcel解析(xlsx)は大きく、しかも「ピッカーを開いた/
+// Excelを添付した」ときだけ必要。初回ロードを軽くするため遅延ロードにする。
+// - emoji-mart: 下の EmojiPickerInner を React.lazy で動的import
+// - xlsx: 使う関数内で await import('xlsx')
 
 import phaserGame from '../PhaserGame'
 import Game from '../scenes/Game'
@@ -26,6 +27,9 @@ import { Stamp } from '../stores/StampStore'
 import StampPicker from './StampPicker'
 import StickyNote2Icon from '@mui/icons-material/StickyNote2'
 import ChatMessageContent from './ChatMessageContent'
+
+// 絵文字ピッカーは開いたときだけ読み込む（emoji-martを初回バンドルから外す）
+const LazyEmojiPicker = React.lazy(() => import('./EmojiPickerInner'))
 
 // ─── 吹き出し色パレット（3色ループ） ─────────────────────────────────────────
 // 話者が現れた順に割り当て、4人目から①に戻る
@@ -420,7 +424,9 @@ function FilePreview({ file, textColor }: { file: FileAttachment; textColor: str
     } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
       fetch(file.url)
         .then((r) => r.arrayBuffer())
-        .then((ab) => {
+        .then(async (ab) => {
+          // xlsxは重いので、Excelを実際に開くこの時だけ動的に読み込む
+          const XLSX = await import('xlsx')
           const wb = XLSX.read(ab, { type: 'array' })
           const wsname = wb.SheetNames[0]
           const ws = wb.Sheets[wsname]
@@ -936,17 +942,19 @@ export default function Chat() {
 
             {showEmojiPicker && (
               <EmojiPickerWrapper>
-                <Picker
-                  theme="dark"
-                  showSkinTones={false}
-                  showPreview={false}
-                  onSelect={(emoji) => {
-                    setInputValue((v) => v + emoji.native)
-                    setShowEmojiPicker(false)
-                    dispatch(setFocused(true))
-                  }}
-                  exclude={['recent', 'flags']}
-                />
+                <React.Suspense fallback={null}>
+                  <LazyEmojiPicker
+                    theme="dark"
+                    showSkinTones={false}
+                    showPreview={false}
+                    onSelect={(emoji: { native: string }) => {
+                      setInputValue((v) => v + emoji.native)
+                      setShowEmojiPicker(false)
+                      dispatch(setFocused(true))
+                    }}
+                    exclude={['recent', 'flags']}
+                  />
+                </React.Suspense>
               </EmojiPickerWrapper>
             )}
 
