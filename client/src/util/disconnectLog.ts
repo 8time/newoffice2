@@ -47,7 +47,7 @@ export function codeLabel(code: number): string {
     case 1006: return '経路が無言で切断'
     case 1011: return 'サーバー内部エラー'
     case 1012: return 'サーバー再起動'
-    case 4000: return '別タブ'
+    case 4001: return '別タブ'
     default: return `code=${code}`
   }
 }
@@ -89,7 +89,7 @@ export function printDisconnectLog() {
     console.log(`${time}  code=${e.code} ${e.reason} ${gap}`)
     prev = e.t
   }
-  console.log('%ccodeの意味: 1006=経路が無言で切断(アイドル切断が濃厚) / 1001=離脱 / 1011・1012=サーバー側 / 4000=別タブ / -1=PeerJS(通話の署名サーバー)切断', 'color:#888')
+  console.log('%ccodeの意味: 1006=経路が無言で切断(アイドル切断が濃厚) / 1001=離脱 / 1011・1012=サーバー側 / 4001=別タブ / -1=PeerJS(通話の署名サーバー)切断', 'color:#888')
   console.log('履歴を消すには window.__clearDisconnectLog()')
   // 表形式でも出す（見やすい）。コンソールに入力できなくても、これは自動で出る
   try { console.table(getDisconnectLogRows()) } catch {}

@@ -52,7 +52,7 @@ function describeCloseCode(code: number): string {
     case 1006: return '異常終了・closeフレーム無し＝経路が無言で切断'
     case 1011: return 'サーバー内部エラー'
     case 1012: return 'サーバー再起動'
-    case 4000: return '別タブに追い出された'
+    case 4001: return '別タブで開いたため切断（同じブラウザで複数タブを開くと古い方が切れる）'
     default: return code >= 4000 ? 'アプリ独自コード' : 'その他'
   }
 }
