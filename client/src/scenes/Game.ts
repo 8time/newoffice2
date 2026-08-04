@@ -84,10 +84,14 @@ export default class Game extends Phaser.Scene {
   private scaleUpdateTimers = new Map<string, number>()
   // 看板の角ドラッグでの自由リサイズ用（全看板で共有する1つのつまみ）
   private signResizeHandle?: Phaser.GameObjects.Graphics
+  private signDeleteButton?: Phaser.GameObjects.Graphics
   private signResizeTarget?: Phaser.GameObjects.Container
   private signHandleHover = false
   private signHandleDragging = false
   private signHandleHideTimer?: number
+  // クリックで看板を選択した状態。選択中はホバーを外してもリサイズ/削除ボタンを出したままにする。
+  // 端に置かれた画像はホバーで狙いにくいため、クリック選択の方が確実。
+  private signSelected = false
   // 看板プレースモード（クリック位置で設置）
   private isPlacingSignboard = false
   private signboardPlacingData: { text: string; image: string; url: string; bgColor: string; textColor: string; scale: number } | null = null
@@ -720,7 +724,9 @@ export default class Game extends Phaser.Scene {
     // 消した看板につまみが付いていたら隠す
     if (this.signResizeTarget && this.signResizeTarget.getData('signboardId') === id) {
       this.signResizeHandle?.setVisible(false)
+      this.signDeleteButton?.setVisible(false)
       this.signResizeTarget = undefined
+      this.signSelected = false
     }
     const key = `signtex_${id}`
     if (this.textures.exists(key)) this.textures.remove(key)
@@ -769,6 +775,42 @@ export default class Game extends Phaser.Scene {
     })
 
     this.signResizeHandle = handle
+
+    // 削除ボタン（赤い✕）。看板をホバー/選択したとき左下角に出る。
+    // 以前は右クリックでしか消せず気づきにくかったため、見えるボタンで消せるようにする。
+    // 看板は下側の方が画面内に入りやすい（上端に置かれた画像看板でも届く）ので左下に置く。
+    const del = this.add.graphics().setDepth(40001).setVisible(false)
+    del.fillStyle(0xe23b3b, 1)
+    del.fillCircle(0, 0, 10)
+    del.lineStyle(2.5, 0xffffff, 1)
+    del.strokeCircle(0, 0, 10)
+    del.lineBetween(-4, -4, 4, 4)
+    del.lineBetween(-4, 4, 4, -4)
+    del.setInteractive(new Phaser.Geom.Circle(0, 0, 16), Phaser.Geom.Circle.Contains)
+    del.on('pointerover', () => { this.signHandleHover = true; this.input.setDefaultCursor('pointer') })
+    del.on('pointerout', () => { this.signHandleHover = false; this.input.setDefaultCursor('default'); this.hideResizeHandleSoon() })
+    del.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      const target = this.signResizeTarget
+      if (!target) return
+      // 削除確認ダイアログをReact側に依頼（右クリック削除と同じ導線）
+      store.dispatch(requestDeleteSignboard({ id: target.getData('signboardId') as string, x: pointer.x, y: pointer.y }))
+    })
+    this.signDeleteButton = del
+
+    // 看板・つまみ・削除ボタン以外をクリックしたら選択を解除して隠す
+    this.input.on('pointerdown', (_p: Phaser.Input.Pointer, currentlyOver: Phaser.GameObjects.GameObject[]) => {
+      if (!this.signSelected) return
+      const onControls =
+        (!!this.signResizeTarget && currentlyOver.includes(this.signResizeTarget)) ||
+        (!!this.signResizeHandle && currentlyOver.includes(this.signResizeHandle)) ||
+        (!!this.signDeleteButton && currentlyOver.includes(this.signDeleteButton))
+      if (!onControls) {
+        this.signSelected = false
+        this.signResizeHandle?.setVisible(false)
+        this.signDeleteButton?.setVisible(false)
+        this.signResizeTarget = undefined
+      }
+    })
   }
 
   private positionResizeHandle(target: Phaser.GameObjects.Container) {
@@ -777,6 +819,8 @@ export default class Game extends Phaser.Scene {
     const cardH = (target.getData('cardH') as number) || 40
     this.signResizeHandle.setPosition(target.x + cardW * target.scaleX, target.y + cardH * target.scaleY)
     this.signResizeHandle.setVisible(true)
+    // 削除ボタンは左下角
+    this.signDeleteButton?.setPosition(target.x, target.y + cardH * target.scaleY).setVisible(true)
   }
 
   private showResizeHandleFor(target: Phaser.GameObjects.Container) {
@@ -789,8 +833,10 @@ export default class Game extends Phaser.Scene {
   private hideResizeHandleSoon() {
     if (this.signHandleHideTimer) window.clearTimeout(this.signHandleHideTimer)
     this.signHandleHideTimer = window.setTimeout(() => {
-      if (this.signHandleDragging || this.signHandleHover) return
+      // ドラッグ中・つまみ上・クリック選択中は隠さない
+      if (this.signHandleDragging || this.signHandleHover || this.signSelected) return
       this.signResizeHandle?.setVisible(false)
+      this.signDeleteButton?.setVisible(false)
       this.signResizeTarget = undefined
     }, 250)
   }
@@ -904,6 +950,9 @@ export default class Game extends Phaser.Scene {
         store.dispatch(requestDeleteSignboard({ id: data.id, x: pointer.x, y: pointer.y }))
       } else {
         container.setData('suppressClick', false)
+        // 左クリックで選択＝リサイズ/削除ボタンを出したままにする（ホバー不要で確実）
+        this.signSelected = true
+        this.showResizeHandleFor(container)
       }
     })
 
