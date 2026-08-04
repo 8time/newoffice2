@@ -10,6 +10,9 @@ chat-history.json
 dm-history.json
 /server/backups/
 stamps.json
+# 秘密情報（Supabaseの鍵などを入れるので絶対にコミットしない）
+.env
+ecosystem.config.js
 # サーバーが実行時に書き出すデータ（各環境のローカル状態なのでリポジトリには含めない）
 attendance.json
 builder.json
