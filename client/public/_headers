@@ -1,0 +1,6 @@
+# Cloudflare Pages 用のHTTPヘッダ設定。
+# /assets/ 配下はファイル名にハッシュが付く（内容が変わると名前も変わる）ので、
+# 長期キャッシュ＋immutableにしてよい。これでリピート訪問時に再ダウンロード/再検証が
+# 発生せず、読み込みが速くなる。既定は max-age=0, must-revalidate で毎回検証していた。
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

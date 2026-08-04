@@ -5,7 +5,7 @@ import CloseIcon from '@mui/icons-material/Close'
 
 import { useAppSelector, useAppDispatch } from '../hooks'
 import { closeWhiteboardDialog } from '../stores/WhiteboardStore'
-import CollaborativeWhiteboard, { ExcalidrawGlobal } from './CollaborativeWhiteboard'
+import LazyWhiteboard from './LazyWhiteboard'
 
 // 右側の余白541px = 常時表示される右サイドバー幅525px + 余白16px
 // （サイドバー幅525px + 余白。以前は180pxでサイドバーの下に一部が隠れていた）
@@ -53,7 +53,6 @@ export default function WhiteboardDialog() {
 
   return (
     <Backdrop>
-      <ExcalidrawGlobal />
       <Wrapper>
         <IconButton
           aria-label="close dialog"
@@ -64,7 +63,7 @@ export default function WhiteboardDialog() {
         </IconButton>
         {whiteboardId && (
           <WhiteboardWrapper>
-            <CollaborativeWhiteboard roomId={`board_${whiteboardId}`} />
+            <LazyWhiteboard roomId={`board_${whiteboardId}`} />
           </WhiteboardWrapper>
         )}
       </Wrapper>

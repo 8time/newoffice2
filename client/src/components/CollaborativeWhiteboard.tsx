@@ -506,6 +506,9 @@ export default function CollaborativeWhiteboard({ roomId }: { roomId: string }) 
   }
 
   return (
+    <>
+    {/* グローバルCSSはホワイトボード表示時だけ必要なのでここで出す（遅延ロードのため） */}
+    <ExcalidrawGlobal />
     <Excalidraw
       initialData={initialData}
       excalidrawAPI={(api) => {
@@ -536,5 +539,6 @@ export default function CollaborativeWhiteboard({ roomId }: { roomId: string }) 
       }}
       langCode="ja-JP"
     />
+    </>
   )
 }

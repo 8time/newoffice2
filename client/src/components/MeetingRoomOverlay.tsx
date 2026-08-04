@@ -18,7 +18,7 @@ import Game from '../scenes/Game'
 import { useAppDispatch, useAppSelector } from '../hooks'
 import { clearActiveMeetingRoom } from '../stores/MeetingRoomStore'
 import { phaserEvents, Event as PhaserEvent } from '../events/EventCenter'
-import CollaborativeWhiteboard, { ExcalidrawGlobal } from './CollaborativeWhiteboard'
+import LazyWhiteboard from './LazyWhiteboard'
 
 import Adam from '../images/login/Adam_login.png'
 import Ash from '../images/login/Ash_login.png'
@@ -1283,7 +1283,7 @@ function WhiteboardWithDoc({ roomId }: { roomId: string }) {
         </DocPane>
         <ResizeHandle ref={handleRef} onMouseDown={onMouseDown} />
         <CanvasPanel>
-          <CollaborativeWhiteboard key={`wb_${activeTab.id}`} roomId={`${roomId}__${activeTab.id}`} />
+          <LazyWhiteboard key={`wb_${activeTab.id}`} roomId={`${roomId}__${activeTab.id}`} />
         </CanvasPanel>
       </ContentSplit>
     </>
@@ -1460,7 +1460,6 @@ export default function MeetingRoomOverlay() {
 
   return (
     <>
-    <ExcalidrawGlobal />
     <Shell>
       {handRaised && <HandBadge>✋ 手を挙げています</HandBadge>}
 
