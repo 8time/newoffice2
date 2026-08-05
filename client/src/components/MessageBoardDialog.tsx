@@ -100,9 +100,9 @@ const Empty = styled.div`
 const Column = styled.div<{ chalk: string }>`
   position: relative;
   flex: 0 0 auto;
-  width: 66px;
+  width: 88px;
   border-left: 1px solid rgba(255, 255, 255, 0.28); /* 区切り線 */
-  padding: 8px 4px 10px;
+  padding: 8px 6px 12px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -112,10 +112,10 @@ const Column = styled.div<{ chalk: string }>`
 
   .date {
     writing-mode: horizontal-tb;
-    font-size: 11px;
+    font-size: 15px;
     color: ${(p) => p.chalk};
-    opacity: 0.75;
-    margin-bottom: 4px;
+    opacity: 0.8;
+    margin-bottom: 6px;
   }
   .body {
     writing-mode: vertical-rl;
@@ -124,9 +124,9 @@ const Column = styled.div<{ chalk: string }>`
     -webkit-text-orientation: upright;
     flex: 1;
     min-height: 0;
-    font-size: 18px;
-    line-height: 1.55;
-    letter-spacing: 2px;
+    font-size: 26px;
+    line-height: 1.5;
+    letter-spacing: 3px;
     color: ${(p) => p.chalk};
     overflow: hidden;
     white-space: pre-wrap;
@@ -138,8 +138,8 @@ const Column = styled.div<{ chalk: string }>`
     -webkit-writing-mode: vertical-rl;
     text-orientation: upright;
     -webkit-text-orientation: upright;
-    margin-top: 8px;
-    font-size: 15px;
+    margin-top: 10px;
+    font-size: 20px;
     color: ${(p) => p.chalk};
     opacity: 0.95;
     max-height: 40%;
