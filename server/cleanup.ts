@@ -15,9 +15,11 @@ import { snapshotDocs, readDoc, writeDoc, deleteBlob } from './storage'
 // これより古く、かつ参照されていないファイルを削除の対象にする
 const FILE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000 // 30日
 const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000 // 1日ごと
-// Supabase無料枠のストレージ上限（1GB）。使用量の目安に使う。
-// 環境変数で上げられるようにしておく（有料プランに変えたときのため）
-const STORAGE_LIMIT_BYTES = Number(process.env.STORAGE_LIMIT_BYTES) || 1024 * 1024 * 1024
+// 保存容量の上限（使用量メーターの分母＋古いファイル自動削除の目安に使う）。
+// 以前はSupabase無料枠(1GB)に合わせていたが、現在はOCIのローカルディスクに保存しており、
+// 無料ARMのブートボリュームは約47GBある。OS・アプリ・ログ・バックアップの余裕を残して
+// 既定を10GBに引き上げる。環境変数 STORAGE_LIMIT_BYTES で上書き可能。
+const STORAGE_LIMIT_BYTES = Number(process.env.STORAGE_LIMIT_BYTES) || 10 * 1024 * 1024 * 1024
 
 interface UploadRecord {
   name: string
