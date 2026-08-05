@@ -19,6 +19,7 @@ import MobileVirtualJoystick from './components/MobileVirtualJoystick'
 import MapBuilder from './components/MapBuilder'
 import JukeboxDialog from './components/JukeboxDialog'
 import PredictionBoardDialog from './components/PredictionBoardDialog'
+import MessageBoardDialog from './components/MessageBoardDialog'
 import SignboardDialog from './components/SignboardDialog'
 import KnockNotification from './components/KnockNotification'
 import SignboardDeleteConfirm from './components/SignboardDeleteConfirm'
@@ -231,6 +232,7 @@ function App() {
         {loggedIn && isBuilderMode && <MapBuilder />}
         {loggedIn && <JukeboxDialog />}
         {loggedIn && <PredictionBoardDialog />}
+        {loggedIn && <MessageBoardDialog />}
         {/* 隠しビデオソース（WebRTC の DOM 操作の受け皿、VideoOverlay の MutationObserver が監視） */}
         <HiddenVideoGrid>
           <div id="webrtc-video-source" />

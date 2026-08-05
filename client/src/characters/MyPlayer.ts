@@ -9,6 +9,7 @@ import Computer from '../items/Computer'
 import Whiteboard from '../items/Whiteboard'
 import Jukebox from '../items/Jukebox'
 import PredictionBoard from '../items/PredictionBoard'
+import MessageBoard from '../items/MessageBoard'
 
 import { phaserEvents, Event } from '../events/EventCenter'
 import store from '../stores'
@@ -79,6 +80,10 @@ export default class MyPlayer extends Player {
         case ItemType.PREDICTION_BOARD:
           const predBoard = item as PredictionBoard
           predBoard.openDialog()
+          break
+        case ItemType.MESSAGE_BOARD:
+          const msgBoard = item as MessageBoard
+          msgBoard.openDialog()
           break
       }
     }

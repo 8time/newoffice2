@@ -10,6 +10,7 @@ import Whiteboard from '../items/Whiteboard'
 import VendingMachine from '../items/VendingMachine'
 import Jukebox from '../items/Jukebox'
 import PredictionBoard from '../items/PredictionBoard'
+import MessageBoard from '../items/MessageBoard'
 import '../characters/MyPlayer'
 import '../characters/OtherPlayer'
 import MyPlayer from '../characters/MyPlayer'
@@ -69,6 +70,7 @@ export default class Game extends Phaser.Scene {
   private whiteboardMap = new Map<string, Whiteboard>()
   private jukeboxes!: Phaser.Physics.Arcade.StaticGroup
   private predictionBoards!: Phaser.Physics.Arcade.StaticGroup
+  private messageBoards!: Phaser.Physics.Arcade.StaticGroup
   private currentSound?: Phaser.Sound.BaseSound
 
   // 看板（全員同期）
@@ -298,6 +300,22 @@ export default class Game extends Phaser.Scene {
     pb.setInteractive({ useHandCursor: true })
     pb.on('pointerdown', () => { pb.openDialog() })
 
+    // 伝言板（昭和の駅の伝言板風）。ユーザー指定の座標(1035,247)付近に設置
+    this.messageBoards = this.physics.add.staticGroup({ classType: MessageBoard })
+    const mb = new MessageBoard(this, 1035, 247, 'whiteboards', 0)
+    this.add.existing(mb)
+    this.physics.add.existing(mb, true)
+    mb.setDisplaySize(48, 48)
+    // ユーザーがマップビルダーで置いた看板の上に重ねる当たり判定なので、
+    // 見た目のスプライトは出さず（透明にして）、触れたときの案内とメニューだけ機能させる
+    mb.setVisible(false)
+    this.messageBoards.add(mb)
+    mb.body.reset(mb.x, mb.y)
+    mb.body.setSize(48, 48)
+    mb.setDepth(mb.y + 10)
+    mb.setInteractive({ useHandCursor: true })
+    mb.on('pointerdown', () => { mb.openDialog() })
+
     // カスタムコライダーのロードと衝突設定
     this.customCollidersGroup = this.physics.add.staticGroup()
     this.physics.add.collider(this.myPlayer, this.customCollidersGroup)
@@ -373,7 +391,7 @@ export default class Game extends Phaser.Scene {
 
     this.physics.add.overlap(
       this.playerSelector,
-      [chairs, computers, whiteboards, vendingMachines, this.jukeboxes, this.predictionBoards],
+      [chairs, computers, whiteboards, vendingMachines, this.jukeboxes, this.predictionBoards, this.messageBoards],
       this.handleItemSelectorOverlap,
       undefined,
       this

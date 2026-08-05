@@ -27,6 +27,7 @@ import {
   removePlayerUserKey,
 } from '../stores/UserStore'
 import { addDmMessage, setDmHistory, setDmName, DMMessage } from '../stores/DMStore'
+import { setBoardMessages, addBoardMessage, removeBoardMessage, BoardMessage } from '../stores/BoardStore'
 import { setStamps, Stamp } from '../stores/StampStore'
 import {
   setLobbyJoined,
@@ -435,6 +436,19 @@ export default class Network {
     // DM_HISTORYハンドラ登録の「後」に要求するので、応答を取りこぼさない
     this.room.send(Message.REQUEST_DM_INBOX)
 
+    // 伝言板
+    this.room.onMessage(Message.BOARD_LIST, ({ messages }: { messages: BoardMessage[] }) => {
+      store.dispatch(setBoardMessages(messages || []))
+    })
+    this.room.onMessage(Message.BOARD_MESSAGE, (msg: BoardMessage) => {
+      store.dispatch(addBoardMessage(msg))
+    })
+    this.room.onMessage(Message.BOARD_REMOVE, ({ id }: { id: string }) => {
+      store.dispatch(removeBoardMessage(id))
+    })
+    // ハンドラ登録後に一覧を要求する（取りこぼし防止）
+    this.room.send(Message.REQUEST_BOARD)
+
     this.room.onMessage(Message.JUKEBOX_SYNC, (message) => {
       phaserEvents.emit('network-jukebox-sync', message)
     })
@@ -737,6 +751,15 @@ export default class Network {
 
   requestDmHistory(withUserKey: string) {
     this.room?.send(Message.REQUEST_DM_HISTORY, { withUserKey })
+  }
+
+  // 伝言板への書き込み・削除
+  addBoardMessage(name: string, content: string) {
+    this.room?.send(Message.ADD_BOARD_MESSAGE, { name, content })
+  }
+
+  removeBoardMessage(id: string) {
+    this.room?.send(Message.REMOVE_BOARD_MESSAGE, { id })
   }
 
   // 頭上に出す。絵文字か、登録スタンプ（stampId）のどちらか

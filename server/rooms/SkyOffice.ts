@@ -31,6 +31,7 @@ const DOCS = {
   chat: path.join(__dirname, '../../chat-history.json'),
   dm: path.join(__dirname, '../../dm-history.json'),
   stamps: path.join(__dirname, '../../stamps.json'),
+  board: path.join(__dirname, '../../board.json'),
 } as const
 Object.entries(DOCS).forEach(([key, file]) => registerDoc(key, file))
 
@@ -80,6 +81,27 @@ function loadDmHistory(): Record<string, DMRecord[]> {
 
 function saveDmHistory(all: Record<string, DMRecord[]>) {
   writeDoc('dm', all)
+}
+
+// ─── 伝言板（昭和の駅の伝言板風）の永続化 ─────────────────────────────────────
+// ルームごとに縦書きメッセージを共有する。新しいものが右に足され、増えると左へ流れる。
+const BOARD_LIMIT = 60            // 保持する最大件数（超えたら古いものから消える＝左へ流れて消える）
+const BOARD_CONTENT_MAX = 60     // 1マスあたりの文字数上限
+const BOARD_NAME_MAX = 16
+
+interface BoardMessage {
+  id: string
+  name: string       // 書いた人の署名
+  content: string    // 本文（縦書き表示）
+  createdAt: number
+}
+
+function loadBoard(): Record<string, BoardMessage[]> {
+  return readDoc<Record<string, BoardMessage[]>>('board', {})
+}
+
+function saveBoard(all: Record<string, BoardMessage[]>) {
+  writeDoc('board', all)
 }
 
 // ─── スタンプの永続化 ─────────────────────────────────────────────────────────
@@ -1033,6 +1055,49 @@ export class SkyOffice extends Room<OfficeState> {
         const otherKey = parties.find((k) => k !== myKey) || parties[0]
         client.send(Message.DM_HISTORY, { withUserKey: otherKey, messages })
       }
+    })
+
+    // ─── 伝言板 ───────────────────────────────────────────────────────────────
+    // 入室時に現在の伝言板を送る（受信ハンドラ登録後にクライアントが要求する）
+    this.onMessage(Message.REQUEST_BOARD, (client) => {
+      const all = loadBoard()
+      client.send(Message.BOARD_LIST, { messages: all[this.chatKey] || [] })
+    })
+
+    // 書き込み
+    this.onMessage(Message.ADD_BOARD_MESSAGE, (client, message: { name?: string; content?: string }) => {
+      const content = (message?.content || '').trim().slice(0, BOARD_CONTENT_MAX)
+      if (!content) return
+      const player = this.state.players.get(client.sessionId)
+      const name = (message?.name || player?.name || '名無し').trim().slice(0, BOARD_NAME_MAX) || '名無し'
+      const record: BoardMessage = {
+        id: `bd_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        name,
+        content,
+        createdAt: Date.now(),
+      }
+      const all = loadBoard()
+      const list = all[this.chatKey] || []
+      list.push(record)
+      // 上限を超えたら古い方（左端）から消える＝「増えると左へ流れて消える」
+      const removed = list.length > BOARD_LIMIT ? list.splice(0, list.length - BOARD_LIMIT) : []
+      all[this.chatKey] = list
+      saveBoard(all)
+      this.broadcast(Message.BOARD_MESSAGE, record)
+      removed.forEach((r) => this.broadcast(Message.BOARD_REMOVE, { id: r.id }))
+    })
+
+    // 削除（誰でも消せる。駅の伝言板と同じく共有物として運用）
+    this.onMessage(Message.REMOVE_BOARD_MESSAGE, (_client, message: { id?: string }) => {
+      const id = message?.id
+      if (!id) return
+      const all = loadBoard()
+      const list = all[this.chatKey] || []
+      const next = list.filter((m) => m.id !== id)
+      if (next.length === list.length) return
+      all[this.chatKey] = next
+      saveBoard(all)
+      this.broadcast(Message.BOARD_REMOVE, { id })
     })
   }
 

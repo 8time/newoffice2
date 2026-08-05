@@ -14,6 +14,7 @@ import uiReducer from './UiStore'
 import settingsReducer from './SettingsStore'
 import dmReducer from './DMStore'
 import stampReducer from './StampStore'
+import boardReducer from './BoardStore'
 
 enableMapSet()
 
@@ -33,6 +34,7 @@ const store = configureStore({
     settings: settingsReducer,
     dm: dmReducer,
     stamp: stampReducer,
+    board: boardReducer,
   },
   // Temporary disable serialize check for redux as we store MediaStream in ComputerStore.
   // https://stackoverflow.com/a/63244831

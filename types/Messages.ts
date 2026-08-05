@@ -57,6 +57,13 @@ export enum Message {
   // クライアント→サーバーの心拍。中継（Render等）がアイドルと判断して
   // WebSocketを無言で切るのを防ぐため、実データを定期的に流す
   HEARTBEAT,
+  // 伝言板（昭和の駅の伝言板風）。縦書きメッセージを全員で共有する
+  ADD_BOARD_MESSAGE,      // クライアント→サーバー：書き込み
+  BOARD_MESSAGE,          // サーバー→全員：新しい書き込み1件
+  REMOVE_BOARD_MESSAGE,   // クライアント→サーバー：自分の書き込みを消す
+  BOARD_REMOVE,           // サーバー→全員：削除された書き込みのid
+  REQUEST_BOARD,          // クライアント→サーバー：一覧をください
+  BOARD_LIST,             // サーバー→クライアント：伝言板の全書き込み
 }
 
 // ルームから追い出すときの切断コード。WebSocketの4000番台はアプリ独自に使える。
