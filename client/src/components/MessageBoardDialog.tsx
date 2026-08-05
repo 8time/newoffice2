@@ -8,6 +8,16 @@ import Game from '../scenes/Game'
 const CONTENT_MAX = 33 // 1マスに縦書き3行で収まる文字数（サーバー上限60より小さければOK）
 const NAME_MAX = 16
 
+// 伝言板の字体（各自の表示設定。端末に保存する）
+const LS_FONT = 'board_font'
+const FONT_STD = "'Yu Gothic', 'Hiragino Sans', 'M PLUS 1p', sans-serif"
+// Chalk JP を先頭に。無い漢字や未配置時はゴシックへ自動フォールバック
+const FONT_CHALK = "'Chalk JP', 'Yu Gothic', 'Hiragino Sans', 'M PLUS 1p', sans-serif"
+type BoardFont = 'standard' | 'chalk'
+function loadFont(): BoardFont {
+  return (typeof localStorage !== 'undefined' && localStorage.getItem(LS_FONT)) === 'chalk' ? 'chalk' : 'standard'
+}
+
 // チョークの色（駅の伝言板っぽく、書き込みごとに色を変える）
 const CHALK_COLORS = ['#f4f4f0', '#ffe27a', '#ff9ec4', '#9be59b', '#8fd3ff', '#ffb27a']
 function colorFor(id: string): string {
@@ -31,7 +41,7 @@ const Backdrop = styled.div`
   padding: 24px;
 `
 
-const Board = styled.div`
+const Board = styled.div<{ $font: BoardFont }>`
   width: min(1200px, 96vw);
   height: min(680px, 92vh);
   background: #21402f;
@@ -42,7 +52,7 @@ const Board = styled.div`
   border-radius: 8px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), inset 0 0 80px rgba(0,0,0,0.4);
   color: #f4f4f0;
-  font-family: 'Yu Gothic', 'Hiragino Sans', 'M PLUS 1p', sans-serif;
+  font-family: ${(p) => (p.$font === 'chalk' ? FONT_CHALK : FONT_STD)};
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -64,6 +74,16 @@ const TopBar = styled.div`
     text-indent: 16px;
   }
   .right { display: flex; align-items: center; gap: 14px; }
+  .font-toggle {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 13px; color: rgba(255,255,255,0.75);
+    button {
+      background: none; border: 1px solid rgba(255,255,255,0.35); color: #f4f4f0;
+      border-radius: 5px; padding: 3px 9px; cursor: pointer; font-size: 13px;
+      &:hover { background: rgba(255,255,255,0.1); }
+      &.on { background: rgba(255,255,255,0.9); color: #1a3326; font-weight: 700; border-color: transparent; }
+    }
+  }
   .month {
     font-size: 22px; font-weight: 700;
     border: 2px solid rgba(255,255,255,0.6); border-radius: 6px;
@@ -205,7 +225,17 @@ export default function MessageBoardDialog() {
 
   const [content, setContent] = useState('')
   const [name, setName] = useState('')
+  const [font, setFont] = useState<BoardFont>(loadFont)
   const columnsRef = useRef<HTMLDivElement>(null)
+
+  const chooseFont = (f: BoardFont) => {
+    setFont(f)
+    try {
+      localStorage.setItem(LS_FONT, f)
+    } catch {
+      /* 保存できなくても表示は切り替わる */
+    }
+  }
 
   const getNetwork = () => (phaserGame.scene.keys.game as Game)?.network
 
@@ -239,10 +269,15 @@ export default function MessageBoardDialog() {
 
   return (
     <Backdrop onClick={() => dispatch(closeBoardDialog())}>
-      <Board onClick={(e) => e.stopPropagation()}>
+      <Board $font={font} onClick={(e) => e.stopPropagation()}>
         <TopBar>
           <span className="title">伝言板</span>
           <span className="right">
+            <span className="font-toggle" title="自分の画面の字体（端末に保存されます）">
+              字体
+              <button className={font === 'standard' ? 'on' : ''} onClick={() => chooseFont('standard')}>標準</button>
+              <button className={font === 'chalk' ? 'on' : ''} onClick={() => chooseFont('chalk')}>チョーク</button>
+            </span>
             <span className="month">{month}月</span>
             <button className="close" onClick={() => dispatch(closeBoardDialog())}>閉じる</button>
           </span>

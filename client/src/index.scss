@@ -1,3 +1,14 @@
+// 伝言板の「チョーク風」フォント。ファイル本体は client/public/fonts/ に置く
+// （client/public は publicルート直下で配信されるので /fonts/... で参照できる）。
+// 未配置でも読み込みに失敗するだけで、指定側のフォールバック（ゴシック）で表示される。
+// このフォントに無い漢字も、ブラウザが1文字ずつ自動でフォールバックする。
+@font-face {
+  font-family: 'Chalk JP';
+  src: url('/fonts/ChalkJP.woff2') format('woff2'),
+    url('/fonts/ChalkJP.ttf') format('truetype');
+  font-display: swap;
+}
+
 body {
   margin: 0;
   padding: 0;
