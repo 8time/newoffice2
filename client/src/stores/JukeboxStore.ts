@@ -33,6 +33,9 @@ const initialState: JukeboxState = {
   // （本番では /api/audio-list の自動検出がCloudflare経由だと届かないため、
   //  この既定リストに登録しておくのが確実）
   playlist: [
+    { name: '夏が来た', url: 'assets/audio/夏が来た.mp3', isLocal: false },
+    { name: '夏休み', url: 'assets/audio/夏休み.mp3', isLocal: false },
+    { name: '森の音（環境音）', url: 'assets/audio/soundreality-forest-sound-576537.mp3', isLocal: false },
     { name: '風の憧憬', url: 'assets/audio/25. 風の憧憬.mp3', isLocal: false },
     { name: '日曜日の夕暮れ', url: 'assets/audio/日曜日の夕暮れ.mp3', isLocal: false },
     { name: 'SoundHelix Song 1', url: 'assets/audio/song1.mp3', isLocal: false },
