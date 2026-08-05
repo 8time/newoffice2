@@ -684,14 +684,23 @@ export default class WebRTC {
     if (this.isSharingScreen) return
     try {
       // audio: true で「タブの音声も共有」を選べるようにする（動画の音を相手に届けるため）
+      // 解像度とフレームレートに上限をかける。無制限だと4K・高fpsで取得してしまい、
+      // WebRTCの帯域を圧迫して遅延・カクつきの原因になる。画面共有(資料・コード等)は
+      // 低fps・1080pで十分読めるので、上限を設けて遅延を大きく下げる。
       this.screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
+        video: {
+          frameRate: { ideal: 8, max: 15 },
+          width: { max: 1920 },
+          height: { max: 1080 },
+        },
         audio: true,
       })
       this.isSharingScreen = true
 
       // 接続中の全ピアに画面共有の映像を送信
       const screenTrack = this.screenStream.getVideoTracks()[0]
+      // 文字がくっきり読めることを優先（動きの滑らかさより解像度を保つ）。低fpsでも見やすい
+      try { (screenTrack as unknown as { contentHint: string }).contentHint = 'detail' } catch {}
       this.replaceVideoTrackForAllPeers(screenTrack)
 
       // 画面の音声があれば、マイクとミックスして音声トラックを差し替える
