@@ -28,7 +28,13 @@ const initialState: JukeboxState = {
   currentSongIndex: -1,
   repeat: false,
   broadcast: true,
+  // もともと入っている曲（全員に配信できる）。
+  // 曲を増やすときは client/public/assets/audio/ に mp3 を置き、ここに1行足す。
+  // （本番では /api/audio-list の自動検出がCloudflare経由だと届かないため、
+  //  この既定リストに登録しておくのが確実）
   playlist: [
+    { name: '風の憧憬', url: 'assets/audio/25. 風の憧憬.mp3', isLocal: false },
+    { name: '日曜日の夕暮れ', url: 'assets/audio/日曜日の夕暮れ.mp3', isLocal: false },
     { name: 'SoundHelix Song 1', url: 'assets/audio/song1.mp3', isLocal: false },
     { name: 'SoundHelix Song 2', url: 'assets/audio/song2.mp3', isLocal: false },
   ],

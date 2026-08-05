@@ -2124,24 +2124,31 @@ export default class Game extends Phaser.Scene {
   }
 
   private handleJukeboxPause(isFromNetwork = false) {
+    console.log('[Jukebox] 一時停止', { isFromNetwork, hasSound: !!this.currentSound, broadcast: store.getState().jukebox.broadcast })
     if (this.currentSound) {
       this.currentSound.pause()
-      store.dispatch(setPlayState({ playing: false, paused: true }))
-      if (!isFromNetwork && this.shouldBroadcastJukebox()) {
-        this.network.sendJukeboxSync({ index: -1, status: 'paused', name: '', url: '', isLocal: false })
-      }
+    } else if (isFromNetwork) {
+      try { this.sound.pauseAll() } catch {}
+    }
+    store.dispatch(setPlayState({ playing: false, paused: true }))
+    if (!isFromNetwork && this.shouldBroadcastJukebox()) {
+      this.network.sendJukeboxSync({ index: -1, status: 'paused', name: '', url: '', isLocal: false })
     }
   }
 
   private handleJukeboxStop(isFromNetwork = false) {
     ;(this as any).pendingJukeboxKey = null
     if (this.currentSound) {
-      this.currentSound.stop()
-      this.currentSound.destroy()
+      try { this.currentSound.stop(); this.currentSound.destroy() } catch {}
       this.currentSound = undefined
+    } else if (isFromNetwork) {
+      // 受信側で音を追跡できていない場合の保険（確実に止める）
+      try { this.sound.stopAll() } catch {}
     }
     store.dispatch(setPlayState({ playing: false, paused: false }))
-    if (!isFromNetwork && this.shouldBroadcastJukebox()) {
+    const willBroadcast = !isFromNetwork && this.shouldBroadcastJukebox()
+    console.log('[Jukebox] 停止', { isFromNetwork, willBroadcast, broadcast: store.getState().jukebox.broadcast })
+    if (willBroadcast) {
       this.network.sendJukeboxSync({ index: -1, status: 'stopped', name: '', url: '', isLocal: false })
     }
   }
