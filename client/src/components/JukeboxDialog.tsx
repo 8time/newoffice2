@@ -133,6 +133,7 @@ export default function JukeboxDialog() {
 
   const handleVolumeChange = (_event: any, newValue: number | number[]) => {
     const vol = newValue as number
+    console.log('[Jukebox] スライダー操作', vol)
     dispatch(setVolume(vol))
     phaserEvents.emit(Event.JUKEBOX_VOLUME, vol)
   }
@@ -142,15 +143,21 @@ export default function JukeboxDialog() {
   useEffect(() => {
     if (!open) return
 
+    // 本番(Cloudflare)では /api がバックエンドに届かず404(HTML)が返るため、
+    // JSONでなければ無視する。既定プレイリストがあるので実害はない。
     fetch('/api/audio-list')
-      .then((res) => res.json())
+      .then((res) => {
+        const ct = res.headers.get('content-type') || ''
+        if (!res.ok || !ct.includes('application/json')) return null
+        return res.json()
+      })
       .then((data) => {
-        if (Array.isArray(data)) {
+        if (Array.isArray(data) && data.length > 0) {
           dispatch(setPlaylist(data))
         }
       })
-      .catch((err) => {
-        console.error('Failed to fetch audio list from server:', err)
+      .catch(() => {
+        // 自動検出が使えない環境（既定プレイリストで動作）— ログは出さない
       })
   }, [open, dispatch])
 

@@ -2160,9 +2160,21 @@ export default class Game extends Phaser.Scene {
   }
 
   private handleJukeboxVolume(volume: number) {
-    this.sound.volume = volume // グローバル音量を直接変更してすべての環境で動作を保証
+    const v = Math.max(0, Math.min(1, volume))
+    const sm = this.sound as any
+    // グローバル（マスター）音量。setVolume が使える場合はそちらを優先
+    try {
+      if (typeof sm.setVolume === 'function') sm.setVolume(v)
+      else sm.volume = v
+    } catch (e) { console.warn('[Jukebox] master volume失敗', e) }
+    // 今鳴っている曲個別の音量も更新
     if (this.currentSound) {
-      (this.currentSound as any).volume = volume
+      const cs = this.currentSound as any
+      try {
+        if (typeof cs.setVolume === 'function') cs.setVolume(v)
+        else cs.volume = v
+      } catch (e) { console.warn('[Jukebox] sound volume失敗', e) }
     }
+    console.log('[Jukebox] 音量変更', { v, master: sm.volume, hasSound: !!this.currentSound })
   }
 }
