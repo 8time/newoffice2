@@ -23,7 +23,7 @@ import { getClientId } from '../util/clientId'
  */
 
 // スタンプ1枚の上限。アニメは重くなりがちなので、ここで歯止めをかける
-const MAX_STAMP_SIZE = 1024 * 1024 // 1MB
+const MAX_STAMP_SIZE = 3 * 1024 * 1024 // 3MB（動くAPNG/GIFも入るように）
 const NAME_MAX = 30
 
 const Row = styled.div`
@@ -142,7 +142,7 @@ export default function StampManagerDialog() {
       return
     }
     if (f.size > MAX_STAMP_SIZE) {
-      setError(`スタンプは1MB以下にしてください（選んだ画像: ${(f.size / 1024 / 1024).toFixed(1)}MB）`)
+      setError(`スタンプは3MB以下にしてください（選んだ画像: ${(f.size / 1024 / 1024).toFixed(1)}MB）`)
       return
     }
     setFile(f)
@@ -156,7 +156,7 @@ export default function StampManagerDialog() {
     setError('')
     try {
       // ここで画像を縮小してはいけない。縮小処理はアニメの1コマ目しか読めず、
-      // 動くスタンプが静止画になってしまう。1MB上限があるので原本のまま送る。
+      // 動くスタンプ(APNG/GIF)が静止画になってしまう。3MB上限があるので原本のまま送る。
       const form = new FormData()
       form.append('file', file, file.name)
       const res = await fetch(resolveServerUrl('/api/files'), { method: 'POST', body: form })
@@ -206,7 +206,7 @@ export default function StampManagerDialog() {
       <DialogContent>
         <Hint>
           PNG・GIF・WebP・APNG が使えます（動くスタンプもそのまま動きます）。
-          1枚1MBまで・320×320px程度が目安です。登録したスタンプは全員が使えます。
+          1枚3MBまで・320×320px程度が目安です（動くAPNG/GIFも登録できます）。登録したスタンプは全員が使えます。
         </Hint>
 
         <Row>
