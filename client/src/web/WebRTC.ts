@@ -270,14 +270,12 @@ export default class WebRTC {
     }
 
     if (field === 'isVideoOff') {
-      console.log(`[WebRTC] Peer ${key} camera toggled to: ${value}`)
       const sanitizedId = this.replaceInvalidId(key)
       const peer = this.peers.get(sanitizedId) || this.onCalledPeers.get(sanitizedId)
+      // peerが無いのは「まだ/もう通話していない相手」（近接通話なので遠くの人）の
+      // カメラON/OFF通知で、正常な状態。以前はここで紛らわしい警告を出していたが不要。
       if (peer) {
-        console.log(`[WebRTC] Applying video fallback for peer ${sanitizedId}`)
         this.applyVideoFallback(peer.video, this.isPeerVideoHidden(key, value as boolean))
-      } else {
-        console.warn(`[WebRTC] Peer ${sanitizedId} not found in maps!`)
       }
     }
   }
