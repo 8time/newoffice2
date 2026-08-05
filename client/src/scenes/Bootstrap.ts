@@ -27,10 +27,13 @@ export default class Bootstrap extends Phaser.Scene {
     this.load.image('backdrop_night', 'assets/background/backdrop_night.png')
     this.load.image('sun_moon', 'assets/background/sun_moon.png')
 
-    this.load.image('new_office_bg', `assets/background/new_office_bg.png?v=${Date.now()}`)
+    // ?v=Date.now() を付けると毎回URLが変わりキャッシュが効かず、2.6MBの背景を毎回
+    // 再ダウンロードしていた。安定URLにしてキャッシュを効かせる（初回ロードを軽くする）。
+    this.load.image('new_office_bg', 'assets/background/new_office_bg.png')
     this.load.image('jukebox', 'assets/items/jukebox.png')
-    this.load.audio('song1', 'assets/audio/song1.mp3')
-    this.load.audio('song2', 'assets/audio/song2.mp3')
+    // BGM(song1=8.5MB, song2=9.7MB)は起動時にpreloadしていたが、これらのキーは再生に
+    // 使われておらず（ジュークボックスは曲を必要時にurlから動的ロードする）、計18MBを
+    // 毎回の起動でムダにダウンロードしていた。削除して初回ロードを大幅に軽くする。
     this.load.audio('ping', 'assets/audio/ping.mp3')
     this.load.tilemapTiledJSON('tilemap', 'assets/map/map.json')
     this.load.json('collision', 'assets/collision.tmj')
