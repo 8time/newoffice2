@@ -4,8 +4,7 @@
 // このフォントに無い漢字も、ブラウザが1文字ずつ自動でフォールバックする。
 @font-face {
   font-family: 'Chalk JP';
-  src: url('/fonts/ChalkJP.woff2') format('woff2'),
-    url('/fonts/ChalkJP.ttf') format('truetype');
+  src: url('/fonts/Chalk-JP.woff2') format('woff2');
   font-display: swap;
 }
 
