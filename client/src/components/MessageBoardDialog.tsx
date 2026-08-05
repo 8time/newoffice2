@@ -5,7 +5,7 @@ import { closeBoardDialog } from '../stores/BoardStore'
 import phaserGame from '../PhaserGame'
 import Game from '../scenes/Game'
 
-const CONTENT_MAX = 60 // サーバーの BOARD_CONTENT_MAX と一致させる
+const CONTENT_MAX = 33 // 1マスに縦書き3行で収まる文字数（サーバー上限60より小さければOK）
 const NAME_MAX = 16
 
 // チョークの色（駅の伝言板っぽく、書き込みごとに色を変える）
@@ -100,7 +100,7 @@ const Empty = styled.div`
 const Column = styled.div<{ chalk: string }>`
   position: relative;
   flex: 0 0 auto;
-  width: 88px;
+  width: 122px; /* 縦書き3行ぶんの幅 */
   border-left: 1px solid rgba(255, 255, 255, 0.28); /* 区切り線 */
   padding: 8px 6px 12px;
   display: flex;
@@ -124,11 +124,12 @@ const Column = styled.div<{ chalk: string }>`
     -webkit-text-orientation: upright;
     flex: 1;
     min-height: 0;
-    font-size: 26px;
-    line-height: 1.5;
-    letter-spacing: 3px;
+    width: 100%;          /* 幅いっぱい＝最大3行。これを超える分は隠す */
+    font-size: 24px;
+    line-height: 1.42;    /* 縦書きでは行同士の横間隔。3行が幅に収まるよう調整 */
+    letter-spacing: 2px;
     color: ${(p) => p.chalk};
-    overflow: hidden;
+    overflow: hidden;     /* はみ出してもレイアウトを崩さない */
     white-space: pre-wrap;
     word-break: break-all;
     text-shadow: 0 0 1px rgba(0,0,0,0.5);
@@ -139,10 +140,10 @@ const Column = styled.div<{ chalk: string }>`
     text-orientation: upright;
     -webkit-text-orientation: upright;
     margin-top: 10px;
-    font-size: 20px;
+    font-size: 19px;
     color: ${(p) => p.chalk};
     opacity: 0.95;
-    max-height: 40%;
+    max-height: 32%;
     overflow: hidden;
   }
   .del {
@@ -279,7 +280,7 @@ export default function MessageBoardDialog() {
           <span className="count">{content.length}/{CONTENT_MAX}</span>
           <button className="write" onClick={write} disabled={!content.trim()}>書き込む</button>
           <span className="note">
-            ※ 1マス{CONTENT_MAX}文字まで。日付は自動で入ります。新しい伝言は右に足され、増えると古いものは左へ流れていきます。
+            ※ 1マスは縦書き3行・{CONTENT_MAX}文字まで。日付は自動で入ります。新しい伝言は右に足され、増えると古いものは左へ流れていきます。
           </span>
         </Composer>
       </Board>
