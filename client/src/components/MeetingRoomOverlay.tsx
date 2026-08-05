@@ -10,6 +10,7 @@ import ScreenShareIcon from '@mui/icons-material/ScreenShare'
 import StopScreenShareIcon from '@mui/icons-material/StopScreenShare'
 import ExitToAppIcon from '@mui/icons-material/ExitToApp'
 import PeopleIcon from '@mui/icons-material/People'
+import RefreshIcon from '@mui/icons-material/Refresh'
 import ChatIcon from '@mui/icons-material/Chat'
 import PanToolIcon from '@mui/icons-material/PanTool'
 
@@ -1373,7 +1374,8 @@ export default function MeetingRoomOverlay() {
       if (target) getWebRTC()?.mountPeerVideos(target)
     }
     remount()
-    const timers = [400, 1200, 2500].map((ms) => window.setTimeout(remount, ms))
+    // 遅れて繋がる相手も取りこぼさないよう、後の時刻でも数回やり直す
+    const timers = [400, 1200, 2500, 4500, 7000, 10000].map((ms) => window.setTimeout(remount, ms))
     return () => timers.forEach((t) => window.clearTimeout(t))
   }, [activeRoom, roomPeerKey, videoConnected])
 
@@ -1452,6 +1454,11 @@ export default function MeetingRoomOverlay() {
 
   const toggleMic    = () => getWebRTC()?.toggleMute()
   const toggleVideo  = () => getWebRTC()?.toggleVideo()
+  // 相手が表示されないときの手動再表示（ページ全体を再読み込みせずに済む）
+  const refreshPeers = () => {
+    const target = peerContainerRef.current
+    if (target) getWebRTC()?.mountPeerVideos(target)
+  }
   const toggleScreen = () => {
     const rtc = getWebRTC()
     if (!rtc) return
@@ -1583,6 +1590,12 @@ export default function MeetingRoomOverlay() {
             <CtrlBtn isOff={showMembers} onClick={() => setShowMembers((v) => !v)}>
               <PeopleIcon />
               <span className="clabel">参加者</span>
+            </CtrlBtn>
+          </Tooltip>
+          <Tooltip title="相手が表示されないときに押す">
+            <CtrlBtn isOff={false} onClick={refreshPeers}>
+              <RefreshIcon />
+              <span className="clabel">再表示</span>
             </CtrlBtn>
           </Tooltip>
         </BarGroup>

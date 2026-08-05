@@ -536,16 +536,17 @@ export default class Game extends Phaser.Scene {
     const key = `stamptex_${stampId}`
 
     const draw = () => {
-      const img = this.add.image(x, y - 10, key).setDepth(20000).setOrigin(0.5)
-      // 元画像の大きさはまちまちなので、頭上に収まる高さに揃える
-      const scale = Math.min(1, 64 / Math.max(img.height, 1))
+      // 頭上スタンプは目立つように大きめに出す。従来の基準(高さ64px)の3倍＝約192pxに揃える。
+      // キャラより上に大きく出るので、少し高い位置(y-40)から始める。
+      const img = this.add.image(x, y - 40, key).setDepth(20000).setOrigin(0.5)
+      const scale = Math.min(1, 64 / Math.max(img.height, 1)) * 3
       img.setScale(scale)
       // 画像は写真ではないが、縮小時にガタつかないよう滑らかに補間する
       this.textures.get(key).setFilter(Phaser.Textures.FilterMode.LINEAR)
       // 頭上でしばらく（約3.2秒）そのまま表示し、最後にフェードアウト（合計約4秒）
       this.tweens.add({
         targets: img,
-        y: y - 46,
+        y: y - 72,
         alpha: 0,
         delay: 3200,
         duration: 800,
