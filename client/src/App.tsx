@@ -232,7 +232,6 @@ function App() {
         {loggedIn && isBuilderMode && <MapBuilder />}
         {loggedIn && <JukeboxDialog />}
         {loggedIn && <PredictionBoardDialog />}
-        {loggedIn && <MessageBoardDialog />}
         {/* 隠しビデオソース（WebRTC の DOM 操作の受け皿、VideoOverlay の MutationObserver が監視） */}
         <HiddenVideoGrid>
           <div id="webrtc-video-source" />
@@ -246,6 +245,9 @@ function App() {
 
       {/* 看板の入力ダイアログ（サイドバーより前面に出すためルート直下に配置） */}
       {loggedIn && signboardDialogOpen && <SignboardDialog />}
+
+      {/* 伝言板ダイアログ（同上：サイドバーに隠れないようルート直下に配置） */}
+      {loggedIn && <MessageBoardDialog />}
 
       {/* ノック通知（常時待機） */}
       {loggedIn && <KnockNotification />}
