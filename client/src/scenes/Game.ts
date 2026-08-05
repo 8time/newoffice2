@@ -515,11 +515,13 @@ export default class Game extends Phaser.Scene {
       .setDepth(20000)
       .setOrigin(0.5)
 
+    // しばらく（約3.2秒）表示してから最後にフェードアウト（合計約4秒）
     this.tweens.add({
       targets: text,
       y: y - 36,
       alpha: 0,
-      duration: 2200,
+      delay: 3200,
+      duration: 800,
       ease: 'Power2',
       onComplete: () => text.destroy(),
     })
@@ -540,11 +542,13 @@ export default class Game extends Phaser.Scene {
       img.setScale(scale)
       // 画像は写真ではないが、縮小時にガタつかないよう滑らかに補間する
       this.textures.get(key).setFilter(Phaser.Textures.FilterMode.LINEAR)
+      // 頭上でしばらく（約3.2秒）そのまま表示し、最後にフェードアウト（合計約4秒）
       this.tweens.add({
         targets: img,
         y: y - 46,
         alpha: 0,
-        duration: 2200,
+        delay: 3200,
+        duration: 800,
         ease: 'Power2',
         onComplete: () => img.destroy(),
       })
