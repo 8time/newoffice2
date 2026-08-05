@@ -484,6 +484,14 @@ export default class Game extends Phaser.Scene {
     phaserEvents.on(Event.JUKEBOX_BROADCAST, this.handleJukeboxBroadcast, this)
     phaserEvents.on('network-jukebox-sync', this.handleNetworkJukeboxSync, this)
 
+    // どんな操作でも音声を解錠する保険。ReactのUI（サイドバー等）のクリックは
+    // Phaserのcanvasに届かず自動解錠されないことがあり、非アクティブタブでは
+    // AudioContextが止まる。documentのキャプチャ段階で捕まえて必ず起こす。
+    // これで「他の人が流した曲が、こちらで一度クリックした瞬間から鳴る」ようにする。
+    document.addEventListener('pointerdown', this.resumeAudioContext, true)
+    document.addEventListener('keydown', this.resumeAudioContext, true)
+    document.addEventListener('visibilitychange', this.resumeAudioContext)
+
     // クリックとドラッグを区別するための移動しきい値（看板の誤ドラッグ防止）
     this.input.dragDistanceThreshold = 6
 
@@ -513,6 +521,9 @@ export default class Game extends Phaser.Scene {
       phaserEvents.off(Event.JUKEBOX_VOLUME, this.handleJukeboxVolume, this)
       phaserEvents.off(Event.JUKEBOX_BROADCAST, this.handleJukeboxBroadcast, this)
       phaserEvents.off('network-jukebox-sync', this.handleNetworkJukeboxSync, this)
+      document.removeEventListener('pointerdown', this.resumeAudioContext, true)
+      document.removeEventListener('keydown', this.resumeAudioContext, true)
+      document.removeEventListener('visibilitychange', this.resumeAudioContext)
       phaserEvents.off(Event.BUILDER_PICK_MEETING_ENTRANCE, this.startPickingMeetingEntrance, this)
       phaserEvents.off(Event.MEETING_ROOM_EXIT, this.exitMeetingRoom, this)
       phaserEvents.off(Event.BUILDER_ITEM_ADDED, this.handleBuilderItemAdded, this)
@@ -1991,8 +2002,20 @@ export default class Game extends Phaser.Scene {
 
   // ─── Jukebox 制御メソッド ───────────────────────────────────────────
 
+  // 停止しているAudioContextを起こし、Phaserの音声ロックを解除する。
+  // 受信側の非アクティブタブやReactのみの操作で音が止まる問題への保険。
+  private resumeAudioContext = () => {
+    const sm = this.sound as any
+    const ctx = sm?.context as AudioContext | undefined
+    if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {})
+    if (sm?.locked && typeof sm.unlock === 'function') sm.unlock()
+  }
+
   private handleNetworkJukeboxSync(data: { index: number; status: string; name: string; url: string; isLocal: boolean }) {
-    console.log('[Jukebox Sync] 受信データ:', data)
+    const sm = this.sound as any
+    console.log('[Jukebox Sync] 受信:', { status: data.status, name: data.name, url: data.url, locked: sm?.locked, ctx: sm?.context?.state })
+    // 受信した瞬間にも一度起こしておく（既に一度でも操作していれば鳴り始める）
+    this.resumeAudioContext()
     if (data.status === 'playing' && data.name && data.url) {
       // 他人の再生操作を自分のReduxストアとPhaserに同期
       // playSongByIndex はローカルのプレイリストに依存するため、
@@ -2058,9 +2081,16 @@ export default class Game extends Phaser.Scene {
       try {
         const repeat = store.getState().jukebox.repeat
         const volume = store.getState().jukebox.volume
+        // 再生直前にもAudioContextを起こす（非アクティブタブ対策）
+        this.resumeAudioContext()
         this.sound.volume = volume
         this.currentSound = this.sound.add(key)
-        this.currentSound.play({ loop: repeat, volume: volume })
+        const ok = this.currentSound.play({ loop: repeat, volume: volume })
+        const sm = this.sound as any
+        console.log('[Jukebox] 再生', { key, ok, volume, locked: sm?.locked, ctx: sm?.context?.state })
+        if (sm?.locked) {
+          console.warn('[Jukebox] 音声がロック中のため、画面を一度クリック/キー操作すると鳴り始めます')
+        }
         store.dispatch(setPlayState({ playing: true, paused: false }))
 
         // 曲が終了した際の自動遷移
