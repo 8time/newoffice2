@@ -188,33 +188,33 @@ const Composer = styled.div`
   textarea {
     flex: 1;
     min-width: 220px;
-    height: 46px;
+    height: 58px;
     resize: none;
     background: rgba(0,0,0,0.22);
     color: #f4f4f0;
     border: 1px solid rgba(255,255,255,0.3);
     border-radius: 6px;
-    padding: 8px 10px;
-    font-size: 15px;
+    padding: 10px 12px;
+    font-size: 22px;
+    line-height: 1.4;
     font-family: inherit;
   }
   input.name {
-    width: 130px;
+    width: 150px;
     background: rgba(0,0,0,0.22);
     color: #f4f4f0;
     border: 1px solid rgba(255,255,255,0.3);
     border-radius: 6px;
-    padding: 8px 10px;
-    font-size: 14px;
+    padding: 10px 12px;
+    font-size: 20px;
   }
-  .count { font-size: 12px; color: rgba(255,255,255,0.6); align-self: center; }
+  .count { font-size: 15px; color: rgba(255,255,255,0.7); align-self: center; }
   button.write {
     background: #3ddc97; color: #10261c; border: none; border-radius: 8px;
-    padding: 10px 18px; font-size: 15px; font-weight: 700; cursor: pointer;
+    padding: 12px 22px; font-size: 18px; font-weight: 700; cursor: pointer;
     &:hover { filter: brightness(1.08); }
     &:disabled { opacity: 0.5; cursor: default; }
   }
-  .note { flex-basis: 100%; font-size: 11px; color: rgba(255,255,255,0.5); }
 `
 
 export default function MessageBoardDialog() {
@@ -314,9 +314,6 @@ export default function MessageBoardDialog() {
           />
           <span className="count">{content.length}/{CONTENT_MAX}</span>
           <button className="write" onClick={write} disabled={!content.trim()}>書き込む</button>
-          <span className="note">
-            ※ 1マスは縦書き3行・{CONTENT_MAX}文字まで。日付は自動で入ります。新しい伝言は右に足され、増えると古いものは左へ流れていきます。
-          </span>
         </Composer>
       </Board>
     </Backdrop>
