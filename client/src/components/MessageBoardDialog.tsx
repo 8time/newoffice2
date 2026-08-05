@@ -15,6 +15,10 @@ function colorFor(id: string): string {
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
   return CHALK_COLORS[h % CHALK_COLORS.length]
 }
+function mmdd(ts: number): string {
+  const d = new Date(ts)
+  return `${d.getMonth() + 1}/${d.getDate()}`
+}
 
 const Backdrop = styled.div`
   position: fixed;
@@ -28,15 +32,15 @@ const Backdrop = styled.div`
 `
 
 const Board = styled.div`
-  width: min(1120px, 96vw);
-  height: min(660px, 90vh);
-  background: #24463a;
+  width: min(1200px, 96vw);
+  height: min(680px, 92vh);
+  background: #21402f;
   background-image:
-    radial-gradient(circle at 30% 20%, rgba(255,255,255,0.04), transparent 60%),
-    radial-gradient(circle at 70% 80%, rgba(255,255,255,0.03), transparent 60%);
-  border: 12px solid #7a5a34;
-  border-radius: 10px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), inset 0 0 60px rgba(0,0,0,0.35);
+    radial-gradient(circle at 25% 15%, rgba(255,255,255,0.05), transparent 55%),
+    radial-gradient(circle at 75% 85%, rgba(255,255,255,0.04), transparent 55%);
+  border: 14px solid #7a5a34;
+  border-radius: 8px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), inset 0 0 80px rgba(0,0,0,0.4);
   color: #f4f4f0;
   font-family: 'Yu Gothic', 'Hiragino Sans', 'M PLUS 1p', sans-serif;
   display: flex;
@@ -49,35 +53,40 @@ const TopBar = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 18px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 8px 20px;
   flex-shrink: 0;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.35);
 
   .title {
-    font-size: 26px;
+    font-size: 30px;
     font-weight: 700;
-    letter-spacing: 12px;
-    text-indent: 12px;
+    letter-spacing: 16px;
+    text-indent: 16px;
   }
-  .month { font-size: 20px; font-weight: 700; opacity: 0.9; }
+  .right { display: flex; align-items: center; gap: 14px; }
+  .month {
+    font-size: 22px; font-weight: 700;
+    border: 2px solid rgba(255,255,255,0.6); border-radius: 6px;
+    padding: 2px 10px;
+  }
   .close {
     background: none; border: 1px solid rgba(255,255,255,0.4); color: #f4f4f0;
-    border-radius: 6px; padding: 4px 12px; cursor: pointer; font-size: 14px;
+    border-radius: 6px; padding: 6px 14px; cursor: pointer; font-size: 14px;
     &:hover { background: rgba(255,255,255,0.12); }
   }
 `
 
-// 右から並べ、増えると左へ流れる（横スクロール）
+// 右から並べ、増えると左へ流れる（横スクロール）。列は右端から詰める。
 const Columns = styled.div`
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: row;
+  justify-content: flex-end; /* 少ないときは右に寄せる（＝右から書く） */
   align-items: stretch;
-  gap: 0;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 4px 8px 0;
+  padding: 0;
 
   &::-webkit-scrollbar { height: 8px; }
   &::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.25); border-radius: 4px; }
@@ -85,44 +94,59 @@ const Columns = styled.div`
 
 const Empty = styled.div`
   flex: 1; display: flex; align-items: center; justify-content: center;
-  color: rgba(255,255,255,0.5); font-size: 15px;
+  color: rgba(255,255,255,0.55); font-size: 16px;
 `
 
 const Column = styled.div<{ chalk: string }>`
   position: relative;
   flex: 0 0 auto;
-  width: 62px;
-  border-left: 1px solid rgba(255, 255, 255, 0.18);
-  padding: 10px 4px 8px;
+  width: 66px;
+  border-left: 1px solid rgba(255, 255, 255, 0.28); /* 区切り線 */
+  padding: 8px 4px 10px;
   display: flex;
   flex-direction: column;
   align-items: center;
+  &:last-child { border-right: 1px solid rgba(255, 255, 255, 0.28); }
 
   &:hover .del { opacity: 1; }
 
+  .date {
+    writing-mode: horizontal-tb;
+    font-size: 11px;
+    color: ${(p) => p.chalk};
+    opacity: 0.75;
+    margin-bottom: 4px;
+  }
   .body {
     writing-mode: vertical-rl;
+    -webkit-writing-mode: vertical-rl;
     text-orientation: upright;
-    font-size: 17px;
-    line-height: 1.5;
-    letter-spacing: 1px;
+    -webkit-text-orientation: upright;
+    flex: 1;
+    min-height: 0;
+    font-size: 18px;
+    line-height: 1.55;
+    letter-spacing: 2px;
     color: ${(p) => p.chalk};
-    max-height: 100%;
     overflow: hidden;
     white-space: pre-wrap;
     word-break: break-all;
-    text-shadow: 0 0 1px rgba(0,0,0,0.4);
+    text-shadow: 0 0 1px rgba(0,0,0,0.5);
   }
   .name {
     writing-mode: vertical-rl;
-    margin-top: 6px;
-    font-size: 14px;
+    -webkit-writing-mode: vertical-rl;
+    text-orientation: upright;
+    -webkit-text-orientation: upright;
+    margin-top: 8px;
+    font-size: 15px;
     color: ${(p) => p.chalk};
-    opacity: 0.9;
-    align-self: flex-start;
+    opacity: 0.95;
+    max-height: 40%;
+    overflow: hidden;
   }
   .del {
-    position: absolute; top: 2px; left: 2px;
+    position: absolute; top: 2px; right: 2px;
     opacity: 0; transition: opacity 0.12s;
     background: rgba(120, 20, 20, 0.85); color: #fff; border: none;
     width: 18px; height: 18px; border-radius: 50%; font-size: 12px; line-height: 1;
@@ -133,8 +157,8 @@ const Column = styled.div<{ chalk: string }>`
 
 const Composer = styled.div`
   flex-shrink: 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.15);
-  padding: 10px 16px;
+  border-top: 2px solid rgba(255, 255, 255, 0.35);
+  padding: 10px 18px;
   display: flex;
   gap: 10px;
   align-items: flex-start;
@@ -145,9 +169,9 @@ const Composer = styled.div`
     min-width: 220px;
     height: 46px;
     resize: none;
-    background: rgba(0,0,0,0.2);
+    background: rgba(0,0,0,0.22);
     color: #f4f4f0;
-    border: 1px solid rgba(255,255,255,0.25);
+    border: 1px solid rgba(255,255,255,0.3);
     border-radius: 6px;
     padding: 8px 10px;
     font-size: 15px;
@@ -155,9 +179,9 @@ const Composer = styled.div`
   }
   input.name {
     width: 130px;
-    background: rgba(0,0,0,0.2);
+    background: rgba(0,0,0,0.22);
     color: #f4f4f0;
-    border: 1px solid rgba(255,255,255,0.25);
+    border: 1px solid rgba(255,255,255,0.3);
     border-radius: 6px;
     padding: 8px 10px;
     font-size: 14px;
@@ -217,17 +241,20 @@ export default function MessageBoardDialog() {
       <Board onClick={(e) => e.stopPropagation()}>
         <TopBar>
           <span className="title">伝言板</span>
-          <span className="month">{month}月</span>
-          <button className="close" onClick={() => dispatch(closeBoardDialog())}>閉じる</button>
+          <span className="right">
+            <span className="month">{month}月</span>
+            <button className="close" onClick={() => dispatch(closeBoardDialog())}>閉じる</button>
+          </span>
         </TopBar>
 
         {messages.length === 0 ? (
-          <Empty>まだ伝言はありません。右下から書き込んでみてください。</Empty>
+          <Empty>まだ伝言はありません。下の欄から書き込んでみてください。</Empty>
         ) : (
           <Columns ref={columnsRef}>
             {messages.map((m) => (
               <Column key={m.id} chalk={colorFor(m.id)}>
                 <button className="del" title="消す" onClick={() => remove(m.id)}>×</button>
+                <div className="date">{mmdd(m.createdAt)}</div>
                 <div className="body">{m.content}</div>
                 <div className="name">{m.name}</div>
               </Column>
@@ -239,7 +266,7 @@ export default function MessageBoardDialog() {
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value.slice(0, CONTENT_MAX))}
-            placeholder="伝言を書く（縦書きで表示されます）"
+            placeholder="伝言を書く（縦書きで表示されます。日付は自動）"
             maxLength={CONTENT_MAX}
           />
           <input
@@ -252,7 +279,7 @@ export default function MessageBoardDialog() {
           <span className="count">{content.length}/{CONTENT_MAX}</span>
           <button className="write" onClick={write} disabled={!content.trim()}>書き込む</button>
           <span className="note">
-            ※ 1マス{CONTENT_MAX}文字まで。新しい伝言は右に足され、増えると古いものは左へ流れていきます。
+            ※ 1マス{CONTENT_MAX}文字まで。日付は自動で入ります。新しい伝言は右に足され、増えると古いものは左へ流れていきます。
           </span>
         </Composer>
       </Board>

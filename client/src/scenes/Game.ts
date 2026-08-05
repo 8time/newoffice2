@@ -71,6 +71,7 @@ export default class Game extends Phaser.Scene {
   private jukeboxes!: Phaser.Physics.Arcade.StaticGroup
   private predictionBoards!: Phaser.Physics.Arcade.StaticGroup
   private messageBoards!: Phaser.Physics.Arcade.StaticGroup
+  private boardBadge?: Phaser.GameObjects.Container
   private currentSound?: Phaser.Sound.BaseSound
 
   // 看板（全員同期）
@@ -315,6 +316,30 @@ export default class Game extends Phaser.Scene {
     mb.setDepth(mb.y + 10)
     mb.setInteractive({ useHandCursor: true })
     mb.on('pointerdown', () => { mb.openDialog() })
+
+    // 未読の伝言があるとき、看板の右上に「！」を出して気づけるようにする
+    const badgeBg = this.add.circle(0, 0, 13, 0xe02424).setStrokeStyle(2, 0xffffff)
+    const badgeTxt = this.add
+      .text(0, -1, '!', { fontFamily: 'Arial, sans-serif', fontSize: '20px', color: '#ffffff', fontStyle: 'bold' })
+      .setOrigin(0.5)
+    this.boardBadge = this.add.container(1035 + 26, 247 - 24, [badgeBg, badgeTxt])
+    this.boardBadge.setDepth(1_000_000)
+    this.boardBadge.setVisible(false)
+    this.tweens.add({
+      targets: this.boardBadge,
+      scale: { from: 0.85, to: 1.15 },
+      duration: 600,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    })
+    const updateBoardBadge = () => {
+      const b = store.getState().board
+      const hasUnread = b.messages.some((m) => m.createdAt > b.lastSeenAt)
+      this.boardBadge?.setVisible(hasUnread && !b.dialogOpen)
+    }
+    store.subscribe(updateBoardBadge)
+    updateBoardBadge()
 
     // カスタムコライダーのロードと衝突設定
     this.customCollidersGroup = this.physics.add.staticGroup()
