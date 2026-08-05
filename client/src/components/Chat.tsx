@@ -865,15 +865,22 @@ export default function Chat() {
 
   return (
     <>
-      {unsendTarget && (
+      {/* 送信取消メニューは body へポータルする。チャットを埋め込む
+          ChatSidebarWrapper の「> div { position: relative !important }」が
+          このメニューにも当たって position:fixed を潰し、クリック位置ではなく
+          チャット下部の変な場所に出ていた。bodyへ出せば影響を受けず、
+          右クリックした位置（＝消したいスタンプのすぐそば）に表示できる。
+          画面の右端・下端で見切れないよう座標をクランプする。 */}
+      {unsendTarget && createPortal(
         <ContextMenu
-          x={unsendTarget.x}
-          y={unsendTarget.y}
+          x={Math.min(unsendTarget.x, window.innerWidth - 130)}
+          y={Math.min(unsendTarget.y, window.innerHeight - 46)}
           onClick={(e) => e.stopPropagation()}
           onContextMenu={(e) => e.preventDefault()}
         >
           <button onClick={handleUnsend}>🗑 送信取消</button>
-        </ContextMenu>
+        </ContextMenu>,
+        document.body
       )}
     <Backdrop>
       <Wrapper>
