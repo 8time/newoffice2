@@ -17,6 +17,7 @@ import { CreateRoomForm } from './CreateRoomForm'
 import { useAppSelector, useAppDispatch } from '../hooks'
 import { setRoomKey } from '../stores/RoomStore'
 import { normalizeRoomKey, setRoomKeyInUrl } from '../util/roomKey'
+import { joinKeyedRoomWithPassword } from '../util/joinRoom'
 
 import phaserGame from '../PhaserGame'
 import Bootstrap from '../scenes/Bootstrap'
@@ -162,8 +163,7 @@ export default function RoomSelectionDialog() {
       return
     }
     const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
-    bootstrap.network
-      .joinOrCreateKeyed(key)
+    joinKeyedRoomWithPassword(bootstrap.network, key)
       .then(() => {
         dispatch(setRoomKey(key))
         setRoomKeyInUrl(key)

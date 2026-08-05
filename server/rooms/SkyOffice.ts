@@ -32,6 +32,9 @@ const DOCS = {
   dm: path.join(__dirname, '../../dm-history.json'),
   stamps: path.join(__dirname, '../../stamps.json'),
   board: path.join(__dirname, '../../board.json'),
+  // 固定ルームの入室パスワード（合言葉）。roomKey → bcryptハッシュ。
+  // 部屋が空で消えても復元できるようファイルに保持する
+  roompass: path.join(__dirname, '../../roompass.json'),
 } as const
 Object.entries(DOCS).forEach(([key, file]) => registerDoc(key, file))
 
@@ -48,6 +51,14 @@ interface ChatRecord {
 
 // ルームキーごとに直近のチャットを保持する
 const CHAT_HISTORY_LIMIT = 500
+
+// 固定ルームの入室パスワード（合言葉）: roomKey → bcryptハッシュ
+function loadRoomPass(): Record<string, string> {
+  return readDoc<Record<string, string>>('roompass', {})
+}
+function saveRoomPass(all: Record<string, string>) {
+  writeDoc('roompass', all)
+}
 
 function loadChatHistory(): Record<string, ChatRecord[]> {
   return readDoc<Record<string, ChatRecord[]>>('chat', {})
@@ -365,7 +376,13 @@ export class SkyOffice extends Room<OfficeState> {
     this.autoDispose = autoDispose
 
     let hasPassword = false
-    if (password) {
+    // 固定ルーム(roomKey)は、永続化された入室パスワードを最優先で適用する。
+    // 部屋が空で一旦消えても、次に同じ合言葉で作り直したときにパスワードが復活する。
+    const persistedHash = roomKey ? loadRoomPass()[roomKey] : undefined
+    if (persistedHash) {
+      this.password = persistedHash // 既にハッシュ済み
+      hasPassword = true
+    } else if (password) {
       const salt = await bcrypt.genSalt(10)
       this.password = await bcrypt.hash(password, salt)
       hasPassword = true
@@ -1099,6 +1116,35 @@ export class SkyOffice extends Room<OfficeState> {
       saveBoard(all)
       this.broadcast(Message.BOARD_REMOVE, { id })
     })
+
+    // 固定ルームの入室パスワード（合言葉）を設定/変更/解除する。
+    // 部屋のデータ(chatKey)はそのままで、入室に必要な合言葉だけ差し替える。
+    // 空文字を送るとパスワード解除（誰でも入れる状態に戻す）。
+    this.onMessage(Message.SET_ROOM_PASSWORD, async (client, message: { password?: string }) => {
+      const key = this.chatKey
+      // 固定ルーム（合言葉ルーム）のみ対象。パブリック等は不可。
+      if (!key || key === 'public') {
+        client.send(Message.ROOM_PASSWORD_UPDATED, { hasPassword: !!this.password, error: 'この部屋では変更できません' })
+        return
+      }
+      const raw = (message?.password || '').trim()
+      const all = loadRoomPass()
+      if (!raw) {
+        delete all[key]
+        saveRoomPass(all)
+        this.password = null
+        this.setMetadata({ name: this.name, description: this.description, hasPassword: false, roomKey: key })
+        this.broadcast(Message.ROOM_PASSWORD_UPDATED, { hasPassword: false })
+        return
+      }
+      const salt = await bcrypt.genSalt(10)
+      const hash = await bcrypt.hash(raw, salt)
+      all[key] = hash
+      saveRoomPass(all)
+      this.password = hash
+      this.setMetadata({ name: this.name, description: this.description, hasPassword: true, roomKey: key })
+      this.broadcast(Message.ROOM_PASSWORD_UPDATED, { hasPassword: true })
+    })
   }
 
   // 会議室（ホワイトボード／メモ／タブ）の同期メッセージを、その会議室にいる参加者にだけ配信する。
@@ -1167,6 +1213,11 @@ export class SkyOffice extends Room<OfficeState> {
 
   async onAuth(client: Client, options: { password: string | null }) {
     if (this.password) {
+      // パスワード未入力（null/空）で来た場合は 403。bcrypt.compare に null を
+      // 渡すと例外になるので、必ず先に弾く。
+      if (!options?.password) {
+        throw new ServerError(403, 'Password is required!')
+      }
       const validPassword = await bcrypt.compare(options.password, this.password)
       if (!validPassword) {
         throw new ServerError(403, 'Password is incorrect!')

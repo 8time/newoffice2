@@ -4,6 +4,7 @@ import styled from 'styled-components'
 import { useAppSelector, useAppDispatch } from './hooks'
 import { setRoomKey } from './stores/RoomStore'
 import { getRoomKeyFromUrl } from './util/roomKey'
+import { joinKeyedRoomWithPassword } from './util/joinRoom'
 import { getReconnectIntent } from './util/reconnect'
 import { resolveServerUrl } from './services/serverUrl'
 import phaserGame from './PhaserGame'
@@ -187,7 +188,7 @@ function App() {
         return
       }
       const joining = key
-        ? bootstrap.network.joinOrCreateKeyed(key).then(() => dispatch(setRoomKey(key)))
+        ? joinKeyedRoomWithPassword(bootstrap.network, key).then(() => dispatch(setRoomKey(key)))
         : bootstrap.network.joinOrCreatePublic()
       joining
         .then(() => bootstrap.launchGame())

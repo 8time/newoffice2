@@ -16,6 +16,7 @@ import { openStampManager } from '../stores/StampStore'
 import { setPlayerName, setAvatarName, setShowJoystick, toggleBackgroundMode } from '../stores/UserStore'
 import { BackgroundMode } from '../../../types/BackgroundMode'
 import { buildRoomUrl } from '../util/roomKey'
+import { rememberRoomPassword } from '../util/joinRoom'
 
 import phaserGame from '../PhaserGame'
 import Game from '../scenes/Game'
@@ -95,7 +96,10 @@ export default function SettingsDialog() {
   const roomName = useAppSelector((state) => state.room.roomName)
   const roomId = useAppSelector((state) => state.room.roomId)
   const roomKey = useAppSelector((state) => state.room.roomKey)
+  const roomHasPassword = useAppSelector((state) => state.room.roomHasPassword)
   const [copied, setCopied] = useState(false)
+  const [pwInput, setPwInput] = useState('')
+  const [pwMsg, setPwMsg] = useState('')
   const stampCount = useAppSelector((state) => Object.keys(state.stamp.stamps).length)
 
   const [name, setName] = useState(currentName)
@@ -126,6 +130,24 @@ export default function SettingsDialog() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, currentName, currentAvatar])
+
+  const applyRoomPassword = () => {
+    const v = pwInput.trim()
+    if (!v || !roomKey) return
+    getGame()?.network?.setRoomPassword(v)
+    rememberRoomPassword(roomKey, v) // 自分が締め出されないよう覚え直す
+    setPwInput('')
+    setPwMsg('合言葉を設定しました。友人に新しい合言葉を伝えてください。')
+    setTimeout(() => setPwMsg(''), 5000)
+  }
+
+  const removeRoomPassword = () => {
+    if (!roomKey) return
+    getGame()?.network?.setRoomPassword('')
+    rememberRoomPassword(roomKey, '')
+    setPwMsg('合言葉を解除しました（誰でも入れます）。')
+    setTimeout(() => setPwMsg(''), 5000)
+  }
 
   const copyRoomUrl = () => {
     navigator.clipboard?.writeText(buildRoomUrl(roomKey)).then(() => {
@@ -246,6 +268,41 @@ export default function SettingsDialog() {
             {copied ? 'コピーしました' : '招待URLをコピー'}
           </Button>
         </InfoBox>
+
+        {/* 固定ルーム（合言葉ルーム）だけ、入室パスワードを変更できる */}
+        {roomKey && (
+          <>
+            <FieldLabel>入室パスワード（合言葉）</FieldLabel>
+            <div style={{ fontSize: 12, color: roomHasPassword ? '#1a6b2a' : '#888', marginBottom: 6 }}>
+              現在: {roomHasPassword ? '🔒 設定あり（合言葉を知っている人だけ入れます）' : 'なし（このURLを知っていれば誰でも入れます）'}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <TextField
+                size="small"
+                fullWidth
+                variant="outlined"
+                placeholder="新しい合言葉を入力"
+                value={pwInput}
+                onChange={(e) => setPwInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') applyRoomPassword() }}
+                inputProps={{ maxLength: 40 }}
+              />
+              <Button variant="contained" color="secondary" onClick={applyRoomPassword} disabled={!pwInput.trim()}>
+                {roomHasPassword ? '変更' : '設定'}
+              </Button>
+            </div>
+            {roomHasPassword && (
+              <Button size="small" color="error" onClick={removeRoomPassword} style={{ marginTop: 6 }}>
+                合言葉を解除する
+              </Button>
+            )}
+            {pwMsg && <div style={{ fontSize: 12, color: '#1a6b2a', marginTop: 6 }}>{pwMsg}</div>}
+            <div style={{ fontSize: 11, color: '#999', marginTop: 4, lineHeight: 1.6 }}>
+              合言葉を変えても、部屋の中身（チャット・看板・伝言板・マップ配置など）はそのまま残ります。
+              変更すると古い合言葉では入れなくなるので、新しい合言葉を友人に伝えてください。
+            </div>
+          </>
+        )}
 
         <FieldLabel>操作方法</FieldLabel>
         <GuideList>

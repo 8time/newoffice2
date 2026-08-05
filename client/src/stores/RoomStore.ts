@@ -22,6 +22,8 @@ export const roomSlice = createSlice({
     roomName: '',
     roomDescription: '',
     roomKey: '',
+    // 現在の固定ルームに入室パスワード（合言葉）が設定されているか
+    roomHasPassword: false,
     availableRooms: new Array<RoomAvailable>(),
     // サーバーから切断された理由。'other-tab' は同じブラウザの別タブで
     // 同じ部屋を開いたため、このタブが追い出されたことを表す
@@ -33,6 +35,9 @@ export const roomSlice = createSlice({
     },
     setRoomKey: (state, action: PayloadAction<string>) => {
       state.roomKey = action.payload
+    },
+    setRoomHasPassword: (state, action: PayloadAction<boolean>) => {
+      state.roomHasPassword = action.payload
     },
     setRoomJoined: (state, action: PayloadAction<boolean>) => {
       state.roomJoined = action.payload
@@ -73,6 +78,7 @@ export const {
   setRoomJoined,
   setDisconnectReason,
   setRoomKey,
+  setRoomHasPassword,
   setJoinedRoomData,
   setAvailableRooms,
   addAvailableRooms,

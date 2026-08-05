@@ -19,3 +19,6 @@ builder.json
 meeting-docs.json
 meeting-tabs.json
 meeting-whiteboards.json
+board.json
+# 入室パスワードのハッシュ。秘密情報なので絶対にコミットしない
+roompass.json

@@ -36,6 +36,7 @@ import {
   addAvailableRooms,
   removeAvailableRooms,
   setDisconnectReason,
+  setRoomHasPassword,
 } from '../stores/RoomStore'
 import {
   pushChatMessage,
@@ -449,6 +450,12 @@ export default class Network {
     // ハンドラ登録後に一覧を要求する（取りこぼし防止）
     this.room.send(Message.REQUEST_BOARD)
 
+    // 入室パスワード（合言葉）の有無。入室時のmetadataで初期化し、変更通知で更新する
+    store.dispatch(setRoomHasPassword(!!(this.room as any).metadata?.hasPassword))
+    this.room.onMessage(Message.ROOM_PASSWORD_UPDATED, ({ hasPassword }: { hasPassword: boolean }) => {
+      store.dispatch(setRoomHasPassword(!!hasPassword))
+    })
+
     this.room.onMessage(Message.JUKEBOX_SYNC, (message) => {
       phaserEvents.emit('network-jukebox-sync', message)
     })
@@ -760,6 +767,11 @@ export default class Network {
 
   removeBoardMessage(id: string) {
     this.room?.send(Message.REMOVE_BOARD_MESSAGE, { id })
+  }
+
+  // 入室パスワード（合言葉）を設定/変更する。空文字を渡すと解除。
+  setRoomPassword(password: string) {
+    this.room?.send(Message.SET_ROOM_PASSWORD, { password })
   }
 
   // 頭上に出す。絵文字か、登録スタンプ（stampId）のどちらか
