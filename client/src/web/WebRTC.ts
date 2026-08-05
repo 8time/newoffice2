@@ -687,9 +687,12 @@ export default class WebRTC {
       // 解像度とフレームレートに上限をかける。無制限だと4K・高fpsで取得してしまい、
       // WebRTCの帯域を圧迫して遅延・カクつきの原因になる。画面共有(資料・コード等)は
       // 低fps・1080pで十分読めるので、上限を設けて遅延を大きく下げる。
+      // フレームレートは低めに。会議室では受信側が画面を大きく表示するため、
+      // 高fpsだと受信側(特に非力なノートPC)のデコード/描画が追いつかず、音・映像とも
+      // 遅延する。資料・コード共有は低fpsで十分読めるので上限を下げて受信側を軽くする。
       this.screenStream = await navigator.mediaDevices.getDisplayMedia({
         video: {
-          frameRate: { ideal: 8, max: 15 },
+          frameRate: { ideal: 6, max: 10 },
           width: { max: 1920 },
           height: { max: 1080 },
         },
