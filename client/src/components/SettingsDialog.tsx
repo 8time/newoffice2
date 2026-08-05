@@ -100,16 +100,32 @@ export default function SettingsDialog() {
 
   const [name, setName] = useState(currentName)
   const [avatar, setAvatar] = useState(currentAvatar)
+  // 設置した看板・画像の一覧（画面端で押せないものもここから削除できる）
+  const [signs, setSigns] = useState<Array<{ id: string; text: string; image: string }>>([])
+
+  const getGame = () => phaserGame.scene.keys.game as Game
+
+  // Phaser側の signboardData から一覧を取り出す（Reduxには無いので直接読む）
+  const refreshSigns = () => {
+    const map = (getGame() as unknown as { signboardData?: Map<string, { id: string; text?: string; image?: string }> })?.signboardData
+    const list = map ? [...map.values()] : []
+    setSigns(list.map((d) => ({ id: d.id, text: d.text || '', image: d.image || '' })))
+  }
+
+  const deleteSign = (id: string) => {
+    ;(getGame() as unknown as { network?: { removeSignboard?: (id: string) => void } })?.network?.removeSignboard?.(id)
+    setSigns((prev) => prev.filter((s) => s.id !== id))
+  }
 
   // ダイアログを開くたびに現在値へ同期する
   React.useEffect(() => {
     if (open) {
       setName(currentName)
       setAvatar(currentAvatar)
+      refreshSigns()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, currentName, currentAvatar])
-
-  const getGame = () => phaserGame.scene.keys.game as Game
 
   const copyRoomUrl = () => {
     navigator.clipboard?.writeText(buildRoomUrl(roomKey)).then(() => {
@@ -184,6 +200,35 @@ export default function SettingsDialog() {
         >
           スタンプを管理（{stampCount}個）
         </Button>
+
+        <FieldLabel>設置した画像・看板（{signs.length}）</FieldLabel>
+        {signs.length === 0 ? (
+          <div style={{ fontSize: 13, color: '#888', padding: '2px 0' }}>設置物はありません</div>
+        ) : (
+          <div style={{ maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {signs.map((s) => (
+              <div
+                key={s.id}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', border: '1px solid #ddd', borderRadius: 8 }}
+              >
+                {s.image ? (
+                  <img src={s.image} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4, flexShrink: 0, background: '#f0f0f0' }} />
+                ) : (
+                  <span style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 20 }}>📋</span>
+                )}
+                <span style={{ flex: 1, minWidth: 0, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {s.image ? '画像' : (s.text || '(空の看板)')}
+                </span>
+                <Button size="small" color="error" variant="outlined" onClick={() => deleteSign(s.id)}>
+                  削除
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ fontSize: 11, color: '#999', margin: '4px 0 4px' }}>
+          画面の端にあって押せない画像も、ここから削除できます。
+        </div>
 
         <FieldLabel>ルーム情報</FieldLabel>
         <InfoBox>
