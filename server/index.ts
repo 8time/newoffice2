@@ -12,7 +12,7 @@ import { spawn, ChildProcess } from 'child_process'
 
 // import socialRoutes from "@colyseus/social/express"
 
-import { SkyOffice, getAttendanceForDate } from './rooms/SkyOffice'
+import { SkyOffice, getAttendanceForDate, getAttendanceForRecentDays } from './rooms/SkyOffice'
 import { registerDoc, readDoc, writeDoc, hydrate, setLocalBlobDir, setLocalBackupDir, putBlob, getBlob, status as storageStatus } from './storage'
 import { startBackups, getBackupList, readBackup, restoreBackup, backupNow } from './backup'
 import { startFileCleanup, getUsage, deleteFileManually } from './cleanup'
@@ -39,6 +39,11 @@ app.use(express.static(CLIENT_DIST))
 
 // 勤怠記録取得API（?date=YYYY-MM-DD、省略時は今日）
 app.get('/api/attendance', (req, res) => {
+  // ?days=N があれば直近N日分（今日含む）。無ければ従来どおり当日（?date指定可）
+  const days = parseInt(String(req.query.days || ''), 10)
+  if (Number.isFinite(days) && days > 0) {
+    return res.json(getAttendanceForRecentDays(days))
+  }
   const date = (req.query.date as string) || new Date().toISOString().slice(0, 10)
   res.json(getAttendanceForDate(date))
 })

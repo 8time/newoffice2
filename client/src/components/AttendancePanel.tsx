@@ -157,7 +157,8 @@ export default function AttendancePanel() {
       // 以前は :2567 を決め打ちしていたため、本番では
       // https://<配信元>:2567/api/attendance へ繋ごうとして必ずタイムアウトしていた。
       // 解決規則はWebSocket接続先と共通のresolveServerUrlに任せる。
-      const res = await fetch(resolveServerUrl('/api/attendance'))
+      // 直近1週間ぶんを取得（「すべて表示」で過去も遡れる）
+      const res = await fetch(resolveServerUrl('/api/attendance?days=7'))
       if (res.ok) setRecords(await res.json())
     } catch (e) {
       console.warn('[Attendance] 取得失敗:', e)
@@ -174,13 +175,22 @@ export default function AttendancePanel() {
   const sorted = [...records].sort(
     (a, b) => new Date(b.checkIn).getTime() - new Date(a.checkIn).getTime()
   )
-  const visible = showAll ? sorted : sorted.slice(0, DEFAULT_VISIBLE)
+  // 一番新しい記録の日付を「今日」とみなす（サーバーはUTC日付で保存するため、
+  // ローカル日付と比べず、データ内の最新日で判定する）
+  const newestDate = sorted[0]?.date
+  const todays = sorted.filter((r) => r.date === newestDate)
+  // 既定は当日分のみ。すべて表示で過去1週間も出す
+  const visible = showAll ? sorted : todays.slice(0, DEFAULT_VISIBLE)
   const hiddenCount = sorted.length - visible.length
+  const mdLabel = (date: string) => {
+    const p = date.split('-')
+    return p.length === 3 ? `${+p[1]}/${+p[2]}` : date
+  }
 
   return (
     <Container>
       <Title>
-        今日の出社記録
+        {showAll ? '出社記録（直近1週間）' : '今日の出社記録'}
         <BtnRow>
           <RefreshBtn onClick={load}>更新</RefreshBtn>
           {(showAll || hiddenCount > 0) && (
@@ -203,8 +213,9 @@ export default function AttendancePanel() {
               />
               <span className="name">{r.name}</span>
               <span className="time">
+                {r.date !== newestDate && `${mdLabel(r.date)} `}
                 {fmt(r.checkIn)}
-                {r.checkOut ? ` → ${fmt(r.checkOut)}` : ' 〜 在席'}
+                {r.checkOut ? ` → ${fmt(r.checkOut)}` : (r.date === newestDate ? ' 〜 在席' : '')}
               </span>
               {r.userKey && r.userKey !== myKey && (
                 <button className="dm-btn" title={`${r.name}に置手紙を送る`} onClick={() => openLetter(r)}>

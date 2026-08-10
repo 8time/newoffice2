@@ -270,8 +270,14 @@ function saveSignboards(
       records.push({ id, x: sign.x, y: sign.y, text: sign.text, image: sign.image, url: sign.url, createdBy: sign.createdBy, bgColor: sign.bgColor, textColor: sign.textColor, scale: sign.scale })
     })
     const all = loadAllSignboards()
+    const prevCount = (all[roomKey] || []).length
     all[roomKey] = records
     writeDoc('signboards', all)
+    // 件数が変わったときだけ記録する（看板が勝手に消える不具合を追えるように）。
+    // 特に「減った」ときは意図した削除か、状態取りこぼしの上書きかを後で判別できる。
+    if (records.length !== prevCount) {
+      console.log(`[Signboards] 保存 room=${roomKey} ${prevCount}→${records.length}件`)
+    }
   } catch (e) {
     console.error('[Signboards] 保存失敗:', e)
   }
@@ -290,9 +296,9 @@ interface AttendanceRecord {
   checkOut: string | null
 }
 
-// 出社記録を残す日数。サイドバーに出すのは当日分だけで、遡って見る画面も無いため
-// 長く持つ意味がない。上限が無いと毎日の出退勤が永久に積み上がる。
-const ATTENDANCE_RETENTION_DAYS = 2
+// 出社記録を残す日数。サイドバーの「すべて表示」で直近1週間を遡れるようにする。
+// 上限が無いと毎日の出退勤が永久に積み上がるので上限は設ける。
+const ATTENDANCE_RETENTION_DAYS = 7
 
 function loadAttendance(): AttendanceRecord[] {
   return readDoc<AttendanceRecord[]>('attendance', [])
@@ -340,6 +346,13 @@ export function recordCheckOut(sessionId: string) {
 
 export function getAttendanceForDate(date: string): AttendanceRecord[] {
   return loadAttendance().filter((r) => r.date === date)
+}
+
+// 直近 days 日ぶんの記録（今日を含む）。サイドバーの「すべて表示」で1週間遡るのに使う。
+export function getAttendanceForRecentDays(days: number): AttendanceRecord[] {
+  const n = Math.max(1, Math.min(days, ATTENDANCE_RETENTION_DAYS))
+  const cutoff = new Date(Date.now() - (n - 1) * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  return loadAttendance().filter((r) => r && typeof r.date === 'string' && r.date >= cutoff)
 }
 
 export class SkyOffice extends Room<OfficeState> {
