@@ -9,6 +9,12 @@ import TextField from '@mui/material/TextField'
 
 import Switch from '@mui/material/Switch'
 import FormControlLabel from '@mui/material/FormControlLabel'
+import IconButton from '@mui/material/IconButton'
+import MicIcon from '@mui/icons-material/Mic'
+import MicOffIcon from '@mui/icons-material/MicOff'
+import VideocamIcon from '@mui/icons-material/Videocam'
+import VideocamOffIcon from '@mui/icons-material/VideocamOff'
+import VolumeUpIcon from '@mui/icons-material/VolumeUp'
 
 import { useAppDispatch, useAppSelector } from '../hooks'
 import { closeSettingsDialog } from '../stores/SettingsStore'
@@ -80,6 +86,96 @@ const GuideList = styled.ul`
   li strong { color: #1a6b2a; }
 `
 
+const MediaBox = styled.div`
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`
+
+const VideoPreviewWrapper = styled.div`
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #1a1a1a;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`
+
+const VideoPreview = styled.video`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+`
+
+const VideoOverlayNotice = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  gap: 6px;
+  pointer-events: none;
+`
+
+const PreviewControlRow = styled.div`
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  display: flex;
+  gap: 8px;
+  z-index: 2;
+`
+
+const DeviceSelect = styled.select`
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: #fff;
+  font-size: 13px;
+  color: #333;
+  outline: none;
+  box-sizing: border-box;
+  &:focus {
+    border-color: #1976d2;
+  }
+  &:disabled {
+    background: #f5f5f5;
+    color: #999;
+  }
+`
+
+const MeterContainer = styled.div`
+  width: 100%;
+  height: 10px;
+  background: #e0e0e0;
+  border-radius: 5px;
+  overflow: hidden;
+  margin-top: 4px;
+`
+
+const MeterBar = styled.div`
+  height: 100%;
+  width: 0%;
+  background: #4caf50;
+  border-radius: 5px;
+  transition: width 0.05s ease, background-color 0.1s ease;
+`
+
 const FieldLabel = styled.p`
   margin: 16px 0 4px;
   font-size: 14px;
@@ -107,7 +203,206 @@ export default function SettingsDialog() {
   // 設置した看板・画像の一覧（画面端で押せないものもここから削除できる）
   const [signs, setSigns] = useState<Array<{ id: string; text: string; image: string }>>([])
 
+  // カメラ・マイク設定用のステート
+  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([])
+  const [microphones, setMicrophones] = useState<MediaDeviceInfo[]>([])
+  const [selectedCameraId, setSelectedCameraId] = useState<string>('')
+  const [selectedMicId, setSelectedMicId] = useState<string>('')
+  const [hasMediaStream, setHasMediaStream] = useState<boolean>(false)
+  const [isVideoOff, setIsVideoOff] = useState<boolean>(false)
+  const [isAudioMuted, setIsAudioMuted] = useState<boolean>(false)
+  const [speakerTesting, setSpeakerTesting] = useState<boolean>(false)
+  const videoPreviewRef = React.useRef<HTMLVideoElement>(null)
+  const meterBarRef = React.useRef<HTMLDivElement>(null)
+  const audioContextRef = React.useRef<AudioContext | null>(null)
+  const animFrameRef = React.useRef<number | null>(null)
+
   const getGame = () => phaserGame.scene.keys.game as Game
+
+  // 音声レベルメーターの初期化・更新
+  const setupAudioMeter = (stream: MediaStream) => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current)
+      animFrameRef.current = null
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => {})
+      audioContextRef.current = null
+    }
+
+    const audioTracks = stream.getAudioTracks()
+    if (audioTracks.length === 0) {
+      if (meterBarRef.current) meterBarRef.current.style.width = '0%'
+      return
+    }
+
+    try {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+      if (!AudioCtx) return
+      const audioContext = new AudioCtx()
+      audioContextRef.current = audioContext
+
+      if (audioContext.state === 'suspended') {
+        audioContext.resume().catch(() => {})
+      }
+
+      const source = audioContext.createMediaStreamSource(stream)
+      const analyser = audioContext.createAnalyser()
+      analyser.fftSize = 256
+      source.connect(analyser)
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount)
+
+      const updateMeter = () => {
+        if (!audioContextRef.current) return
+        analyser.getByteFrequencyData(dataArray)
+        let sum = 0
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += dataArray[i]
+        }
+        const avg = sum / dataArray.length
+        const level = Math.min(100, Math.round((avg / 50) * 100))
+        if (meterBarRef.current) {
+          meterBarRef.current.style.width = `${level}%`
+          meterBarRef.current.style.background = level > 70 ? '#f44336' : level > 35 ? '#ff9800' : '#4caf50'
+        }
+        animFrameRef.current = requestAnimationFrame(updateMeter)
+      }
+      updateMeter()
+    } catch (err) {
+      console.error('Failed to setup audio meter:', err)
+    }
+  }
+
+  const cleanupMediaPreview = () => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current)
+      animFrameRef.current = null
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => {})
+      audioContextRef.current = null
+    }
+    if (videoPreviewRef.current) {
+      videoPreviewRef.current.srcObject = null
+    }
+    if (meterBarRef.current) {
+      meterBarRef.current.style.width = '0%'
+    }
+  }
+
+  const refreshMediaState = async () => {
+    const game = getGame()
+    const webRTC = game?.network?.webRTC
+
+    if (webRTC?.myStream) {
+      setHasMediaStream(true)
+      setIsVideoOff(webRTC.isVideoOff)
+      setIsAudioMuted(webRTC.isAudioMuted)
+      if (videoPreviewRef.current) {
+        videoPreviewRef.current.srcObject = webRTC.myStream
+      }
+      setupAudioMeter(webRTC.myStream)
+    } else {
+      setHasMediaStream(false)
+    }
+
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      const vList = devices.filter((d) => d.kind === 'videoinput')
+      const aList = devices.filter((d) => d.kind === 'audioinput')
+      setCameras(vList)
+      setMicrophones(aList)
+
+      const curCam = webRTC?.selectedCameraId || (webRTC?.myStream?.getVideoTracks()[0]?.getSettings?.()?.deviceId) || ''
+      const curMic = webRTC?.selectedMicId || (webRTC?.myStream?.getAudioTracks()[0]?.getSettings?.()?.deviceId) || ''
+      if (curCam) setSelectedCameraId(curCam)
+      else if (vList.length > 0) setSelectedCameraId(vList[0].deviceId)
+
+      if (curMic) setSelectedMicId(curMic)
+      else if (aList.length > 0) setSelectedMicId(aList[0].deviceId)
+    } catch (err) {
+      console.error('enumerateDevices error:', err)
+    }
+  }
+
+  const handleConnectMedia = async () => {
+    const game = getGame()
+    const webRTC = game?.network?.webRTC
+    if (!webRTC) return
+    const success = await webRTC.connectMedia(selectedCameraId, selectedMicId)
+    if (success) {
+      refreshMediaState()
+    }
+  }
+
+  const handleCameraChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const deviceId = e.target.value
+    setSelectedCameraId(deviceId)
+    const game = getGame()
+    const webRTC = game?.network?.webRTC
+    if (webRTC && webRTC.myStream) {
+      await webRTC.switchCamera(deviceId)
+      if (videoPreviewRef.current && webRTC.myStream) {
+        videoPreviewRef.current.srcObject = webRTC.myStream
+      }
+    }
+  }
+
+  const handleMicChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const deviceId = e.target.value
+    setSelectedMicId(deviceId)
+    const game = getGame()
+    const webRTC = game?.network?.webRTC
+    if (webRTC && webRTC.myStream) {
+      await webRTC.switchMicrophone(deviceId)
+      if (webRTC.myStream) {
+        setupAudioMeter(webRTC.myStream)
+      }
+    }
+  }
+
+  const toggleVideo = () => {
+    const game = getGame()
+    const webRTC = game?.network?.webRTC
+    if (!webRTC || !webRTC.myStream) return
+    const nextVideoOff = !webRTC.isVideoOff
+    webRTC.isVideoOff = nextVideoOff
+    webRTC.myStream.getVideoTracks().forEach((t) => (t.enabled = !nextVideoOff))
+    webRTC.replaceVideoTrackForAllPeers(nextVideoOff ? null : (webRTC.myStream.getVideoTracks()[0] || null))
+    setIsVideoOff(nextVideoOff)
+    webRTC.notifyVideoState()
+  }
+
+  const toggleMic = () => {
+    const game = getGame()
+    const webRTC = game?.network?.webRTC
+    if (!webRTC || !webRTC.myStream) return
+    const nextAudioMuted = !webRTC.isAudioMuted
+    webRTC.isAudioMuted = nextAudioMuted
+    webRTC.myStream.getAudioTracks().forEach((t) => (t.enabled = !nextAudioMuted))
+    webRTC.replaceTrackForAllPeers('audio', nextAudioMuted ? null : (webRTC.myStream.getAudioTracks()[0] || null))
+    setIsAudioMuted(nextAudioMuted)
+    webRTC.notifyVideoState()
+  }
+
+  const playSpeakerTest = () => {
+    try {
+      setSpeakerTesting(true)
+      const audio = new Audio('assets/audio/ping.mp3')
+      audio.play().then(() => {
+        setTimeout(() => setSpeakerTesting(false), 800)
+      }).catch((err) => {
+        console.warn('Audio play failed, fallback to phaser:', err)
+        const game = getGame()
+        game?.sound?.play('ping', { volume: 0.5 })
+        setTimeout(() => setSpeakerTesting(false), 800)
+      })
+    } catch (err) {
+      console.error('Speaker test failed:', err)
+      setSpeakerTesting(false)
+    }
+  }
 
   // Phaser側の signboardData から一覧を取り出す（Reduxには無いので直接読む）
   const refreshSigns = () => {
@@ -127,6 +422,12 @@ export default function SettingsDialog() {
       setName(currentName)
       setAvatar(currentAvatar)
       refreshSigns()
+      refreshMediaState()
+    } else {
+      cleanupMediaPreview()
+    }
+    return () => {
+      cleanupMediaPreview()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, currentName, currentAvatar])
@@ -174,7 +475,7 @@ export default function SettingsDialog() {
   }
 
   return (
-    <Dialog open={open} onClose={() => dispatch(closeSettingsDialog())} maxWidth="xs" fullWidth>
+    <Dialog open={open} onClose={() => dispatch(closeSettingsDialog())} maxWidth="sm" fullWidth>
       <DialogTitle>設定</DialogTitle>
       <DialogContent>
         <FieldLabel>名前</FieldLabel>
@@ -196,6 +497,146 @@ export default function SettingsDialog() {
             </AvatarPick>
           ))}
         </AvatarRow>
+
+        <FieldLabel>カメラ・マイクの設定</FieldLabel>
+        <MediaBox>
+          {/* 接続ステータス & 接続ボタン */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 10,
+                  height: 10,
+                  borderRadius: '50%',
+                  background: hasMediaStream ? '#4caf50' : '#ffa000',
+                  flexShrink: 0,
+                }}
+              />
+              <span style={{ fontWeight: 600, color: hasMediaStream ? '#2e7d32' : '#e65100' }}>
+                {hasMediaStream ? 'カメラ・マイク接続中' : 'カメラ・マイク未接続'}
+              </span>
+            </div>
+            {!hasMediaStream && (
+              <Button
+                size="small"
+                variant="contained"
+                color="secondary"
+                onClick={handleConnectMedia}
+                style={{ fontSize: 12 }}
+              >
+                カメラ・マイクを接続
+              </Button>
+            )}
+          </div>
+
+          {/* カメラ映像プレビュー */}
+          <VideoPreviewWrapper>
+            <VideoPreview
+              ref={videoPreviewRef}
+              autoPlay
+              playsInline
+              muted
+              style={{ opacity: isVideoOff || !hasMediaStream ? 0 : 1 }}
+            />
+            {(!hasMediaStream || isVideoOff) && (
+              <VideoOverlayNotice>
+                <VideocamOffIcon style={{ fontSize: 36, opacity: 0.7 }} />
+                <span>{!hasMediaStream ? 'カメラ未接続' : 'カメラはオフです'}</span>
+              </VideoOverlayNotice>
+            )}
+            {hasMediaStream && (
+              <PreviewControlRow>
+                <IconButton
+                  size="small"
+                  onClick={toggleMic}
+                  style={{
+                    background: isAudioMuted ? '#ea4335' : 'rgba(0, 0, 0, 0.6)',
+                    color: '#fff',
+                    padding: 6,
+                  }}
+                  title={isAudioMuted ? 'マイクをミュート解除' : 'マイクをミュート'}
+                >
+                  {isAudioMuted ? <MicOffIcon fontSize="small" /> : <MicIcon fontSize="small" />}
+                </IconButton>
+                <IconButton
+                  size="small"
+                  onClick={toggleVideo}
+                  style={{
+                    background: isVideoOff ? '#ea4335' : 'rgba(0, 0, 0, 0.6)',
+                    color: '#fff',
+                    padding: 6,
+                  }}
+                  title={isVideoOff ? 'カメラをオンにする' : 'カメラをオフにする'}
+                >
+                  {isVideoOff ? <VideocamOffIcon fontSize="small" /> : <VideocamIcon fontSize="small" />}
+                </IconButton>
+              </PreviewControlRow>
+            )}
+          </VideoPreviewWrapper>
+
+          {/* カメラ選択 */}
+          <div>
+            <div style={{ fontSize: 12, color: '#555', marginBottom: 4, fontWeight: 600 }}>カメラ</div>
+            <DeviceSelect
+              value={selectedCameraId}
+              onChange={handleCameraChange}
+              disabled={!hasMediaStream && cameras.length === 0}
+            >
+              {cameras.length === 0 && <option value="">カメラが見つかりません</option>}
+              {cameras.map((c, idx) => (
+                <option key={c.deviceId || idx} value={c.deviceId}>
+                  {c.label || `カメラ ${idx + 1}`}
+                </option>
+              ))}
+            </DeviceSelect>
+          </div>
+
+          {/* マイク選択 */}
+          <div>
+            <div style={{ fontSize: 12, color: '#555', marginBottom: 4, fontWeight: 600 }}>マイク</div>
+            <DeviceSelect
+              value={selectedMicId}
+              onChange={handleMicChange}
+              disabled={!hasMediaStream && microphones.length === 0}
+            >
+              {microphones.length === 0 && <option value="">マイクが見つかりません</option>}
+              {microphones.map((m, idx) => (
+                <option key={m.deviceId || idx} value={m.deviceId}>
+                  {m.label || `マイク ${idx + 1}`}
+                </option>
+              ))}
+            </DeviceSelect>
+          </div>
+
+          {/* マイク入力音量メーター */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#555', marginBottom: 2 }}>
+              <span style={{ fontWeight: 600 }}>マイク音量レベル</span>
+              <span style={{ color: isAudioMuted ? '#ea4335' : '#888' }}>
+                {isAudioMuted ? 'ミュート中' : hasMediaStream ? '音声入力を検知中' : '未接続'}
+              </span>
+            </div>
+            <MeterContainer>
+              <MeterBar ref={meterBarRef} />
+            </MeterContainer>
+          </div>
+
+          {/* スピーカー動作確認 */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 4 }}>
+            <div style={{ fontSize: 12, color: '#555', fontWeight: 600 }}>スピーカー確認</div>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<VolumeUpIcon />}
+              onClick={playSpeakerTest}
+              disabled={speakerTesting}
+              style={{ fontSize: 12 }}
+            >
+              {speakerTesting ? '再生中...' : 'テスト音を再生'}
+            </Button>
+          </div>
+        </MediaBox>
 
         <FieldLabel>表示</FieldLabel>
         <FormControlLabel

@@ -3,7 +3,7 @@ import Network from '../services/Network'
 import store from '../stores'
 import { setVideoConnected } from '../stores/UserStore'
 import { phaserEvents, Event } from '../events/EventCenter'
-import { AUDIO_PROCESSING } from '../util/audioConstraints'
+import { AUDIO_PROCESSING, buildAudioConstraints } from '../util/audioConstraints'
 import { preferOpusDtxFec } from '../util/sdpOpus'
 import { recordDisconnect } from '../util/disconnectLog'
 
@@ -77,6 +77,8 @@ export default class WebRTC {
   isAudioMuted = false
   isVideoOff = false
   isSharingScreen = false
+  selectedCameraId?: string
+  selectedMicId?: string
 
   attachLocalVideo(containerId = 'my-video-mount') {
     const mount = document.getElementById(containerId)
@@ -370,6 +372,105 @@ export default class WebRTC {
     this.network.videoConnected()
     this.network.updateMediaStatus(this.isVideoOff, this.isAudioMuted) // 初期状態をサーバーに同期
     this.notifyVideoState()
+  }
+
+  // 設定ダイアログ等から直接カメラ・マイクのストリームを開始する
+  async connectMedia(cameraId?: string, micId?: string): Promise<boolean> {
+    try {
+      const constraints: MediaStreamConstraints = {
+        video: cameraId ? { deviceId: { exact: cameraId } } : true,
+        audio: buildAudioConstraints(micId),
+      }
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
+      if (cameraId) this.selectedCameraId = cameraId
+      if (micId) this.selectedMicId = micId
+      this.setMediaStream(stream)
+      return true
+    } catch (err) {
+      console.error('connectMedia error:', err)
+      return false
+    }
+  }
+
+  // カメラデバイスの動的切り替え（通話相手への配信トラックも即座に差し替え）
+  async switchCamera(deviceId: string): Promise<boolean> {
+    try {
+      const constraints: MediaStreamConstraints = {
+        video: deviceId ? { deviceId: { exact: deviceId } } : true,
+      }
+      const newStream = await navigator.mediaDevices.getUserMedia(constraints)
+      const newVideoTrack = newStream.getVideoTracks()[0]
+      if (!newVideoTrack) return false
+
+      this.selectedCameraId = deviceId
+      try { localStorage.setItem('skyoffice_selectedCameraId', deviceId) } catch {}
+
+      if (this.myStream) {
+        const oldVideoTrack = this.myStream.getVideoTracks()[0]
+        if (oldVideoTrack) {
+          oldVideoTrack.stop()
+          this.myStream.removeTrack(oldVideoTrack)
+        }
+        newVideoTrack.enabled = !this.isVideoOff
+        this.myStream.addTrack(newVideoTrack)
+      } else {
+        this.setMediaStream(newStream)
+        return true
+      }
+
+      // 接続中の全ピアのビデオトラックを差し替え
+      this.replaceVideoTrackForAllPeers(this.isVideoOff ? null : newVideoTrack)
+
+      // ローカル映像表示を更新
+      if (this.myVideo) {
+        this.myVideo.srcObject = this.myStream
+        this.myVideo.play().catch(() => undefined)
+        this.applyVideoFallback(this.myVideo, this.isVideoOff)
+      }
+
+      this.notifyVideoState()
+      return true
+    } catch (err) {
+      console.error('Failed to switch camera:', err)
+      return false
+    }
+  }
+
+  // マイクデバイスの動的切り替え（通話相手への配信トラックも即座に差し替え）
+  async switchMicrophone(deviceId: string): Promise<boolean> {
+    try {
+      const constraints: MediaStreamConstraints = {
+        audio: buildAudioConstraints(deviceId),
+      }
+      const newStream = await navigator.mediaDevices.getUserMedia(constraints)
+      const newAudioTrack = newStream.getAudioTracks()[0]
+      if (!newAudioTrack) return false
+
+      this.selectedMicId = deviceId
+      try { localStorage.setItem('skyoffice_selectedMicId', deviceId) } catch {}
+
+      if (this.myStream) {
+        const oldAudioTrack = this.myStream.getAudioTracks()[0]
+        if (oldAudioTrack) {
+          oldAudioTrack.stop()
+          this.myStream.removeTrack(oldAudioTrack)
+        }
+        newAudioTrack.enabled = !this.isAudioMuted
+        this.myStream.addTrack(newAudioTrack)
+      } else {
+        this.setMediaStream(newStream)
+        return true
+      }
+
+      // 接続中の全ピアのオーディオトラックを差し替え
+      this.replaceTrackForAllPeers('audio', this.isAudioMuted ? null : newAudioTrack)
+
+      this.notifyVideoState()
+      return true
+    } catch (err) {
+      console.error('Failed to switch microphone:', err)
+      return false
+    }
   }
 
   connectToNewUser(userId: string) {
