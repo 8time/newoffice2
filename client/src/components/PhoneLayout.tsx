@@ -10,6 +10,7 @@ import { syncPhoneTabAttribute } from '../hooks/usePhoneBodyClass'
 import { useVisualViewportKeyboard } from '../hooks/useVisualViewportKeyboard'
 import { useAppDispatch } from '../hooks'
 import { setFocused, setShowChat } from '../stores/ChatStore'
+import { closeDm } from '../stores/DMStore'
 import phaserGame from '../PhaserGame'
 
 export type PhoneTab = 'office' | 'members' | 'chat' | 'attendance'
@@ -46,6 +47,11 @@ export default function PhoneLayout() {
       dispatch(setShowChat(true))
       dispatch(setFocused(false))
     }
+  }, [tab, dispatch])
+
+  // スマホでタブが切り替わった時（メンバーからオフィスに戻った等）はDMを閉じる
+  useEffect(() => {
+    dispatch(closeDm())
   }, [tab, dispatch])
 
   /* body 直下に portal し canvas より必ず前面に出す（全画面オーバーレイは使わない） */

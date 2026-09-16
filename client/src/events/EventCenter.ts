@@ -54,6 +54,7 @@ export enum Event {
   SIGNBOARD_UPDATED = 'signboard-updated',
   // 看板の設置を確定（入力ダイアログ → クリック位置に設置）
   SIGNBOARD_PLACE = 'signboard-place',
+  SIGNBOARD_PLACE_CANCEL = 'signboard-place-cancel',
   // ノック（呼び出し）
   KNOCK_RECEIVED = 'knock-received',
   DM_RECEIVED = 'dm-received',

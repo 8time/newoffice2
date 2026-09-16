@@ -25,7 +25,7 @@ import { ItemType } from '../../../types/Items'
 import store from '../stores'
 import { isPhone } from '../utils/deviceDetect'
 import { setFocused, setShowChat } from '../stores/ChatStore'
-import { requestDeleteSignboard, openEditSignboard } from '../stores/SignboardStore'
+import { requestDeleteSignboard, openEditSignboard, setSignboardPlacing } from '../stores/SignboardStore'
 import { setPlayState, playSongByIndex, setCurrentSong } from '../stores/JukeboxStore'
 import {
   addPlacedItem,
@@ -517,6 +517,7 @@ export default class Game extends Phaser.Scene {
     phaserEvents.on(Event.SIGNBOARD_SCALED, this.handleSignboardScaled, this)
     phaserEvents.on(Event.SIGNBOARD_UPDATED, this.handleSignboardUpdated, this)
     phaserEvents.on(Event.SIGNBOARD_PLACE, this.handleSignboardPlace, this)
+    phaserEvents.on(Event.SIGNBOARD_PLACE_CANCEL, this.exitSignboardPlacement, this)
     phaserEvents.on(Event.EMOTE_RECEIVED, this.handleEmote, this)
 
     // 入室時点で既にサーバー上にある看板・設置物を描画する（再入室で消えないように）。
@@ -554,6 +555,7 @@ export default class Game extends Phaser.Scene {
       phaserEvents.off(Event.SIGNBOARD_SCALED, this.handleSignboardScaled, this)
       phaserEvents.off(Event.SIGNBOARD_UPDATED, this.handleSignboardUpdated, this)
       phaserEvents.off(Event.SIGNBOARD_PLACE, this.handleSignboardPlace, this)
+      phaserEvents.off(Event.SIGNBOARD_PLACE_CANCEL, this.exitSignboardPlacement, this)
       phaserEvents.off(Event.EMOTE_RECEIVED, this.handleEmote, this)
     })
   }
@@ -649,6 +651,7 @@ export default class Game extends Phaser.Scene {
     if (this.isPlacingSignboard) this.exitSignboardPlacement()
     this.signboardPlacingData = content
     this.isPlacingSignboard = true
+    store.dispatch(setSignboardPlacing(true))
     this.input.setDefaultCursor('crosshair')
     this.signboardPreview = this.buildSignboardPreview(content)
 
@@ -728,6 +731,7 @@ export default class Game extends Phaser.Scene {
   private exitSignboardPlacement() {
     this.isPlacingSignboard = false
     this.signboardPlacingData = null
+    store.dispatch(setSignboardPlacing(false))
     if (this.signboardPreview) {
       this.signboardPreview.destroy(true)
       this.signboardPreview = null

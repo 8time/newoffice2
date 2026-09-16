@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import styled from 'styled-components'
 import IconButton from '@mui/material/IconButton'
 import CloseIcon from '@mui/icons-material/Close'
@@ -22,6 +23,32 @@ const Backdrop = styled.div`
   max-height: 60%;
   max-width: 100%;
   z-index: 900;
+
+  @media (max-width: 767px) {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+    max-width: 100%;
+    z-index: 1350;
+    background: rgba(0, 0, 0, 0.5);
+  }
+
+  body.is-phone & {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+    max-width: 100%;
+    z-index: 1350;
+    background: rgba(0, 0, 0, 0.5);
+  }
 `
 
 const Wrapper = styled.div`
@@ -30,6 +57,20 @@ const Wrapper = styled.div`
   padding: 16px;
   display: flex;
   flex-direction: column;
+
+  @media (max-width: 767px) {
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background: #1a1a2e;
+  }
+
+  body.is-phone & {
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background: #1a1a2e;
+  }
 `
 
 const Header = styled.div`
@@ -44,11 +85,27 @@ const Header = styled.div`
 
   h3 { color: #fff; margin: 0; font-size: 18px; font-weight: 700; flex: 1; text-align: center; }
   .btn { color: #fff; }
+
+  @media (max-width: 767px) {
+    height: 52px;
+    border-radius: 0;
+    padding: 0 12px;
+    h3 { font-size: 16px; }
+  }
+
+  body.is-phone & {
+    height: 52px;
+    border-radius: 0;
+    padding: 0 12px;
+    h3 { font-size: 16px; }
+  }
 `
 
 const Box = styled.div`
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: #1a1a2e;
   border: 2px solid #00000029;
   padding: 10px 8px;
@@ -58,6 +115,16 @@ const Box = styled.div`
 
   &::-webkit-scrollbar { width: 4px; }
   &::-webkit-scrollbar-thumb { background: #444; border-radius: 2px; }
+
+  @media (max-width: 767px) {
+    border: none;
+    padding: 12px 10px;
+  }
+
+  body.is-phone & {
+    border: none;
+    padding: 12px 10px;
+  }
 `
 
 const BubbleRow = styled.div<{ isMine: boolean }>`
@@ -116,6 +183,40 @@ const InputBar = styled.form`
     font-weight: 700;
     &:disabled { opacity: 0.4; cursor: not-allowed; }
   }
+
+  @media (max-width: 767px) {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    background: #111424;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    input {
+      font-size: 16px;
+      padding: 14px 12px;
+    }
+    button {
+      padding: 0 20px;
+      font-size: 15px;
+    }
+  }
+
+  body.is-phone & {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    background: #111424;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    input {
+      font-size: 16px;
+      padding: 14px 12px;
+    }
+    button {
+      padding: 0 20px;
+      font-size: 15px;
+    }
+  }
 `
 
 const timeFmt = new Intl.DateTimeFormat('ja', { timeStyle: 'short' })
@@ -139,6 +240,7 @@ export default function DMDialog() {
   const messagesByKey = useAppSelector((state) => state.dm.messagesByKey)
   const namesByKey = useAppSelector((state) => state.dm.namesByKey)
   const [input, setInput] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const myKey = getClientId()
 
@@ -165,9 +267,13 @@ export default function DMDialog() {
     const game = phaserGame.scene.keys.game as Game
     game?.network?.sendDm(openKey, val)
     setInput('')
+    // 送信後も入力欄にフォーカスを維持し、連続送信をスムーズにする
+    setTimeout(() => {
+      inputRef.current?.focus()
+    }, 0)
   }
 
-  return (
+  return createPortal(
     <Backdrop>
       <Wrapper>
         <Header>
@@ -200,14 +306,17 @@ export default function DMDialog() {
 
         <InputBar onSubmit={handleSend}>
           <input
+            ref={inputRef}
             autoFocus
             placeholder={`${otherName}へメッセージ`}
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.stopPropagation()}
           />
           <button type="submit" disabled={!input.trim()}>送信</button>
         </InputBar>
       </Wrapper>
-    </Backdrop>
+    </Backdrop>,
+    document.body
   )
 }

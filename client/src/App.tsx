@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import styled from 'styled-components'
 
 import { useAppSelector, useAppDispatch } from './hooks'
@@ -44,6 +45,48 @@ import DisconnectedNotice from './components/DisconnectedNotice'
 import StorageMeter, { Usage } from './components/StorageMeter'
 import StorageDialog from './components/StorageDialog'
 import DisconnectLogPanel from './components/DisconnectLogPanel'
+import { phaserEvents, Event } from './events/EventCenter'
+
+const PlacingBanner = styled.div`
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2500;
+  background: rgba(26, 32, 53, 0.95);
+  color: #fff;
+  border: 2px solid #5599ee;
+  border-radius: 30px;
+  padding: 8px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  font-size: 14px;
+  font-weight: 500;
+
+  @media (max-width: 767px) {
+    top: calc(var(--phone-header-h, 48px) + var(--phone-tabbar-h, 40px) + 10px);
+    width: calc(100% - 32px);
+    max-width: 360px;
+    justify-content: space-between;
+    font-size: 13px;
+    padding: 6px 12px;
+  }
+
+  button {
+    background: #e74c3c;
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    &:hover { background: #c0392b; }
+  }
+`
 
 // ReactのUIオーバーレイの最外枠
 const Backdrop = styled.div`
@@ -184,6 +227,7 @@ function App() {
   const isBuilderMode = useAppSelector((state) => state.mapBuilder.isBuilderMode)
   const activeMeetingRoom = useAppSelector((state) => state.meetingRoom.activeRoom)
   const signboardDialogOpen = useAppSelector((state) => state.signboard.signboardDialogOpen)
+  const isPlacingSignboard = useAppSelector((state) => state.signboard.isPlacing)
   const editBoard = useAppSelector((state) => state.signboard.editBoard)
   const dispatch = useAppDispatch()
   const autoJoinTried = useRef(false)
@@ -268,6 +312,20 @@ function App() {
 
       {/* 看板の入力ダイアログ（サイドバーより前面に出すためルート直下に配置） */}
       {loggedIn && signboardDialogOpen && <SignboardDialog />}
+
+      {/* 看板配置モード中の案内とキャンセルボタン */}
+      {loggedIn && isPlacingSignboard && createPortal(
+        <PlacingBanner>
+          <span>看板を設置する位置をタップ</span>
+          <button
+            type="button"
+            onClick={() => phaserEvents.emit(Event.SIGNBOARD_PLACE_CANCEL)}
+          >
+            配置をキャンセル
+          </button>
+        </PlacingBanner>,
+        document.body
+      )}
 
       {/* 伝言板ダイアログ（同上：サイドバーに隠れないようルート直下に配置） */}
       {loggedIn && <MessageBoardDialog />}

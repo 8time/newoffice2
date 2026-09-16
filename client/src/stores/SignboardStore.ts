@@ -12,12 +12,14 @@ export interface SignboardData {
 
 interface SignboardState {
   signboardDialogOpen: boolean
+  isPlacing: boolean
   deleteConfirm: { id: string; x: number; y: number } | null
   editBoard: SignboardData | null
 }
 
 const initialState: SignboardState = {
   signboardDialogOpen: false,
+  isPlacing: false,
   deleteConfirm: null,
   editBoard: null,
 }
@@ -31,6 +33,9 @@ export const signboardSlice = createSlice({
     },
     closeSignboardDialog: (state) => {
       state.signboardDialogOpen = false
+    },
+    setSignboardPlacing: (state, action: PayloadAction<boolean>) => {
+      state.isPlacing = action.payload
     },
     requestDeleteSignboard: (state, action: PayloadAction<{ id: string; x: number; y: number }>) => {
       state.deleteConfirm = action.payload
@@ -50,6 +55,7 @@ export const signboardSlice = createSlice({
 export const {
   openSignboardDialog,
   closeSignboardDialog,
+  setSignboardPlacing,
   requestDeleteSignboard,
   clearDeleteConfirm,
   openEditSignboard,

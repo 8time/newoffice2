@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import styled from 'styled-components'
 
 import { useAppDispatch } from '../hooks'
@@ -259,9 +260,15 @@ export default function SignboardDialog() {
     dispatch(closeSignboardDialog())
   }
 
-  return (
-    <Backdrop onMouseDown={() => dispatch(closeSignboardDialog())}>
-      <Panel onMouseDown={(e) => e.stopPropagation()}>
+  return createPortal(
+    <Backdrop
+      onClick={() => dispatch(closeSignboardDialog())}
+      onMouseDown={() => dispatch(closeSignboardDialog())}
+    >
+      <Panel
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <Title>看板を設置</Title>
 
         <Label>メモ / テキスト（Shift + Enter で改行）</Label>
@@ -355,12 +362,13 @@ export default function SignboardDialog() {
         <Hint>「設置モードへ」を押した後、マップ上でクリックした場所に看板が設置されます。ESCまたは右クリックでキャンセル。</Hint>
 
         <Actions>
-          <Button onClick={() => dispatch(closeSignboardDialog())}>キャンセル</Button>
-          <Button primary disabled={!canSubmit} onClick={handleSubmit}>
+          <Button type="button" onClick={() => dispatch(closeSignboardDialog())}>キャンセル</Button>
+          <Button type="button" primary disabled={!canSubmit} onClick={handleSubmit}>
             設置モードへ →
           </Button>
         </Actions>
       </Panel>
-    </Backdrop>
+    </Backdrop>,
+    document.body
   )
 }
