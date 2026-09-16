@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import phaserGame from '../PhaserGame'
 import PhoneHeader from './PhoneHeader'
 import PhoneActionBar from './PhoneActionBar'
 import OnlineUsers from './OnlineUsers'
@@ -26,6 +27,10 @@ export default function PhoneLayout() {
 
   useEffect(() => {
     setPhoneTabAttribute(tab)
+    if (tab === 'office') {
+      // タブ復帰時に Phaser の描画領域をコンテナサイズへ合わせ直す
+      requestAnimationFrame(() => phaserGame.scale.refresh())
+    }
     return () => setPhoneTabAttribute(null)
   }, [tab])
 
@@ -53,7 +58,7 @@ export default function PhoneLayout() {
       </nav>
 
       {tab === 'office' ? (
-        <div className="phone-main" aria-hidden="true" />
+        <div className="phone-map-spacer" aria-hidden="true" />
       ) : (
         <main className="phone-main">
           {tab === 'members' && (

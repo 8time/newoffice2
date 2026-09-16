@@ -257,7 +257,7 @@ function App() {
       {/* 接続の切断履歴をページ内で確認するパネル（コンソール入力が使えない環境向け） */}
       <DisconnectLogPanel />
 
-      <Backdrop>
+      <Backdrop className="app-backdrop">
         {ui}
         {loggedIn && isBuilderMode && <MapBuilder />}
         {loggedIn && <JukeboxDialog />}

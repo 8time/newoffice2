@@ -6,16 +6,99 @@
 
 @media (pointer: coarse) and (max-width: 767px) {
   body.is-phone {
-    overflow: hidden;
-    height: 100dvh;
-    height: 100vh;
     --phone-header-h: 48px;
     --phone-tabbar-h: 44px;
     --phone-actionbar-h: 56px;
     --phone-keyboard-offset: 0px;
   }
 
-  body.is-phone #root {
+  /* ログイン前は縦スクロール可能に（scale(2) の見切れ対策） */
+  body.is-phone:not(.logged-in) {
+    overflow-x: hidden;
+    overflow-y: auto;
+    min-height: 100dvh;
+    min-height: 100vh;
+  }
+
+  body.is-phone:not(.logged-in) #root {
+    height: auto;
+    min-height: 100dvh;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  body.is-phone:not(.logged-in) .app-backdrop {
+    position: fixed !important;
+    inset: 0 !important;
+    height: auto !important;
+    min-height: 100dvh;
+    min-height: 100vh;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    z-index: 2000;
+    pointer-events: auto !important;
+  }
+
+  /* ルーム選択（scale(2) を打ち消し） */
+  body.is-phone .room-selection-backdrop {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    transform: none !important;
+    width: 100% !important;
+    min-height: min(100dvh, 100vh);
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 12px
+      calc(16px + env(safe-area-inset-bottom, 0px));
+    gap: 16px !important;
+    box-sizing: border-box;
+  }
+
+  body.is-phone .room-selection-panel {
+    width: 100% !important;
+    max-width: 420px !important;
+    padding: 20px 16px !important;
+    box-sizing: border-box;
+  }
+
+  body.is-phone .room-selection-panel img {
+    height: 72px !important;
+  }
+
+  /* 入室ダイアログ（scale(1.2) + 横並びを打ち消し） */
+  body.is-phone .login-dialog-form {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    transform: none !important;
+    width: 100% !important;
+    max-width: 420px !important;
+    margin: 0 auto;
+    padding: 20px 16px !important;
+    box-sizing: border-box;
+  }
+
+  body.is-phone .login-dialog-content {
+    flex-direction: column !important;
+    align-items: center !important;
+    margin: 16px 0 !important;
+  }
+
+  body.is-phone .login-dialog-left {
+    margin-right: 0 !important;
+    margin-bottom: 12px;
+  }
+
+  body.is-phone .login-dialog-right {
+    width: 100% !important;
+  }
+
+  body.is-phone.logged-in {
+    overflow: hidden;
+    height: 100dvh;
+    height: 100vh;
+  }
+
+  body.is-phone.logged-in #root {
     height: 100dvh;
     height: 100vh;
     overflow: hidden;
@@ -135,6 +218,14 @@
     background: rgba(66, 234, 203, 0.08);
   }
 
+  /* オフィスタブ: マップを透かして見せる（pointer-events は Phaser へ通す） */
+  body.is-phone .phone-map-spacer {
+    flex: 1;
+    min-height: 0;
+    background: transparent;
+    pointer-events: none;
+  }
+
   body.is-phone .phone-main {
     flex: 1;
     min-height: 0;
@@ -168,7 +259,9 @@
     width: 100% !important;
     bottom: calc(var(--phone-actionbar-h) + env(safe-area-inset-bottom, 0px)) !important;
     height: auto !important;
-    z-index: 0;
+    visibility: visible !important;
+    pointer-events: auto !important;
+    z-index: 100;
   }
 
   body.is-phone:not([data-phone-tab='office']) #phaser-container {

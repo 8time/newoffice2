@@ -336,7 +336,7 @@ export default function LoginDialog() {
   }
 
   return (
-    <Wrapper onSubmit={handleSubmit}>
+    <Wrapper className="login-dialog-form" onSubmit={handleSubmit}>
       <Title>入室中</Title>
       <RoomName>
         <Avatar style={{ background: getColorByString(roomName) }}>
@@ -347,8 +347,8 @@ export default function LoginDialog() {
       <RoomDescription>
         <ArrowRightIcon /> {roomDescription}
       </RoomDescription>
-      <Content>
-        <Left>
+      <Content className="login-dialog-content">
+        <Left className="login-dialog-left">
           <SubTitle>アバターを選択</SubTitle>
           <Swiper
             modules={[Navigation]}
@@ -367,7 +367,7 @@ export default function LoginDialog() {
             ))}
           </Swiper>
         </Left>
-        <Right>
+        <Right className="login-dialog-right">
           <TextField
             autoFocus={!autoLogin}
             fullWidth

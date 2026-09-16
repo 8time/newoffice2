@@ -191,8 +191,8 @@ export default function RoomSelectionDialog() {
           サーバーに接続中、もう一度お試しください！
         </Alert>
       </Snackbar>
-      <Backdrop>
-        <Wrapper>
+      <Backdrop className="room-selection-backdrop">
+        <Wrapper className="room-selection-panel">
           {showCreateRoomForm ? (
             <CustomRoomWrapper>
               <TitleWrapper>
