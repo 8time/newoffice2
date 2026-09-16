@@ -317,8 +317,8 @@ function App() {
         />
       )}
 
-      {/* スマホ専用タブUI（タブレットは従来の縦積みサイドバーのまま） */}
-      {loggedIn && isPhone && <PhoneLayout />}
+      {/* スマホ専用タブUI（会議室入室中は会議室専用UIとなるため非表示） */}
+      {loggedIn && isPhone && !activeMeetingRoom && <PhoneLayout />}
 
       {/* 右サイドバー（スマホは PhoneLayout に任せる） */}
       {loggedIn && !isPhone && (

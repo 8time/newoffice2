@@ -116,12 +116,32 @@ const Shell = styled.div`
   inset: 0;
   z-index: 3000;
   display: grid;
-  grid-template-columns: 1fr ${CAM_W}px;
-  grid-template-rows: 1fr ${BAR_H}px;
+  grid-template-columns: 1fr var(--mr-cam-w, ${CAM_W}px);
+  grid-template-rows: 1fr var(--mr-bar-h, ${BAR_H}px);
   background: #1a1a1a;
   color: #f0f0f0;
   pointer-events: auto;
   overflow: hidden;
+
+  --mr-cam-w: ${CAM_W}px;
+  --mr-cam-h: ${CAM_H}px;
+  --mr-bar-h: ${BAR_H}px;
+
+  /* タブレット（768px〜1200px / タッチ）: 右側キャラ列を180pxに縮小し中央を約100px拡大 */
+  @media (pointer: coarse) and (min-width: 768px), (min-width: 768px) and (max-width: 1200px) {
+    --mr-cam-w: 180px;
+    --mr-cam-h: 135px;
+    --mr-bar-h: 96px;
+  }
+
+  /* スマホ（〜767px）: 縦積みレイアウト（上部参加者列、中央全幅作業域、下部バー） */
+  @media (max-width: 767px) {
+    display: flex;
+    flex-direction: column;
+    --mr-cam-w: 80px;
+    --mr-cam-h: 60px;
+    --mr-bar-h: 60px;
+  }
 `
 
 /* ──── 左上：ホワイトボードエリア（タブバー＋キャンバス） ──────────────── */
@@ -134,6 +154,11 @@ const WhiteboardArea = styled.div`
   display: flex;
   flex-direction: column;
   position: relative;
+
+  @media (max-width: 767px) {
+    order: 2;
+    flex: 1;
+  }
 `
 
 /* ──── 画面共有／ホワイトボード切り替えバー ─────────────────────────────── */
@@ -143,6 +168,11 @@ const ScreenShareToggleBar = styled.div`
   background: #2a2a2a;
   padding: 8px 16px;
   flex-shrink: 0;
+
+  @media (max-width: 767px) {
+    padding: 4px 8px;
+    gap: 2px;
+  }
 `
 
 const ScreenShareToggleBtn = styled.button<{ active: boolean }>`
@@ -154,6 +184,12 @@ const ScreenShareToggleBtn = styled.button<{ active: boolean }>`
   font-size: 14px;
   font-weight: ${({ active }) => (active ? '700' : '400')};
   cursor: pointer;
+
+  @media (max-width: 767px) {
+    padding: 4px 10px;
+    font-size: 12px;
+    border-radius: 6px;
+  }
 
   &:hover { background: #1e3a5f; }
 `
@@ -185,6 +221,17 @@ const TabBarWrap = styled.div`
 
   &::-webkit-scrollbar { height: 6px; }
   &::-webkit-scrollbar-thumb { background: #aaa; border-radius: 3px; }
+
+  @media (pointer: coarse) and (min-width: 768px), (min-width: 768px) and (max-width: 1200px) {
+    height: 56px;
+    padding: 0 10px;
+  }
+
+  @media (max-width: 767px) {
+    height: 40px;
+    padding: 0 6px;
+    gap: 2px;
+  }
 `
 
 const TabItem = styled.div<{ active: boolean; $tabColor?: string }>`
@@ -209,6 +256,24 @@ const TabItem = styled.div<{ active: boolean; $tabColor?: string }>`
   flex-shrink: 0;
   transition: all 0.12s;
 
+  @media (pointer: coarse) and (min-width: 768px), (min-width: 768px) and (max-width: 1200px) {
+    height: 46px;
+    padding: 0 16px;
+    font-size: 18px;
+    gap: 8px;
+    border-top-width: 4px;
+    border-radius: 10px 10px 0 0;
+  }
+
+  @media (max-width: 767px) {
+    height: 32px;
+    padding: 0 8px;
+    font-size: 13px;
+    gap: 4px;
+    border-top-width: 3px;
+    border-radius: 6px 6px 0 0;
+  }
+
   &:hover {
     opacity: 1;
     background: ${({ active, $tabColor }) => active ? '#fffaf0' : ($tabColor || '#c8c1b4')};
@@ -223,6 +288,16 @@ const TabInput = styled.input`
   font-weight: 700;
   color: #2a2014;
   width: 220px;
+
+  @media (pointer: coarse) and (min-width: 768px), (min-width: 768px) and (max-width: 1200px) {
+    font-size: 18px;
+    width: 140px;
+  }
+
+  @media (max-width: 767px) {
+    font-size: 13px;
+    width: 90px;
+  }
 `
 
 const TabCloseBtn = styled.span`
@@ -235,6 +310,18 @@ const TabCloseBtn = styled.span`
   font-size: 24px;
   color: #888;
   flex-shrink: 0;
+
+  @media (pointer: coarse) and (min-width: 768px), (min-width: 768px) and (max-width: 1200px) {
+    width: 24px;
+    height: 24px;
+    font-size: 16px;
+  }
+
+  @media (max-width: 767px) {
+    width: 18px;
+    height: 18px;
+    font-size: 12px;
+  }
 
   &:hover {
     background: rgba(0,0,0,0.15);
@@ -256,6 +343,20 @@ const AddTabBtn = styled.button`
   cursor: pointer;
   flex-shrink: 0;
   margin-bottom: 4px;
+
+  @media (pointer: coarse) and (min-width: 768px), (min-width: 768px) and (max-width: 1200px) {
+    width: 40px;
+    height: 40px;
+    font-size: 28px;
+    margin-bottom: 2px;
+  }
+
+  @media (max-width: 767px) {
+    width: 28px;
+    height: 28px;
+    font-size: 18px;
+    margin-bottom: 1px;
+  }
 
   &:hover {
     background: rgba(0,0,0,0.12);
@@ -317,6 +418,47 @@ const VMTab = styled.button<{ active: boolean }>`
   }
 `
 
+/* ──── スマホ用「メモ／ボード」切替バー ───────────────────────────── */
+
+const PhonePaneToggle = styled.div`
+  display: none;
+  background: #ded7c8;
+  border-bottom: 2px solid #c5b99a;
+  padding: 6px 10px;
+  gap: 8px;
+  flex-shrink: 0;
+
+  @media (max-width: 767px) {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  button {
+    flex: 1;
+    max-width: 160px;
+    height: 32px;
+    border-radius: 16px;
+    border: 1px solid #b09060;
+    background: rgba(255,255,255,0.6);
+    color: #4a3e2e;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: all 0.12s;
+
+    &.active {
+      background: #2a2014;
+      color: #fffaf0;
+      border-color: #2a2014;
+    }
+  }
+`
+
 /* ──── コンテンツ分割レイアウト ─────────────────────────────────────────── */
 
 const ContentSplit = styled.div`
@@ -327,23 +469,39 @@ const ContentSplit = styled.div`
   overflow: hidden;
 `
 
-const CanvasPanel = styled.div`
+const CanvasPanel = styled.div<{ $phoneHide?: boolean }>`
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+
+  @media (max-width: 767px) {
+    width: 100% !important;
+    display: ${({ $phoneHide }) => ($phoneHide ? 'none' : 'flex')};
+  }
 `
 
 /* ──── ドキュメントエディタ ─────────────────────────────────────────────── */
 
-const DocPane = styled.div`
+const DocPane = styled.div<{ $phoneHide?: boolean }>`
   flex: none;
   display: flex;
   flex-direction: column;
   background: #fff;
   overflow: hidden;
   min-width: 300px;
+
+  @media (pointer: coarse) and (min-width: 768px), (min-width: 768px) and (max-width: 1200px) {
+    min-width: 240px;
+  }
+
+  @media (max-width: 767px) {
+    min-width: 0 !important;
+    width: 100% !important;
+    display: ${({ $phoneHide }) => ($phoneHide ? 'none' : 'flex')};
+    flex: 1;
+  }
 `
 
 const ResizeHandle = styled.div`
@@ -354,6 +512,10 @@ const ResizeHandle = styled.div`
   transition: background 0.15s;
   position: relative;
   z-index: 1;
+
+  @media (max-width: 767px) {
+    display: none !important;
+  }
 
   &:hover, &.dragging {
     background: #926f45;
@@ -382,6 +544,18 @@ const DocEditable = styled.div`
   color: #1a1a1a;
   background: #fff;
   overflow-wrap: break-word;
+
+  @media (pointer: coarse) and (min-width: 768px), (min-width: 768px) and (max-width: 1200px) {
+    padding: 24px 20px;
+    font-size: 18px;
+    line-height: 1.7;
+  }
+
+  @media (max-width: 767px) {
+    padding: 14px 12px;
+    font-size: 15px;
+    line-height: 1.6;
+  }
 
   &:empty::before {
     content: attr(data-placeholder);
@@ -440,6 +614,18 @@ const DocToolbar = styled.div`
   background: #faf7f0;
   flex-shrink: 0;
   flex-wrap: wrap;
+
+  @media (pointer: coarse) and (min-width: 768px), (min-width: 768px) and (max-width: 1200px) {
+    padding: 6px 12px;
+    gap: 2px;
+  }
+
+  @media (max-width: 767px) {
+    padding: 4px 6px;
+    gap: 2px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
 `
 
 const DocBtn = styled.button`
@@ -458,6 +644,20 @@ const DocBtn = styled.button`
   padding: 0 12px;
   white-space: nowrap;
 
+  @media (pointer: coarse) and (min-width: 768px), (min-width: 768px) and (max-width: 1200px) {
+    min-width: 40px;
+    height: 40px;
+    font-size: 16px;
+    padding: 0 8px;
+  }
+
+  @media (max-width: 767px) {
+    min-width: 30px;
+    height: 30px;
+    font-size: 12px;
+    padding: 0 4px;
+  }
+
   &:hover {
     background: rgba(0,0,0,0.08);
     color: #222;
@@ -470,6 +670,11 @@ const DocSep = styled.div`
   background: #d4cdc0;
   margin: 0 8px;
   flex-shrink: 0;
+
+  @media (max-width: 767px) {
+    height: 20px;
+    margin: 0 4px;
+  }
 `
 
 // ＋ と T の押下で開くメニュー。ツールバーは下端にあるので上向きに開く
@@ -552,7 +757,7 @@ const ColorDot = styled.button<{ $color: string }>`
   }
 `
 
-/* ──── 右上：カメラ列（縦積み・右揃え） ───────────────────────────────────── */
+/* ──── 右上：カメラ列（縦積み・右揃え / スマホは上部横並び） ─────────────────── */
 const CameraColumn = styled.div`
   grid-column: 2;
   grid-row: 1;
@@ -563,18 +768,49 @@ const CameraColumn = styled.div`
   align-items: stretch;
   overflow-y: auto;
   overflow-x: hidden;
+  width: var(--mr-cam-w, ${CAM_W}px);
 
   &::-webkit-scrollbar { width: 4px; }
   &::-webkit-scrollbar-thumb { background: #555; border-radius: 2px; }
+
+  @media (pointer: coarse) and (min-width: 768px), (min-width: 768px) and (max-width: 1200px) {
+    width: var(--mr-cam-w, 180px);
+  }
+
+  @media (max-width: 767px) {
+    order: 1;
+    width: 100%;
+    height: 68px;
+    min-height: 68px;
+    max-height: 68px;
+    flex-shrink: 0;
+    flex-direction: row;
+    align-items: center;
+    border-left: none;
+    border-bottom: 1px solid #333;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 4px 8px;
+    gap: 8px;
+    background: #181818;
+  }
 `
 
 const CamCard = styled.div`
   position: relative;
-  width: ${CAM_W}px;
-  height: ${CAM_H}px;
+  width: var(--mr-cam-w, ${CAM_W}px);
+  height: var(--mr-cam-h, ${CAM_H}px);
   flex-shrink: 0;
   background: #222;
   border-bottom: 2px solid #333;
+
+  @media (max-width: 767px) {
+    width: 80px;
+    height: 60px;
+    border-bottom: none;
+    border-radius: 6px;
+    overflow: hidden;
+  }
 
   video {
     width: 100%;
@@ -598,6 +834,23 @@ const CamCard = styled.div`
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+
+    @media (pointer: coarse) and (min-width: 768px), (min-width: 768px) and (max-width: 1200px) {
+      font-size: 13px;
+      padding: 2px 6px;
+      bottom: 4px;
+      left: 6px;
+      right: 6px;
+    }
+
+    @media (max-width: 767px) {
+      font-size: 10px;
+      padding: 1px 4px;
+      bottom: 2px;
+      left: 2px;
+      right: 2px;
+      border-radius: 4px;
+    }
   }
 `
 
@@ -623,9 +876,16 @@ const PeerVideosColumn = styled.div`
   display: contents;   /* 子の video や wrapper を CameraColumn の直接 flex 子として扱う */
 
   .peer-video-wrapper {
-    width: ${CAM_W}px !important;
-    height: ${CAM_H}px !important;
+    width: var(--mr-cam-w, ${CAM_W}px) !important;
+    height: var(--mr-cam-h, ${CAM_H}px) !important;
     flex-shrink: 0;
+
+    @media (max-width: 767px) {
+      width: 80px !important;
+      height: 60px !important;
+      border-radius: 6px;
+      overflow: hidden;
+    }
   }
 
   video {
@@ -635,6 +895,10 @@ const PeerVideosColumn = styled.div`
     border-bottom: 2px solid #333;
     flex-shrink: 0;
     display: block;
+
+    @media (max-width: 767px) {
+      border-bottom: none;
+    }
   }
 `
 
@@ -648,13 +912,36 @@ const BottomBar = styled.div`
   background: #111;
   border-top: 2px solid #333;
   padding: 0 40px;
-  height: ${BAR_H}px;
+  height: var(--mr-bar-h, ${BAR_H}px);
+
+  @media (pointer: coarse) and (min-width: 768px), (min-width: 768px) and (max-width: 1200px) {
+    height: var(--mr-bar-h, 96px);
+    padding: 0 20px;
+  }
+
+  @media (max-width: 767px) {
+    order: 3;
+    width: 100%;
+    height: calc(var(--mr-bar-h, 60px) + env(safe-area-inset-bottom, 0px));
+    padding: 0 6px env(safe-area-inset-bottom, 0px) 6px;
+    justify-content: space-around;
+    gap: 2px;
+    flex-shrink: 0;
+  }
 `
 
 const BarGroup = styled.div`
   display: flex;
   align-items: center;
   gap: 12px;
+
+  @media (pointer: coarse) and (min-width: 768px), (min-width: 768px) and (max-width: 1200px) {
+    gap: 6px;
+  }
+
+  @media (max-width: 767px) {
+    gap: 2px;
+  }
 `
 
 const CtrlBtn = styled.div<{ isOff?: boolean }>`
@@ -682,6 +969,23 @@ const CtrlBtn = styled.div<{ isOff?: boolean }>`
     color: #bbb;
     white-space: nowrap;
   }
+
+  @media (pointer: coarse) and (min-width: 768px), (min-width: 768px) and (max-width: 1200px) {
+    padding: 8px 12px;
+    border-radius: 10px;
+    gap: 3px;
+    svg { font-size: 32px !important; }
+    .clabel { font-size: 13px; }
+  }
+
+  @media (max-width: 767px) {
+    padding: 4px 6px;
+    border-radius: 8px;
+    gap: 1px;
+    min-width: 44px;
+    svg { font-size: 22px !important; }
+    .clabel { font-size: 10px; }
+  }
 `
 
 const ExitBtn = styled.button`
@@ -705,15 +1009,32 @@ const ExitBtn = styled.button`
     font-size: 22px;
     font-weight: 700;
   }
+
+  @media (pointer: coarse) and (min-width: 768px), (min-width: 768px) and (max-width: 1200px) {
+    padding: 8px 16px;
+    border-radius: 10px;
+    gap: 3px;
+    svg { font-size: 32px !important; }
+    .clabel { font-size: 13px; }
+  }
+
+  @media (max-width: 767px) {
+    padding: 4px 8px;
+    border-radius: 8px;
+    gap: 1px;
+    min-width: 44px;
+    svg { font-size: 22px !important; }
+    .clabel { font-size: 10px; }
+  }
 `
 
 /* 参加者パネル（右側にオーバーレイ表示） */
 const MembersPanel = styled.div<{ open: boolean }>`
   display: ${({ open }) => (open ? 'flex' : 'none')};
   position: absolute;
-  right: ${CAM_W}px;
+  right: var(--mr-cam-w, ${CAM_W}px);
   top: 0;
-  bottom: ${BAR_H}px;
+  bottom: var(--mr-bar-h, ${BAR_H}px);
   width: 340px;
   background: #1e1e1e;
   border-left: 1px solid #444;
@@ -722,6 +1043,16 @@ const MembersPanel = styled.div<{ open: boolean }>`
   padding: 24px;
   gap: 14px;
   overflow-y: auto;
+
+  @media (max-width: 767px) {
+    right: 0;
+    left: 0;
+    width: auto;
+    bottom: var(--mr-bar-h, 60px);
+    top: 68px;
+    padding: 16px;
+    z-index: 50;
+  }
 `
 
 const PanelTitle = styled.div`
@@ -1240,6 +1571,7 @@ function WhiteboardWithDoc({ roomId }: { roomId: string }) {
     window.addEventListener('mouseup', onUp)
   }
 
+  const [phonePane, setPhonePane] = useState<'doc' | 'canvas'>('doc')
   const docRoomId = activeTab.id === 'tab_default' ? roomId : `${roomId}__${activeTab.id}`
 
   return (
@@ -1278,12 +1610,28 @@ function WhiteboardWithDoc({ roomId }: { roomId: string }) {
         ))}
         <AddTabBtn onClick={addTab} title="タブを追加">＋</AddTabBtn>
       </TabBarWrap>
+      <PhonePaneToggle>
+        <button
+          type="button"
+          className={phonePane === 'doc' ? 'active' : ''}
+          onClick={() => setPhonePane('doc')}
+        >
+          📝 メモ
+        </button>
+        <button
+          type="button"
+          className={phonePane === 'canvas' ? 'active' : ''}
+          onClick={() => setPhonePane('canvas')}
+        >
+          🎨 ボード
+        </button>
+      </PhonePaneToggle>
       <ContentSplit ref={splitRef}>
-        <DocPane style={{ width: docWidth }}>
+        <DocPane style={{ width: docWidth }} $phoneHide={phonePane !== 'doc'}>
           <DocumentEditor key={`doc_${activeTab.id}`} roomId={docRoomId} />
         </DocPane>
         <ResizeHandle ref={handleRef} onMouseDown={onMouseDown} />
-        <CanvasPanel>
+        <CanvasPanel $phoneHide={phonePane !== 'canvas'}>
           <LazyWhiteboard key={`wb_${activeTab.id}`} roomId={`${roomId}__${activeTab.id}`} />
         </CanvasPanel>
       </ContentSplit>
