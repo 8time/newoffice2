@@ -31,6 +31,18 @@ const Anchor = styled.div`
   display: flex;
   justify-content: center;
   pointer-events: none;
+
+  /* タブレット横向き（768px〜1399px）: サイドバー幅に追従 */
+  @media (pointer: coarse) and (min-width: 768px) and (max-width: 1399px) {
+    right: calc(max(25vw, 280px) + 16px);
+  }
+
+  /* スマホ（〜767px）: 上部ヘッダー・タブバーの下に左右12pxマージンで中央配置 */
+  @media (pointer: coarse) and (max-width: 767px) {
+    top: calc(env(safe-area-inset-top, 0px) + var(--phone-header-h, 48px) + var(--phone-tabbar-h, 44px) + 10px);
+    left: 12px;
+    right: 12px;
+  }
 `
 
 const Card = styled.div`
@@ -46,6 +58,11 @@ const Card = styled.div`
   animation: ${slideDown} 0.35s ease;
   color: #eef2f0;
 
+  @media (pointer: coarse) and (max-width: 767px) {
+    padding: 12px 14px;
+    border-radius: 12px;
+  }
+
   .head {
     display: flex;
     align-items: center;
@@ -53,6 +70,11 @@ const Card = styled.div`
     font-size: 18px;
     font-weight: 700;
     color: #bff0cf;
+
+    @media (pointer: coarse) and (max-width: 767px) {
+      font-size: 14px;
+      gap: 8px;
+    }
   }
   .head .badge {
     display: inline-flex;
@@ -63,17 +85,35 @@ const Card = styled.div`
     border-radius: 50%;
     background: rgba(76, 175, 120, 0.2);
     flex-shrink: 0;
+
+    @media (pointer: coarse) and (max-width: 767px) {
+      width: 28px;
+      height: 28px;
+      svg { font-size: 18px; }
+    }
   }
   .body {
     margin: 10px 0 16px;
     font-size: 14px;
     line-height: 1.6;
     color: #cfd6d2;
+
+    @media (pointer: coarse) and (max-width: 767px) {
+      font-size: 12px;
+      margin: 6px 0 10px;
+      line-height: 1.5;
+    }
   }
   .actions {
     display: flex;
     align-items: center;
     gap: 14px;
+
+    @media (pointer: coarse) and (max-width: 767px) {
+      flex-direction: column;
+      gap: 6px;
+      align-items: stretch;
+    }
   }
 `
 
@@ -126,6 +166,12 @@ const Pill = styled.button`
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
   animation: ${slideDown} 0.3s ease;
   &:hover { background: rgba(40, 48, 62, 0.98); }
+
+  @media (pointer: coarse) and (max-width: 767px) {
+    padding: 6px 12px;
+    font-size: 12px;
+    gap: 6px;
+  }
 `
 
 export default function VideoConnectionDialog() {
@@ -138,8 +184,8 @@ export default function VideoConnectionDialog() {
 
   if (minimized) {
     return (
-      <Anchor>
-        <Pill onClick={connect} title="カメラ・マイクを接続して通話できるようにする">
+      <Anchor className="video-connection-anchor">
+        <Pill className="video-connection-pill" onClick={connect} title="カメラ・マイクを接続して通話できるようにする">
           <MicIcon fontSize="small" />
           通話をはじめる
         </Pill>
@@ -148,8 +194,8 @@ export default function VideoConnectionDialog() {
   }
 
   return (
-    <Anchor>
-      <Card>
+    <Anchor className="video-connection-anchor">
+      <Card className="video-connection-card">
         <div className="head">
           <span className="badge">
             <VideocamIcon style={{ color: '#7fe0a0' }} />

@@ -30,6 +30,11 @@ const Tab = styled.button`
   writing-mode: vertical-rl;
   &:hover { background: rgba(45, 54, 80, 0.95); }
 
+  /* スマホ（〜767px）: 画面端が狭くゲーム操作の邪魔になるため非表示 */
+  @media (pointer: coarse) and (max-width: 767px) {
+    display: none !important;
+  }
+
   .badge {
     writing-mode: horizontal-tb;
     background: #e6a23c;
@@ -136,7 +141,7 @@ export default function DisconnectLogPanel() {
 
   return (
     <>
-      <Tab onClick={openPanel} title="接続の切断履歴を見る">
+      <Tab className="disconnect-log-tab" onClick={openPanel} title="接続の切断履歴を見る">
         接続ログ
         {entries.length > 0 && <span className="badge">{entries.length}</span>}
       </Tab>

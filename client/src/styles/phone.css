@@ -540,4 +540,61 @@
   body.is-phone .MuiInputBase-input {
     font-size: max(16px, 1em) !important;
   }
+
+  /* ── 接続案内ダイアログ（スマホ最適化: 幅マイナスによる縦折れ破損の防止） ── */
+  body.is-phone .video-connection-anchor {
+    top: calc(env(safe-area-inset-top, 0px) + var(--phone-header-h) + var(--phone-tabbar-h) + 10px) !important;
+    left: 12px !important;
+    right: 12px !important;
+    width: auto !important;
+  }
+
+  body.is-phone .video-connection-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 12px 14px !important;
+    border-radius: 12px !important;
+  }
+
+  body.is-phone .video-connection-card .head {
+    font-size: 14px !important;
+    gap: 8px !important;
+  }
+
+  body.is-phone .video-connection-card .head .badge {
+    width: 28px !important;
+    height: 28px !important;
+  }
+
+  body.is-phone .video-connection-card .head .badge svg {
+    font-size: 18px !important;
+  }
+
+  body.is-phone .video-connection-card .body {
+    font-size: 12px !important;
+    margin: 6px 0 10px !important;
+    line-height: 1.5 !important;
+  }
+
+  body.is-phone .video-connection-card .actions {
+    flex-direction: column !important;
+    gap: 6px !important;
+    align-items: stretch !important;
+  }
+
+  body.is-phone .video-connection-card .actions button {
+    width: 100% !important;
+    padding: 10px 14px !important;
+    font-size: 13px !important;
+  }
+
+  /* オフィスタブ以外では接続案内ダイアログを隠す */
+  body.is-phone:not([data-phone-tab='office']) .video-connection-anchor {
+    display: none !important;
+  }
+
+  /* ── 接続ログタブ（スマホでは画面が狭いため非表示） ── */
+  body.is-phone .disconnect-log-tab {
+    display: none !important;
+  }
 }
