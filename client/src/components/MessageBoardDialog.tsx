@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import styled from 'styled-components'
 import { useAppDispatch, useAppSelector } from '../hooks'
 import { closeBoardDialog } from '../stores/BoardStore'
@@ -34,11 +35,16 @@ const Backdrop = styled.div`
   position: fixed;
   inset: 0;
   z-index: 16000;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.65);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
+  pointer-events: auto;
+
+  @media (max-width: 767px) {
+    padding: 6px 4px;
+  }
 `
 
 const Board = styled.div<{ $font: BoardFont }>`
@@ -57,6 +63,14 @@ const Board = styled.div<{ $font: BoardFont }>`
   flex-direction: column;
   overflow: hidden;
   position: relative;
+
+  @media (max-width: 767px) {
+    width: 100%;
+    height: 100%;
+    max-height: calc(100dvh - 12px);
+    border-width: 8px;
+    border-radius: 6px;
+  }
 `
 
 const TopBar = styled.div`
@@ -94,9 +108,41 @@ const TopBar = styled.div`
     border-radius: 6px; padding: 6px 14px; cursor: pointer; font-size: 14px;
     &:hover { background: rgba(255,255,255,0.12); }
   }
+
+  @media (max-width: 767px) {
+    padding: 4px 8px;
+
+    .title {
+      font-size: 17px;
+      letter-spacing: 5px;
+      text-indent: 5px;
+    }
+    .right {
+      gap: 6px;
+    }
+    .font-toggle {
+      font-size: 11px;
+      gap: 2px;
+      button {
+        padding: 2px 5px;
+        font-size: 11px;
+      }
+    }
+    .month {
+      font-size: 13px;
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .close {
+      padding: 3px 8px;
+      font-size: 12px;
+      border-radius: 4px;
+    }
+  }
 `
 
 // 右から並べ、増えると左へ流れる（横スクロール）。列は右端から詰める。
+// スマホでは「3列×2段（画面内に計6マス）」のグリッドで表示
 const Columns = styled.div`
   flex: 1;
   min-height: 0;
@@ -110,6 +156,21 @@ const Columns = styled.div`
 
   &::-webkit-scrollbar { height: 8px; }
   &::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.25); border-radius: 4px; }
+
+  @media (max-width: 767px) {
+    display: grid;
+    grid-template-rows: repeat(2, 1fr);
+    grid-auto-flow: column;
+    grid-auto-columns: calc((100% - 2px) / 3);
+    justify-content: end;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+
+    &::-webkit-scrollbar { height: 4px; }
+    &::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 2px; }
+  }
 `
 
 const Empty = styled.div`
@@ -174,6 +235,44 @@ const Column = styled.div<{ chalk: string }>`
     cursor: pointer;
     &:hover { background: #d33; }
   }
+
+  @media (max-width: 767px) {
+    width: auto;
+    padding: 3px 3px 4px;
+    min-height: 0;
+    overflow: hidden;
+
+    /* 2段グリッドの区切り線: 上段(奇数番目)の下端に点線ボーダー */
+    &:nth-child(odd) {
+      border-bottom: 1px dashed rgba(255, 255, 255, 0.28);
+    }
+    &:nth-child(even) {
+      border-bottom: none;
+    }
+
+    .date {
+      font-size: 10px;
+      margin-bottom: 1px;
+    }
+    .body {
+      font-size: 13px;
+      line-height: 1.25;
+      letter-spacing: 0.5px;
+    }
+    .name {
+      font-size: 11px;
+      margin-top: 3px;
+      max-height: 28%;
+    }
+    .del {
+      opacity: 0.65;
+      width: 15px;
+      height: 15px;
+      font-size: 10px;
+      top: 1px;
+      right: 1px;
+    }
+  }
 `
 
 const Composer = styled.div`
@@ -199,6 +298,11 @@ const Composer = styled.div`
     line-height: 1.4;
     font-family: inherit;
   }
+
+  .composer-row {
+    display: contents; /* PCではフラットに横並び */
+  }
+
   input.name {
     width: 150px;
     background: rgba(0,0,0,0.22);
@@ -214,6 +318,53 @@ const Composer = styled.div`
     padding: 12px 22px; font-size: 18px; font-weight: 700; cursor: pointer;
     &:hover { filter: brightness(1.08); }
     &:disabled { opacity: 0.5; cursor: default; }
+  }
+
+  @media (max-width: 767px) {
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    gap: 5px;
+    flex-direction: column;
+
+    textarea {
+      width: 100%;
+      min-width: 100%;
+      height: 38px;
+      font-size: 13px;
+      padding: 4px 6px;
+      line-height: 1.3;
+      border-radius: 5px;
+    }
+
+    .composer-row {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      gap: 6px;
+    }
+
+    input.name {
+      flex: 1;
+      min-width: 70px;
+      max-width: 120px;
+      height: 30px;
+      font-size: 12px;
+      padding: 3px 6px;
+      border-radius: 5px;
+    }
+
+    .count {
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    button.write {
+      padding: 4px 12px;
+      height: 30px;
+      font-size: 13px;
+      border-radius: 5px;
+      margin-left: auto;
+      white-space: nowrap;
+    }
   }
 `
 
@@ -267,7 +418,7 @@ export default function MessageBoardDialog() {
 
   const month = new Date().getMonth() + 1
 
-  return (
+  return createPortal(
     <Backdrop onClick={() => dispatch(closeBoardDialog())}>
       <Board $font={font} onClick={(e) => e.stopPropagation()}>
         <TopBar>
@@ -298,24 +449,39 @@ export default function MessageBoardDialog() {
           </Columns>
         )}
 
-        <Composer>
+        <Composer onClick={(e) => e.stopPropagation()}>
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value.slice(0, CONTENT_MAX))}
+            onPointerDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
             placeholder="伝言を書く（縦書きで表示されます。日付は自動）"
             maxLength={CONTENT_MAX}
           />
-          <input
-            className="name"
-            value={name}
-            onChange={(e) => setName(e.target.value.slice(0, NAME_MAX))}
-            placeholder="署名"
-            maxLength={NAME_MAX}
-          />
-          <span className="count">{content.length}/{CONTENT_MAX}</span>
-          <button className="write" onClick={write} disabled={!content.trim()}>書き込む</button>
+          <div className="composer-row">
+            <input
+              className="name"
+              value={name}
+              onChange={(e) => setName(e.target.value.slice(0, NAME_MAX))}
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              placeholder="署名"
+              maxLength={NAME_MAX}
+            />
+            <span className="count">{content.length}/{CONTENT_MAX}</span>
+            <button
+              className="write"
+              onClick={write}
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              disabled={!content.trim()}
+            >
+              書き込む
+            </button>
+          </div>
         </Composer>
       </Board>
-    </Backdrop>
+    </Backdrop>,
+    document.body
   )
 }
