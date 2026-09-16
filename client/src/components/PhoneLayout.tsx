@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useState } from 'react'
 import PhoneHeader from './PhoneHeader'
+import { usePhonePhaserScale } from '../hooks/usePhonePhaserScale'
 import PhoneActionBar from './PhoneActionBar'
 import OnlineUsers from './OnlineUsers'
 import AttendancePanel from './AttendancePanel'
@@ -24,6 +25,7 @@ export default function PhoneLayout() {
   const dispatch = useAppDispatch()
 
   useVisualViewportKeyboard(tab === 'chat')
+  usePhonePhaserScale(tab === 'office')
 
   useLayoutEffect(() => {
     syncPhoneTabAttribute(tab)

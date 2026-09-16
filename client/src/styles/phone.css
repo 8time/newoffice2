@@ -99,12 +99,15 @@
     height: 100vh;
   }
 
-  body.is-phone.logged-in #root {
+  body.is-phone.logged-in #root,
+  body.logged-in #root {
     position: relative;
     z-index: 100;
     height: 100dvh;
     height: 100vh;
     overflow: hidden;
+    /* 透明領域のタッチを #phaser-container へ通す */
+    pointer-events: none;
   }
 
   /* is-phone 付与前の初回描画フォールバック（logged-in + data-phone-tab のみ） */
@@ -120,10 +123,6 @@
     padding-top: env(safe-area-inset-top, 0px);
     padding-left: env(safe-area-inset-left, 0px);
     padding-right: env(safe-area-inset-right, 0px);
-  }
-
-  body.logged-in .phone-shell > * {
-    pointer-events: auto;
   }
 
   /* ── レガシーサイドバー非表示 ── */
@@ -146,7 +145,29 @@
     padding-right: env(safe-area-inset-right, 0px);
   }
 
-  body.is-phone .phone-shell > * {
+  /* MAP 上の透明スペーサーはタッチ透過（自キャラドラッグ用） */
+  body.logged-in .phone-map-spacer,
+  body.is-phone .phone-map-spacer {
+    pointer-events: none !important;
+  }
+
+  /* タップが必要な UI のみ受ける */
+  body.logged-in .phone-header,
+  body.logged-in .phone-tab-bar,
+  body.logged-in .phone-action-bar,
+  body.logged-in .phone-more-menu,
+  body.logged-in .phone-main,
+  body.logged-in .video-overlay-top,
+  body.logged-in .emote-panel-root,
+  body.logged-in .storage-meter-root,
+  body.is-phone .phone-header,
+  body.is-phone .phone-tab-bar,
+  body.is-phone .phone-action-bar,
+  body.is-phone .phone-more-menu,
+  body.is-phone .phone-main,
+  body.is-phone .video-overlay-top,
+  body.is-phone .emote-panel-root,
+  body.is-phone .storage-meter-root {
     pointer-events: auto;
   }
 
@@ -250,7 +271,6 @@
     flex: 1;
     min-height: 0;
     background: transparent;
-    pointer-events: none;
   }
 
   body.is-phone .phone-main {
@@ -293,6 +313,10 @@
     pointer-events: auto !important;
     z-index: 0;
     overflow: hidden;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background-color: #111111;
   }
 
   /* オフィス以外のタブのみ MAP を隠す（属性なし=オフィス扱いで表示） */
