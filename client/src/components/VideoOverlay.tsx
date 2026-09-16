@@ -49,6 +49,17 @@ const Overlay = styled.div`
   padding: 10px 16px;
   z-index: 200;
   pointer-events: none;
+
+  /* タブレット横向き: サイドバー幅に追従 */
+  @media (pointer: coarse) and (min-width: 768px) and (max-width: 1399px) {
+    right: max(25vw, 280px);
+  }
+
+  /* スマホ: 全幅 */
+  @media (pointer: coarse) and (max-width: 767px) {
+    right: 0;
+  }
+
   overflow-x: auto;
   overflow-y: hidden;
 
@@ -184,6 +195,20 @@ const ScreenShareBar = styled.div`
   align-items: center;
   gap: 24px;
   pointer-events: auto;
+
+  /* タブレット横向き: マップ中央に配置、ボタン間隔を縮小 */
+  @media (pointer: coarse) and (min-width: 768px) and (max-width: 1399px) {
+    left: calc(50% - max(25vw, 280px) / 2);
+    gap: 12px;
+    bottom: 16px;
+  }
+
+  /* スマホ: 画面中央 */
+  @media (pointer: coarse) and (max-width: 767px) {
+    left: 50%;
+    gap: 8px;
+    bottom: 12px;
+  }
 `
 
 const ControlItem = styled.div`
@@ -212,6 +237,26 @@ const ScreenShareBtn = styled(IconButton)<{ isActive?: boolean }>`
     svg {
       font-size: 78px;
     }
+
+    /* タブレット: ボタンをコンパクト化（タップしやすさは維持） */
+    @media (pointer: coarse) and (min-width: 768px) and (max-width: 1399px) {
+      width: 100px;
+      height: 100px;
+
+      svg {
+        font-size: 48px;
+      }
+    }
+
+    /* スマホ: さらにコンパクトに */
+    @media (pointer: coarse) and (max-width: 767px) {
+      width: 80px;
+      height: 80px;
+
+      svg {
+        font-size: 36px;
+      }
+    }
   }
 `
 
@@ -221,6 +266,16 @@ const ScreenShareLabel = styled.span<{ isActive?: boolean }>`
   color: ${({ isActive }) => (isActive ? '#ff6666' : '#ffffff')};
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
   letter-spacing: 0.5px;
+
+  /* タブレット: ラベルをコンパクトに */
+  @media (pointer: coarse) and (min-width: 768px) and (max-width: 1399px) {
+    font-size: 14px;
+  }
+
+  /* スマホ: さらに小さく */
+  @media (pointer: coarse) and (max-width: 767px) {
+    font-size: 12px;
+  }
 `
 
 /* マップ上で誰かが画面共有しているときの大きな表示。カメラ枠の下・中央に出す */
@@ -238,6 +293,16 @@ const ScreenShareStage = styled.div`
   border-radius: 12px;
   overflow: hidden;
   pointer-events: auto;
+
+  /* タブレット横向き: サイドバー幅に追従 */
+  @media (pointer: coarse) and (min-width: 768px) and (max-width: 1399px) {
+    right: calc(max(25vw, 280px) + 16px);
+  }
+
+  /* スマホ: 全幅 */
+  @media (pointer: coarse) and (max-width: 767px) {
+    right: 16px;
+  }
 
   .stage-header {
     flex-shrink: 0;

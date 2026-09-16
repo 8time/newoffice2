@@ -74,6 +74,20 @@ const SidebarArea = styled.div`
   pointer-events: auto;
   box-shadow: -5px 0 15px rgba(0, 0, 0, 0.5);
   overflow-y: auto;
+
+  /* タブレット横向き（768px〜1399px）: 幅25vw、最小280px */
+  @media (pointer: coarse) and (min-width: 768px) and (max-width: 1399px) {
+    width: max(25vw, 280px);
+    max-width: 400px;
+    overflow-x: hidden;
+  }
+
+  /* スマホ（〜767px）: オーバーレイ/ドロワー */
+  @media (pointer: coarse) and (max-width: 767px) {
+    width: 100vw;
+    z-index: 2000;
+    overflow-x: hidden;
+  }
 `
 
 const SidebarHeader = styled.div`
@@ -117,6 +131,16 @@ const ChatSidebarWrapper = styled.div`
     > div {
       height: 100% !important;
       padding: 12px !important;
+    }
+  }
+
+  /* タッチデバイス向け: チャット内のメディアを幅80%に制限し、横溢れを防止 */
+  @media (pointer: coarse) {
+    overflow-x: hidden;
+
+    img, video {
+      max-width: 80% !important;
+      height: auto !important;
     }
   }
 `

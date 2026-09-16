@@ -20,6 +20,18 @@ const Wrapper = styled.div`
   align-items: flex-end;
   gap: 6px;
   pointer-events: auto;
+
+  /* タブレット横向き: サイドバー幅に追従 */
+  @media (pointer: coarse) and (min-width: 768px) and (max-width: 1399px) {
+    right: calc(max(25vw, 280px) + 4px);
+    bottom: 12px;
+  }
+
+  /* スマホ: 右下に配置 */
+  @media (pointer: coarse) and (max-width: 767px) {
+    right: 16px;
+    bottom: 80px;
+  }
 `
 
 const ToggleBtn = styled.button`

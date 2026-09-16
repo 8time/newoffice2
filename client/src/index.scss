@@ -47,6 +47,32 @@ body.logged-in {
   }
 }
 
+// ============================================================
+// タッチデバイス向けレスポンシブ対応
+// pointer: coarse = タッチスクリーン。PC（pointer: fine）には影響しない。
+// ============================================================
+
+// タブレット横向き（768px〜1399px）: マップ約75%、サイドバー約25%
+@media (pointer: coarse) and (min-width: 768px) and (max-width: 1399px) {
+  body.logged-in #phaser-container {
+    width: calc(100vw - max(25vw, 280px)) !important;
+  }
+}
+
+// スマホ（〜767px）: マップ100%
+@media (pointer: coarse) and (max-width: 767px) {
+  body.logged-in #phaser-container {
+    width: 100vw !important;
+  }
+}
+
+// タッチデバイス全般: マップ領域でのブラウザスクロール防止
+@media (pointer: coarse) {
+  #phaser-container {
+    touch-action: none;
+  }
+}
+
 * {
   &:hover {
     &::-webkit-scrollbar-thumb {

@@ -18,7 +18,7 @@ export const userSlice = createSlice({
     videoConnected: false,
     loggedIn: false,
     playerNameMap: new Map<string, string>(),
-    showJoystick: window.innerWidth < 650,
+    showJoystick: window.innerWidth < 650 || (window.matchMedia('(pointer: coarse)').matches && window.innerWidth >= 768),
     myStatus: 'present' as 'present' | 'away' | 'focus' | 'break',
     myAwayMessage: '',
     playerStatusMap: new Map<string, { status: string; awayMessage: string }>(),
