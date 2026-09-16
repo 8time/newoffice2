@@ -99,6 +99,8 @@
   }
 
   body.is-phone.logged-in #root {
+    position: relative;
+    z-index: 10;
     height: 100dvh;
     height: 100vh;
     overflow: hidden;
@@ -261,7 +263,7 @@
     height: auto !important;
     visibility: visible !important;
     pointer-events: auto !important;
-    z-index: 100;
+    z-index: 0;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
