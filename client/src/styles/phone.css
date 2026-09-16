@@ -262,6 +262,19 @@
     visibility: visible !important;
     pointer-events: auto !important;
     z-index: 100;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: hidden;
+  }
+
+  /* index.scss の canvas 100% 強制を打ち消し（潰れの主因） */
+  body.is-phone[data-phone-tab='office'] #phaser-container canvas {
+    width: auto !important;
+    height: auto !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    flex-shrink: 0;
   }
 
   body.is-phone:not([data-phone-tab='office']) #phaser-container {
@@ -359,8 +372,52 @@
     top: calc(var(--phone-header-h) + var(--phone-tabbar-h) + env(safe-area-inset-top, 0px));
     right: 0;
     left: 0;
-    height: 88px;
-    padding: 4px 8px;
+    height: auto;
+    max-height: 92px;
+    padding: 6px 8px;
+    align-items: center;
+    z-index: 1050;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  body.is-phone .video-card-self {
+    width: 136px !important;
+    min-width: 136px !important;
+    height: 76px !important;
+    border-width: 2px !important;
+  }
+
+  body.is-phone .video-card-self .label {
+    font-size: 10px !important;
+    padding: 2px 6px !important;
+    bottom: 4px !important;
+    left: 4px !important;
+    right: 52px !important;
+  }
+
+  body.is-phone .video-card-self .card-controls {
+    bottom: 4px !important;
+    right: 4px !important;
+    gap: 3px !important;
+  }
+
+  body.is-phone .video-card-self .card-controls button {
+    width: 26px !important;
+    height: 26px !important;
+    min-width: 26px !important;
+    padding: 0 !important;
+  }
+
+  body.is-phone .video-card-self .card-controls button svg {
+    font-size: 14px !important;
+  }
+
+  body.is-phone .video-overlay-top .peer-video-wrapper {
+    width: 136px !important;
+    min-width: 136px !important;
+    height: 76px !important;
+    border-width: 2px !important;
   }
 
   body.is-phone:not([data-phone-tab='office']) .video-overlay-top {

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import phaserGame from '../PhaserGame'
 import PhoneHeader from './PhoneHeader'
+import { usePhonePhaserScale } from '../hooks/usePhonePhaserScale'
 import PhoneActionBar from './PhoneActionBar'
 import OnlineUsers from './OnlineUsers'
 import AttendancePanel from './AttendancePanel'
@@ -24,13 +24,10 @@ export default function PhoneLayout() {
   const dispatch = useAppDispatch()
 
   useVisualViewportKeyboard(tab === 'chat')
+  usePhonePhaserScale(tab === 'office')
 
   useEffect(() => {
     setPhoneTabAttribute(tab)
-    if (tab === 'office') {
-      // タブ復帰時に Phaser の描画領域をコンテナサイズへ合わせ直す
-      requestAnimationFrame(() => phaserGame.scale.refresh())
-    }
     return () => setPhoneTabAttribute(null)
   }, [tab])
 

@@ -475,7 +475,7 @@ export default function VideoOverlay() {
       {/* カメラ枠（上部・背景なし） */}
       <Overlay className="video-overlay-top">
         {videoConnected && (
-          <VideoCard>
+          <VideoCard className="video-card-self">
             {videoState.isVideoOff ? (
               <AvatarFallback $bgGradient={getGradient(sessionId || myName)}>
                 <img src={avatarMap[myAvatarName]} alt={myAvatarName} />
