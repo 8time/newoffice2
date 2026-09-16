@@ -1,6 +1,6 @@
 import { useLayoutEffect } from 'react'
 
-/** body に is-phone を付与（phone.css のスコープ用）。初回描画前に必ず反映する */
+/** body に is-phone を付与（phone.css のスコープ用） */
 export function syncPhoneBodyClass(isPhone: boolean) {
   if (typeof document === 'undefined') return
   if (isPhone) {
@@ -11,17 +11,38 @@ export function syncPhoneBodyClass(isPhone: boolean) {
   }
 }
 
-export function usePhoneBodyClass(isPhone: boolean) {
-  // render 中にも反映（useEffect だと初回 paint より遅れて MAP が全画面になる）
-  syncPhoneBodyClass(isPhone)
+export function syncLoggedInBodyClass(loggedIn: boolean) {
+  if (typeof document === 'undefined') return
+  if (loggedIn) {
+    document.body.classList.add('logged-in')
+  } else {
+    document.body.classList.remove('logged-in')
+    document.body.removeAttribute('data-phone-tab')
+  }
+}
 
+export function usePhoneBodyClass(isPhone: boolean) {
   useLayoutEffect(() => {
     syncPhoneBodyClass(isPhone)
     return () => {
-      document.body.classList.remove('is-phone')
-      document.body.removeAttribute('data-phone-tab')
+      if (!isPhone) {
+        document.body.classList.remove('is-phone')
+        document.body.removeAttribute('data-phone-tab')
+      }
     }
   }, [isPhone])
+}
+
+export function useLoggedInBodyClass(loggedIn: boolean) {
+  useLayoutEffect(() => {
+    syncLoggedInBodyClass(loggedIn)
+    return () => {
+      if (!loggedIn) {
+        document.body.classList.remove('logged-in')
+        document.body.removeAttribute('data-phone-tab')
+      }
+    }
+  }, [loggedIn])
 }
 
 export function syncPhoneTabAttribute(tab: string | null) {

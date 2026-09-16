@@ -3,7 +3,7 @@ import styled from 'styled-components'
 
 import { useAppSelector, useAppDispatch } from './hooks'
 import { useIsPhone } from './hooks/useIsPhone'
-import { usePhoneBodyClass } from './hooks/usePhoneBodyClass'
+import { useLoggedInBodyClass, usePhoneBodyClass } from './hooks/usePhoneBodyClass'
 import PhoneLayout from './components/PhoneLayout'
 import { setRoomKey } from './stores/RoomStore'
 import { getRoomKeyFromUrl } from './util/roomKey'
@@ -175,6 +175,7 @@ function App() {
   const isPhone = useIsPhone()
   const loggedIn = useAppSelector((state) => state.user.loggedIn)
   usePhoneBodyClass(isPhone)
+  useLoggedInBodyClass(loggedIn)
   const computerDialogOpen = useAppSelector((state) => state.computer.computerDialogOpen)
   const whiteboardDialogOpen = useAppSelector((state) => state.whiteboard.whiteboardDialogOpen)
   const videoConnected = useAppSelector((state) => state.user.videoConnected)
@@ -189,14 +190,6 @@ function App() {
   // 保存容量の使用状況（MAP左下のメーターと内訳画面で共有する）
   const [usage, setUsage] = useState<Usage | null>(null)
   const [storageOpen, setStorageOpen] = useState(false)
-
-  useEffect(() => {
-    if (loggedIn) {
-      document.body.classList.add('logged-in')
-    } else {
-      document.body.classList.remove('logged-in')
-    }
-  }, [loggedIn])
 
   // URLに ?room=<合言葉> が付いていれば、ロビー接続後に自動でその固定ルームへ入る。
   // これによりブックマークしたURLを踏むだけで、いつもの部屋に直行できる。

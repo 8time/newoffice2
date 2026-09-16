@@ -5,7 +5,8 @@
  */
 
 @media (pointer: coarse) and (max-width: 767px) {
-  body.is-phone {
+  body.is-phone,
+  body.logged-in {
     --phone-header-h: 48px;
     --phone-tabbar-h: 44px;
     --phone-actionbar-h: 56px;
@@ -104,7 +105,6 @@
     height: 100dvh;
     height: 100vh;
     overflow: hidden;
-    isolation: isolate;
   }
 
   /* is-phone 付与前の初回描画フォールバック（logged-in + data-phone-tab のみ） */
@@ -150,6 +150,7 @@
     pointer-events: auto;
   }
 
+  body.logged-in .phone-header,
   body.is-phone .phone-header {
     flex-shrink: 0;
     height: var(--phone-header-h);
@@ -214,6 +215,7 @@
     background: rgba(255, 107, 53, 0.15);
   }
 
+  body.logged-in .phone-tab-bar,
   body.is-phone .phone-tab-bar {
     flex-shrink: 0;
     height: var(--phone-tabbar-h);
@@ -222,6 +224,7 @@
     border-bottom: 1px solid #333;
   }
 
+  body.logged-in .phone-tab-btn,
   body.is-phone .phone-tab-btn {
     flex: 1;
     min-height: 44px;
@@ -234,6 +237,7 @@
     border-bottom: 3px solid transparent;
   }
 
+  body.logged-in .phone-tab-btn.active,
   body.is-phone .phone-tab-btn.active {
     color: #42eacb;
     border-bottom-color: #42eacb;
@@ -241,6 +245,7 @@
   }
 
   /* オフィスタブ: マップを透かして見せる（pointer-events は Phaser へ通す） */
+  body.logged-in .phone-map-spacer,
   body.is-phone .phone-map-spacer {
     flex: 1;
     min-height: 0;
@@ -273,6 +278,8 @@
   }
 
   /* ── マップ（オフィスタブ） ── */
+  body.logged-in:not([data-phone-tab]) #phaser-container,
+  body.is-phone.logged-in:not([data-phone-tab]) #phaser-container,
   body.logged-in[data-phone-tab='office'] #phaser-container,
   body.is-phone[data-phone-tab='office'] #phaser-container {
     position: fixed !important;
@@ -285,24 +292,16 @@
     visibility: visible !important;
     pointer-events: auto !important;
     z-index: 0;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
     overflow: hidden;
   }
 
-  /* index.scss の canvas 100% 強制を打ち消し（潰れの主因） */
-  body.logged-in[data-phone-tab='office'] #phaser-container canvas,
-  body.is-phone[data-phone-tab='office'] #phaser-container canvas {
-    width: auto !important;
-    height: auto !important;
-    max-width: 100% !important;
-    max-height: 100% !important;
-    flex-shrink: 0;
-  }
-
-  body.logged-in:not([data-phone-tab='office']) #phaser-container,
-  body.is-phone:not([data-phone-tab='office']) #phaser-container {
+  /* オフィス以外のタブのみ MAP を隠す（属性なし=オフィス扱いで表示） */
+  body.logged-in[data-phone-tab='members'] #phaser-container,
+  body.logged-in[data-phone-tab='chat'] #phaser-container,
+  body.logged-in[data-phone-tab='attendance'] #phaser-container,
+  body.is-phone[data-phone-tab='members'] #phaser-container,
+  body.is-phone[data-phone-tab='chat'] #phaser-container,
+  body.is-phone[data-phone-tab='attendance'] #phaser-container {
     visibility: hidden !important;
     pointer-events: none !important;
   }
@@ -314,6 +313,7 @@
   }
 
   /* ── 下部アクションバー ── */
+  body.logged-in .phone-action-bar,
   body.is-phone .phone-action-bar {
     position: fixed;
     left: 0;

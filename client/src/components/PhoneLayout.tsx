@@ -1,6 +1,5 @@
 import React, { useEffect, useLayoutEffect, useState } from 'react'
 import PhoneHeader from './PhoneHeader'
-import { usePhonePhaserScale } from '../hooks/usePhonePhaserScale'
 import PhoneActionBar from './PhoneActionBar'
 import OnlineUsers from './OnlineUsers'
 import AttendancePanel from './AttendancePanel'
@@ -9,6 +8,7 @@ import { syncPhoneTabAttribute } from '../hooks/usePhoneBodyClass'
 import { useVisualViewportKeyboard } from '../hooks/useVisualViewportKeyboard'
 import { useAppDispatch } from '../hooks'
 import { setFocused, setShowChat } from '../stores/ChatStore'
+import phaserGame from '../PhaserGame'
 
 export type PhoneTab = 'office' | 'members' | 'chat' | 'attendance'
 
@@ -23,15 +23,19 @@ export default function PhoneLayout() {
   const [tab, setTab] = useState<PhoneTab>('office')
   const dispatch = useAppDispatch()
 
-  // 初回 paint 前に MAP 領域をヘッダー/タブ/バー内に収める（useEffect だと1フレーム全画面になる）
-  syncPhoneTabAttribute(tab)
-
   useVisualViewportKeyboard(tab === 'chat')
-  usePhonePhaserScale(tab === 'office')
 
   useLayoutEffect(() => {
     syncPhoneTabAttribute(tab)
-    return () => syncPhoneTabAttribute(null)
+  }, [tab])
+
+  useLayoutEffect(() => () => syncPhoneTabAttribute(null), [])
+
+  useLayoutEffect(() => {
+    if (tab !== 'office') return
+    requestAnimationFrame(() => {
+      if (phaserGame.isRunning) phaserGame.scale.refresh()
+    })
   }, [tab])
 
   useEffect(() => {
