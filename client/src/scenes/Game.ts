@@ -305,28 +305,35 @@ export default class Game extends Phaser.Scene {
     pb.setInteractive({ useHandCursor: true })
     pb.on('pointerdown', () => { pb.openDialog() })
 
-    // 伝言板（昭和の駅の伝言板風）。ユーザー指定の座標(1035,247)付近に設置
+    // 伝言板（昭和の駅の伝言板風）。マップ上の看板タイル(1024〜1088, 256〜320 / 中心1056,288)に設置
     this.messageBoards = this.physics.add.staticGroup({ classType: MessageBoard })
-    const mb = new MessageBoard(this, 1035, 247, 'whiteboards', 0)
+    const mb = new MessageBoard(this, 1056, 288, 'whiteboards', 0)
     this.add.existing(mb)
     this.physics.add.existing(mb, true)
-    mb.setDisplaySize(48, 48)
-    // ユーザーがマップビルダーで置いた看板の上に重ねる当たり判定なので、
-    // 見た目のスプライトは出さず（透明にして）、触れたときの案内とメニューだけ機能させる
-    mb.setVisible(false)
+    mb.setDisplaySize(64, 64)
+    // マップ上の既存看板タイルに重ねるためスプライト自体は極小アルファで透明化しつつ、
+    // visibleはtrueのまま維持してPhaserのInteractive（タップ/クリック）判定を有効にする
+    mb.setAlpha(0.001)
     this.messageBoards.add(mb)
     mb.body.reset(mb.x, mb.y)
-    mb.body.setSize(48, 48)
+    mb.body.setSize(64, 64)
     mb.setDepth(mb.y + 10)
     mb.setInteractive({ useHandCursor: true })
     mb.on('pointerdown', () => { mb.openDialog() })
+
+    // スマホ・タブレットのタッチ操作で確実に反応するよう、看板サイズ(64x64)より一回り広い透明な当たり判定ゾーン(88x88)を設置
+    const mbHitZone = this.add.zone(1056, 288, 88, 88)
+    mbHitZone.setInteractive({ useHandCursor: true })
+    mbHitZone.on('pointerdown', () => {
+      mb.openDialog()
+    })
 
     // 未読の伝言があるとき、看板の右上に「！」を出して気づけるようにする
     const badgeBg = this.add.circle(0, 0, 13, 0xe02424).setStrokeStyle(2, 0xffffff)
     const badgeTxt = this.add
       .text(0, -1, '!', { fontFamily: 'Arial, sans-serif', fontSize: '20px', color: '#ffffff', fontStyle: 'bold' })
       .setOrigin(0.5)
-    this.boardBadge = this.add.container(1035 + 26, 247 - 24, [badgeBg, badgeTxt])
+    this.boardBadge = this.add.container(1056 + 28, 288 - 28, [badgeBg, badgeTxt])
     this.boardBadge.setDepth(1_000_000)
     this.boardBadge.setVisible(false)
     this.tweens.add({
@@ -1487,7 +1494,14 @@ export default class Game extends Phaser.Scene {
     if (!item) return
 
     const bounds = item.getBounds()
-    if (!Phaser.Geom.Rectangle.Contains(bounds, wp.x, wp.y)) return
+    // スマホ・タブレット向けにタッチ判定エリアを拡大（周囲+16px、下側の操作案内吹き出し分+48px）
+    const hitArea = new Phaser.Geom.Rectangle(
+      bounds.x - 16,
+      bounds.y - 16,
+      bounds.width + 32,
+      bounds.height + 48
+    )
+    if (!Phaser.Geom.Rectangle.Contains(hitArea, wp.x, wp.y)) return
 
     if (item.itemType === ItemType.CHAIR) {
       this.myPlayer.performSecondaryInteraction(item, this.playerSelector, this.network)
