@@ -2,6 +2,9 @@ import React, { useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 import { useAppSelector, useAppDispatch } from './hooks'
+import { useIsPhone } from './hooks/useIsPhone'
+import { usePhoneBodyClass } from './hooks/usePhoneBodyClass'
+import PhoneLayout from './components/PhoneLayout'
 import { setRoomKey } from './stores/RoomStore'
 import { getRoomKeyFromUrl } from './util/roomKey'
 import { joinKeyedRoomWithPassword } from './util/joinRoom'
@@ -169,7 +172,9 @@ function CurrentTime() {
 }
 
 function App() {
+  const isPhone = useIsPhone()
   const loggedIn = useAppSelector((state) => state.user.loggedIn)
+  usePhoneBodyClass(isPhone)
   const computerDialogOpen = useAppSelector((state) => state.computer.computerDialogOpen)
   const whiteboardDialogOpen = useAppSelector((state) => state.whiteboard.whiteboardDialogOpen)
   const videoConnected = useAppSelector((state) => state.user.videoConnected)
@@ -319,9 +324,12 @@ function App() {
         />
       )}
 
-      {/* 右サイドバー */}
-      {loggedIn && (
-        <SidebarArea>
+      {/* スマホ専用タブUI（タブレットは従来の縦積みサイドバーのまま） */}
+      {loggedIn && isPhone && <PhoneLayout />}
+
+      {/* 右サイドバー（スマホは PhoneLayout に任せる） */}
+      {loggedIn && !isPhone && (
+        <SidebarArea className="sidebar-legacy">
           <SidebarHeader>
             <h2>SkyOffice</h2>
             <CurrentTime />

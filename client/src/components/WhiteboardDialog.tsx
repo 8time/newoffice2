@@ -52,7 +52,7 @@ export default function WhiteboardDialog() {
   const dispatch = useAppDispatch()
 
   return (
-    <Backdrop>
+    <Backdrop className="whiteboard-dialog-backdrop">
       <Wrapper>
         <IconButton
           aria-label="close dialog"

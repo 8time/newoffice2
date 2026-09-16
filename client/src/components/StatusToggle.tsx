@@ -72,7 +72,7 @@ interface AwayDialogProps {
   onCancel: () => void
 }
 
-function AwayDialog({ open, initialMessage, onConfirm, onCancel }: AwayDialogProps) {
+export function AwayDialog({ open, initialMessage, onConfirm, onCancel }: AwayDialogProps) {
   const [message, setMessage] = useState(initialMessage)
 
   const inputRef = React.useRef<HTMLInputElement>(null)

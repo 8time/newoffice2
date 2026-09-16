@@ -72,7 +72,7 @@ export default function RendererWarning() {
   if (!isCanvas || dismissed) return null
 
   return (
-    <Banner>
+    <Banner className="renderer-warning-banner">
       <div className="body">
         <div className="title">⚠️ 描画が低速モードになっています（このままだと重くて動けません）</div>
         ブラウザがWebGLを使えなかったため、Canvas描画に切り替わりました。

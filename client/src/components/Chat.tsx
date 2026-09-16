@@ -882,7 +882,7 @@ export default function Chat() {
         </ContextMenu>,
         document.body
       )}
-    <Backdrop>
+    <Backdrop className="sky-office-chat-backdrop">
       <Wrapper>
         {showChat ? (
           <>
@@ -965,7 +965,7 @@ export default function Chat() {
               </EmojiPickerWrapper>
             )}
 
-            <InputWrapper onSubmit={handleSubmit}>
+            <InputWrapper className="sky-office-chat-input-bar" onSubmit={handleSubmit}>
               <InputTextField
                 inputRef={inputRef}
                 autoFocus={focused}

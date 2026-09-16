@@ -52,3 +52,8 @@ export function isMobileOrTablet(): boolean {
   const type = getDeviceType()
   return type === 'tablet' || type === 'phone'
 }
+
+/** CSSの @media (pointer: coarse) and (max-width: 767px) と同一条件 */
+export function isPhone(): boolean {
+  return window.matchMedia('(pointer: coarse) and (max-width: 767px)').matches
+}

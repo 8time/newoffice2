@@ -473,7 +473,7 @@ export default function VideoOverlay() {
   return (
     <>
       {/* カメラ枠（上部・背景なし） */}
-      <Overlay>
+      <Overlay className="video-overlay-top">
         {videoConnected && (
           <VideoCard>
             {videoState.isVideoOff ? (
@@ -516,7 +516,7 @@ export default function VideoOverlay() {
       )}
 
       {/* 画面下部中央コントロールバー（ログイン後は常時表示） */}
-      <ScreenShareBar>
+      <ScreenShareBar className="video-screen-share-bar">
         <ControlItem>
           <ScreenShareBtn
             isActive={videoState.isSharingScreen}

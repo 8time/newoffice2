@@ -1,0 +1,371 @@
+/**
+ * スマホ専用スタイル（pointer: coarse + max-width 767px）
+ * body.is-phone が付いているときのみ適用。768px以上には一切影響しない。
+ * 既存コンポーネントの styled ルールは編集せず、ここで上書きする。
+ */
+
+@media (pointer: coarse) and (max-width: 767px) {
+  body.is-phone {
+    overflow: hidden;
+    height: 100dvh;
+    height: 100vh;
+    --phone-header-h: 48px;
+    --phone-tabbar-h: 44px;
+    --phone-actionbar-h: 56px;
+    --phone-keyboard-offset: 0px;
+  }
+
+  body.is-phone #root {
+    height: 100dvh;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ── レガシーサイドバー非表示 ── */
+  body.is-phone .sidebar-legacy {
+    display: none !important;
+  }
+
+  /* ── PhoneLayout シェル ── */
+  body.is-phone .phone-shell {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    display: flex;
+    flex-direction: column;
+    pointer-events: none;
+    height: 100dvh;
+    height: 100vh;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+
+  body.is-phone .phone-shell > * {
+    pointer-events: auto;
+  }
+
+  body.is-phone .phone-header {
+    flex-shrink: 0;
+    height: var(--phone-header-h);
+    max-height: var(--phone-header-h);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 0 10px;
+    background: #1a6b2a;
+    border-bottom: 1px solid #145220;
+    color: #fff;
+    font-family: 'Roboto', 'Inter', sans-serif;
+  }
+
+  body.is-phone .phone-header .phone-title {
+    font-size: 16px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  body.is-phone .phone-header .phone-clock {
+    font-size: 11px;
+    color: #ffff33;
+    font-family: monospace;
+    white-space: nowrap;
+    flex: 1;
+    text-align: center;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  body.is-phone .phone-header .phone-status {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  body.is-phone .phone-status-btn {
+    min-width: 44px;
+    min-height: 32px;
+    padding: 4px 8px;
+    border-radius: 16px;
+    border: 2px solid #444;
+    background: transparent;
+    color: #ccc;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  body.is-phone .phone-status-btn.active-present {
+    border-color: #44cc77;
+    color: #44cc77;
+    background: rgba(68, 204, 119, 0.15);
+  }
+
+  body.is-phone .phone-status-btn.active-away {
+    border-color: #ff6b35;
+    color: #ff6b35;
+    background: rgba(255, 107, 53, 0.15);
+  }
+
+  body.is-phone .phone-tab-bar {
+    flex-shrink: 0;
+    height: var(--phone-tabbar-h);
+    display: flex;
+    background: #252525;
+    border-bottom: 1px solid #333;
+  }
+
+  body.is-phone .phone-tab-btn {
+    flex: 1;
+    min-height: 44px;
+    border: none;
+    background: transparent;
+    color: #aaa;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+  }
+
+  body.is-phone .phone-tab-btn.active {
+    color: #42eacb;
+    border-bottom-color: #42eacb;
+    background: rgba(66, 234, 203, 0.08);
+  }
+
+  body.is-phone .phone-main {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background: #1e1e1e;
+  }
+
+  body.is-phone .phone-main-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding: 8px 12px;
+    font-size: 14px;
+    color: #e0e0e0;
+  }
+
+  body.is-phone .phone-main-scroll h3 {
+    font-size: 16px;
+  }
+
+  /* ── マップ（オフィスタブ） ── */
+  body.is-phone[data-phone-tab='office'] #phaser-container {
+    position: fixed !important;
+    top: calc(var(--phone-header-h) + var(--phone-tabbar-h) + env(safe-area-inset-top, 0px)) !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    bottom: calc(var(--phone-actionbar-h) + env(safe-area-inset-bottom, 0px)) !important;
+    height: auto !important;
+    z-index: 0;
+  }
+
+  body.is-phone:not([data-phone-tab='office']) #phaser-container {
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+
+  body.is-phone.logged-in #phaser-container {
+    width: 100% !important;
+  }
+
+  /* ── 下部アクションバー ── */
+  body.is-phone .phone-action-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1200;
+    height: calc(var(--phone-actionbar-h) + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    gap: 4px;
+    background: rgba(20, 20, 28, 0.92);
+    border-top: 1px solid #333;
+    backdrop-filter: blur(8px);
+  }
+
+  body.is-phone .phone-action-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    border: none;
+    background: transparent;
+    color: #eee;
+    font-size: 10px;
+    gap: 2px;
+    cursor: pointer;
+    padding: 4px 8px;
+  }
+
+  body.is-phone .phone-action-btn svg {
+    font-size: 22px;
+  }
+
+  body.is-phone .phone-action-btn.active {
+    color: #ff6666;
+  }
+
+  body.is-phone .phone-action-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  body.is-phone .phone-more-menu {
+    position: fixed;
+    bottom: calc(var(--phone-actionbar-h) + env(safe-area-inset-bottom, 0px) + 8px);
+    right: 12px;
+    z-index: 1300;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    min-width: 160px;
+  }
+
+  body.is-phone .phone-more-menu button {
+    display: block;
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 16px;
+    border: none;
+    background: transparent;
+    color: #eee;
+    font-size: 14px;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  body.is-phone .phone-more-menu button:active {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  /* VideoOverlay 既定バーを隠し、スマホ用バーに任せる */
+  body.is-phone .video-screen-share-bar {
+    display: none !important;
+  }
+
+  body.is-phone[data-phone-tab='office'] .video-overlay-top {
+    top: calc(var(--phone-header-h) + var(--phone-tabbar-h) + env(safe-area-inset-top, 0px));
+    right: 0;
+    left: 0;
+    height: 88px;
+    padding: 4px 8px;
+  }
+
+  body.is-phone:not([data-phone-tab='office']) .video-overlay-top {
+    display: none !important;
+  }
+
+  body.is-phone .emote-panel-root {
+    z-index: 1150;
+    right: 12px;
+    bottom: calc(var(--phone-actionbar-h) + env(safe-area-inset-bottom, 0px) + 8px);
+  }
+
+  body.is-phone:not([data-phone-tab='office']) .emote-panel-root {
+    display: none !important;
+  }
+
+  body.is-phone[data-phone-tab='office'] .storage-meter-root {
+    left: 8px;
+    bottom: calc(var(--phone-actionbar-h) + env(safe-area-inset-bottom, 0px) + 8px);
+    transform: scale(0.82);
+    transform-origin: bottom left;
+    width: 200px;
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+
+  /* ── C: RendererWarning / WhiteboardDialog ── */
+  body.is-phone .renderer-warning-banner {
+    right: 0 !important;
+    left: 0 !important;
+  }
+
+  body.is-phone .whiteboard-dialog-backdrop {
+    padding: calc(8px + env(safe-area-inset-top, 0px)) 8px calc(8px + env(safe-area-inset-bottom, 0px)) 8px !important;
+    width: 100% !important;
+    height: 100dvh !important;
+    height: 100vh !important;
+  }
+
+  /* ── D: Chat 上書き ── */
+  body.is-phone .phone-chat-host {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  body.is-phone .phone-chat-host .sky-office-chat-backdrop {
+    position: relative !important;
+    bottom: auto !important;
+    left: auto !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-height: none !important;
+    max-width: none !important;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  body.is-phone .phone-chat-host .sky-office-chat-backdrop > div {
+    height: 100% !important;
+    max-height: none !important;
+    padding: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+  }
+
+  body.is-phone .phone-chat-host .sky-office-chat-backdrop h3 {
+    font-size: 16px !important;
+  }
+
+  body.is-phone .phone-chat-host .sky-office-chat-input-bar {
+    flex-shrink: 0;
+    margin-top: auto;
+    transform: translateY(calc(-1 * var(--phone-keyboard-offset, 0px)));
+  }
+
+  body.is-phone .phone-chat-host .sky-office-chat-input-bar input {
+    font-size: 16px !important;
+  }
+
+  body.is-phone .phone-chat-host .sky-office-chat-backdrop .close {
+    display: none !important;
+  }
+
+  body.is-phone .phone-chat-host .sky-office-chat-backdrop > div > div:first-child {
+    border-radius: 0 !important;
+  }
+
+  /* iOS Safari の入力フォーカス時ズーム防止（16px 未満を禁止） */
+  body.is-phone input,
+  body.is-phone textarea,
+  body.is-phone select,
+  body.is-phone .MuiInputBase-input {
+    font-size: max(16px, 1em) !important;
+  }
+}

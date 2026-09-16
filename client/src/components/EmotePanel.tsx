@@ -86,7 +86,7 @@ export default function EmotePanel() {
   }
 
   return (
-    <Wrapper>
+    <Wrapper className="emote-panel-root">
       {open && (
         <Tray>
           {EMOTES.map((e) => (

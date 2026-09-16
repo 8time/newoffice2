@@ -162,7 +162,7 @@ export default function StorageMeter({ onOpen, usage, setUsage }: Props) {
           クリックして不要なファイルを消してください。
         </Toast>
       )}
-      <Wrapper onClick={() => onOpen(usage)} title="クリックすると内訳が開きます">
+      <Wrapper className="storage-meter-root" onClick={() => onOpen(usage)} title="クリックすると内訳が開きます">
         <Row>
           <span className="label">保存容量</span>
           <span className="value" style={{ color: levelColor(usage.percent) }}>
