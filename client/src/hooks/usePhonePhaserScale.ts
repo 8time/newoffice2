@@ -1,5 +1,4 @@
 import { useLayoutEffect } from 'react'
-import Phaser from 'phaser'
 import phaserGame from '../PhaserGame'
 
 /** スマホオフィスタブ: RESIZE のままコンテナ追従（FIT は使わない） */
@@ -9,7 +8,6 @@ export function usePhonePhaserScale(active: boolean) {
 
     const apply = () => {
       if (!phaserGame.isRunning) return
-      phaserGame.scale.setMode(Phaser.Scale.RESIZE)
       phaserGame.scale.refresh()
     }
 
