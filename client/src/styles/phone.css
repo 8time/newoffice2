@@ -93,12 +93,15 @@
     width: 100% !important;
   }
 
-  body.is-phone.logged-in {
+  body.is-phone.logged-in,
+  body.logged-in {
     overflow: hidden;
     height: 100dvh;
     height: 100vh;
+    background: #111111;
   }
 
+  /* #root は前面だが MAP 操作を阻害しない（phone-chrome は body 直下 portal） */
   body.is-phone.logged-in #root,
   body.logged-in #root {
     position: relative;
@@ -106,6 +109,16 @@
     height: 100dvh;
     height: 100vh;
     overflow: hidden;
+    pointer-events: none;
+  }
+
+  body.logged-in #root .video-overlay-top,
+  body.logged-in #root .emote-panel-root,
+  body.logged-in #root .storage-meter-root,
+  body.is-phone #root .video-overlay-top,
+  body.is-phone #root .emote-panel-root,
+  body.is-phone #root .storage-meter-root {
+    pointer-events: auto;
   }
 
   /* ── レガシーサイドバー非表示 ── */
@@ -273,23 +286,9 @@
     height: auto !important;
     visibility: visible !important;
     pointer-events: auto !important;
-    z-index: 0;
+    z-index: 50 !important;
     overflow: hidden;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
     background-color: #111111;
-  }
-
-  /* FIT 表示: index.scss の canvas 100% 強制を打ち消し（潰れ/白画面防止） */
-  body.logged-in[data-phone-tab='office'] #phaser-container canvas,
-  body.is-phone[data-phone-tab='office'] #phaser-container canvas,
-  body.logged-in:not([data-phone-tab]) #phaser-container canvas,
-  body.is-phone.logged-in:not([data-phone-tab]) #phaser-container canvas {
-    width: auto !important;
-    height: auto !important;
-    max-width: 100% !important;
-    max-height: 100% !important;
   }
 
   /* オフィス以外のタブのみ MAP を隠す（属性なし=オフィス扱いで表示） */
@@ -306,7 +305,6 @@
   body.logged-in #phaser-container,
   body.is-phone.logged-in #phaser-container {
     width: 100% !important;
-    z-index: 0 !important;
   }
 
   /* ── 下部アクションバー ── */
@@ -316,7 +314,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    z-index: 1200;
+    z-index: 1201;
     height: calc(var(--phone-actionbar-h) + env(safe-area-inset-bottom, 0px));
     padding-bottom: env(safe-area-inset-bottom, 0px);
     display: flex;

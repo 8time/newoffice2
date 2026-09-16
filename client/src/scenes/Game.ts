@@ -416,7 +416,7 @@ export default class Game extends Phaser.Scene {
 
     // ズーム比率を 1.5 に上げて、オフィスが適度な大きさで表示されるようにします。
     // スマホ（isPhone）のみ 1.0〜1.2 に下げて全体が見えるようにする。
-    this.cameras.main.zoom = isPhone() ? 1.0 : 1.5
+    this.cameras.main.zoom = isPhone() ? 0.85 : 1.5
     this.cameras.main.startFollow(this.myPlayer, true)
 
     this.physics.add.overlap(
