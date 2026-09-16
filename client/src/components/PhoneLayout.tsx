@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import PhoneHeader from './PhoneHeader'
 import { usePhonePhaserScale } from '../hooks/usePhonePhaserScale'
 import PhoneActionBar from './PhoneActionBar'
@@ -47,8 +48,9 @@ export default function PhoneLayout() {
     }
   }, [tab, dispatch])
 
-  return (
-    <div className="phone-shell" aria-label="スマホレイアウト">
+  /* body 直下に portal し canvas より必ず前面に出す（全画面オーバーレイは使わない） */
+  return createPortal(
+    <div className="phone-chrome" aria-label="スマホレイアウト">
       <PhoneHeader />
       <nav className="phone-tab-bar" aria-label="メインタブ">
         {TABS.map((t) => (
@@ -63,9 +65,7 @@ export default function PhoneLayout() {
         ))}
       </nav>
 
-      {tab === 'office' ? (
-        <div className="phone-map-spacer" aria-hidden="true" />
-      ) : (
+      {tab !== 'office' && (
         <main className="phone-main">
           {tab === 'members' && (
             <div className="phone-main-scroll">
@@ -86,6 +86,7 @@ export default function PhoneLayout() {
       )}
 
       {tab === 'office' && <PhoneActionBar />}
-    </div>
+    </div>,
+    document.body
   )
 }

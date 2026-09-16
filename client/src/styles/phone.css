@@ -106,23 +106,6 @@
     height: 100dvh;
     height: 100vh;
     overflow: hidden;
-    /* 透明領域のタッチを #phaser-container へ通す */
-    pointer-events: none;
-  }
-
-  /* is-phone 付与前の初回描画フォールバック（logged-in + data-phone-tab のみ） */
-  body.logged-in .phone-shell {
-    position: fixed;
-    inset: 0;
-    z-index: 1100;
-    display: flex;
-    flex-direction: column;
-    pointer-events: none;
-    height: 100dvh;
-    height: 100vh;
-    padding-top: env(safe-area-inset-top, 0px);
-    padding-left: env(safe-area-inset-left, 0px);
-    padding-right: env(safe-area-inset-right, 0px);
   }
 
   /* ── レガシーサイドバー非表示 ── */
@@ -130,50 +113,26 @@
     display: none !important;
   }
 
-  /* ── PhoneLayout シェル ── */
-  body.is-phone .phone-shell {
-    position: fixed;
-    inset: 0;
-    z-index: 1100;
-    display: flex;
-    flex-direction: column;
+  /* ── PhoneLayout: ヘッダー/タブ/バーを固定配置（MAP を覆わない） ── */
+  body.logged-in .phone-chrome,
+  body.is-phone .phone-chrome {
+    position: relative;
+    z-index: 1200;
     pointer-events: none;
-    height: 100dvh;
-    height: 100vh;
-    padding-top: env(safe-area-inset-top, 0px);
-    padding-left: env(safe-area-inset-left, 0px);
-    padding-right: env(safe-area-inset-right, 0px);
   }
 
-  /* MAP 上の透明スペーサーはタッチ透過（自キャラドラッグ用） */
-  body.logged-in .phone-map-spacer,
-  body.is-phone .phone-map-spacer {
-    pointer-events: none !important;
-  }
-
-  /* タップが必要な UI のみ受ける */
-  body.logged-in .phone-header,
-  body.logged-in .phone-tab-bar,
-  body.logged-in .phone-action-bar,
-  body.logged-in .phone-more-menu,
-  body.logged-in .phone-main,
-  body.logged-in .video-overlay-top,
-  body.logged-in .emote-panel-root,
-  body.logged-in .storage-meter-root,
-  body.is-phone .phone-header,
-  body.is-phone .phone-tab-bar,
-  body.is-phone .phone-action-bar,
-  body.is-phone .phone-more-menu,
-  body.is-phone .phone-main,
-  body.is-phone .video-overlay-top,
-  body.is-phone .emote-panel-root,
-  body.is-phone .storage-meter-root {
+  body.logged-in .phone-chrome > *,
+  body.is-phone .phone-chrome > * {
     pointer-events: auto;
   }
 
   body.logged-in .phone-header,
   body.is-phone .phone-header {
-    flex-shrink: 0;
+    position: fixed;
+    top: env(safe-area-inset-top, 0px);
+    left: 0;
+    right: 0;
+    z-index: 1201;
     height: var(--phone-header-h);
     max-height: var(--phone-header-h);
     display: flex;
@@ -238,7 +197,11 @@
 
   body.logged-in .phone-tab-bar,
   body.is-phone .phone-tab-bar {
-    flex-shrink: 0;
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + var(--phone-header-h));
+    left: 0;
+    right: 0;
+    z-index: 1201;
     height: var(--phone-tabbar-h);
     display: flex;
     background: #252525;
@@ -266,22 +229,21 @@
   }
 
   /* オフィスタブ: マップを透かして見せる（pointer-events は Phaser へ通す） */
-  body.logged-in .phone-map-spacer,
-  body.is-phone .phone-map-spacer {
-    flex: 1;
-    min-height: 0;
-    background: transparent;
-  }
-
+  body.logged-in .phone-main,
   body.is-phone .phone-main {
-    flex: 1;
-    min-height: 0;
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + var(--phone-header-h) + var(--phone-tabbar-h));
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1201;
     overflow: hidden;
     display: flex;
     flex-direction: column;
     background: #1e1e1e;
   }
 
+  body.logged-in .phone-main-scroll,
   body.is-phone .phone-main-scroll {
     flex: 1;
     min-height: 0;
@@ -317,6 +279,17 @@
     align-items: center !important;
     justify-content: center !important;
     background-color: #111111;
+  }
+
+  /* FIT 表示: index.scss の canvas 100% 強制を打ち消し（潰れ/白画面防止） */
+  body.logged-in[data-phone-tab='office'] #phaser-container canvas,
+  body.is-phone[data-phone-tab='office'] #phaser-container canvas,
+  body.logged-in:not([data-phone-tab]) #phaser-container canvas,
+  body.is-phone.logged-in:not([data-phone-tab]) #phaser-container canvas {
+    width: auto !important;
+    height: auto !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
   }
 
   /* オフィス以外のタブのみ MAP を隠す（属性なし=オフィス扱いで表示） */
