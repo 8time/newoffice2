@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { ItemType } from '../../../types/Items'
+import { formatInteractionHint } from '../utils/interactionHint'
 
 export default class Item extends Phaser.Physics.Arcade.Sprite {
   private dialogBox!: Phaser.GameObjects.Container
@@ -25,13 +26,7 @@ export default class Item extends Phaser.Physics.Arcade.Sprite {
       }
     }
 
-    // 表示文字に「Press R」や「Press E」などがある場合、キー表示を見やすくハイライト
-    let displayHtml = text
-    if (displayHtml.includes('Press R')) {
-      displayHtml = displayHtml.replace('Press R', '⌨️ [ R ]')
-    } else if (displayHtml.includes('Press E')) {
-      displayHtml = displayHtml.replace('Press E', '⌨️ [ E ]')
-    }
+    const displayHtml = formatInteractionHint(text)
 
     const innerText = this.scene.add
       .text(0, 0, displayHtml)

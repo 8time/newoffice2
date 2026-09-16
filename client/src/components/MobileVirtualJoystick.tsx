@@ -2,7 +2,7 @@
  * MobileVirtualJoystick — デバイス種別に応じたジョイスティック表示制御
  *
  * PC: ジョイスティックを表示しない（設定で手動ONにした場合は既存のreact-joystick-component）
- * タブレット/スマホ: 新しいPointer Events対応のTabletJoystickを表示
+ * タブレット/スマホ: 自キャラ直接ドラッグ（CharacterDragControl / Game.ts）を使用するためUIは出さない
  *
  * 既存のPC版の動作は変更しない。
  */
@@ -10,14 +10,13 @@
 import { useEffect, useState } from 'react'
 import styled from 'styled-components'
 import JoystickItem from './Joystick'
-import TabletJoystick from './TabletJoystick'
 
 import phaserGame from '../PhaserGame'
 import Game from '../scenes/Game'
 
 import { useAppSelector } from '../hooks'
 import { JoystickMovement } from './Joystick'
-import { getDeviceType, DeviceType } from '../utils/deviceDetect'
+import { getDeviceType } from '../utils/deviceDetect'
 
 // 既存のPC用ジョイスティック配置（変更なし）
 const Backdrop = styled.div`
@@ -42,24 +41,6 @@ const JoystickWrapper = styled.div`
 `
 export const minimumScreenWidthSize = 650 //px
 
-// デバイス種別を返すカスタムフック（リサイズ時に再評価）
-function useDeviceType(): DeviceType {
-  const [deviceType, setDeviceType] = useState<DeviceType>(getDeviceType())
-
-  useEffect(() => {
-    const handleResize = () => setDeviceType(getDeviceType())
-    window.addEventListener('resize', handleResize)
-    // 画面の向きが変わった場合にも再評価
-    window.addEventListener('orientationchange', handleResize)
-    return () => {
-      window.removeEventListener('resize', handleResize)
-      window.removeEventListener('orientationchange', handleResize)
-    }
-  }, [])
-
-  return deviceType
-}
-
 const isSmallScreen = (smallScreenSize: number) => {
   const [width, setWidth] = useState(window.innerWidth)
 
@@ -76,7 +57,6 @@ export default function MobileVirtualJoystick() {
   const showJoystick = useAppSelector((state) => state.user.showJoystick)
   const showChat = useAppSelector((state) => state.chat.showChat)
   const hasSmallScreen = isSmallScreen(minimumScreenWidthSize)
-  const deviceType = useDeviceType()
   const game = phaserGame.scene.keys.game as Game
 
   useEffect(() => {}, [showJoystick, showChat])
@@ -85,10 +65,9 @@ export default function MobileVirtualJoystick() {
     game.myPlayer?.handleJoystickMovement(movement)
   }
 
-  // タブレット/スマホ: 新しいPointer Events対応ジョイスティックを表示
-  // showJoystickの設定に関係なく常に表示（タッチデバイスでは必須UIのため）
-  if (deviceType === 'tablet' || deviceType === 'phone') {
-    return <TabletJoystick deviceType={deviceType} />
+  // タブレット/スマホ: 自キャラ直接ドラッグ（Game.ts の CharacterDragControl）を使う
+  if (getDeviceType() === 'tablet' || getDeviceType() === 'phone') {
+    return null
   }
 
   // PC: 設定で手動ONにした場合のみ既存ジョイスティックを表示

@@ -28,7 +28,7 @@ export default class PlayerSelector extends Phaser.GameObjects.Zone {
     let joystickRight = false
     let joystickUp = false
     let joystickDown = false
-    if (player.joystickMovement?.isMoving) {
+    if (player.joystickMovement?.isMoving || player.joystickMovement?.velocity) {
       joystickLeft = player.joystickMovement?.direction.left
       joystickRight = player.joystickMovement?.direction.right
       joystickUp = player.joystickMovement?.direction.up

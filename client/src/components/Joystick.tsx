@@ -3,6 +3,8 @@ import { Joystick } from 'react-joystick-component'
 export interface JoystickMovement {
   isMoving: boolean
   direction: Direction
+  /** ドラッグ操作時の速度ベクトル。未設定なら direction フラグ＋固定速度 */
+  velocity?: { vx: number; vy: number }
 }
 
 interface Direction {

@@ -10,6 +10,7 @@ import Whiteboard from '../items/Whiteboard'
 import Jukebox from '../items/Jukebox'
 import PredictionBoard from '../items/PredictionBoard'
 import MessageBoard from '../items/MessageBoard'
+import Item from '../items/Item'
 
 import { phaserEvents, Event } from '../events/EventCenter'
 import store from '../stores'
@@ -47,6 +48,84 @@ export default class MyPlayer extends Player {
     this.joystickMovement = movement
   }
 
+  /** Rキー / タップで実行する主操作（椅子以外のオブジェクト） */
+  performPrimaryInteraction(item: Item | undefined, network: Network) {
+    if (!item) return
+    switch (item.itemType) {
+      case ItemType.COMPUTER:
+        ;(item as Computer).openDialog(this.playerId, network)
+        break
+      case ItemType.WHITEBOARD:
+        ;(item as Whiteboard).openDialog(network)
+        break
+      case ItemType.VENDINGMACHINE:
+        openURL('https://www.buymeacoffee.com/skyoffice')
+        break
+      case ItemType.JUKEBOX:
+        ;(item as Jukebox).openDialog()
+        break
+      case ItemType.PREDICTION_BOARD:
+        ;(item as PredictionBoard).openDialog()
+        break
+      case ItemType.MESSAGE_BOARD:
+        ;(item as MessageBoard).openDialog()
+        break
+    }
+  }
+
+  /** Eキー / タップで実行する着席 */
+  performSecondaryInteraction(
+    item: Item | undefined,
+    playerSelector: PlayerSelector,
+    network: Network
+  ) {
+    if (item?.itemType !== ItemType.CHAIR || this.playerBehavior !== PlayerBehavior.IDLE) return
+    const chairItem = item as Chair
+    this.scene.time.addEvent({
+      delay: 10,
+      callback: () => {
+        this.setVelocity(0, 0)
+        if (chairItem.itemDirection) {
+          this.setPosition(
+            chairItem.x + sittingShiftData[chairItem.itemDirection][0],
+            chairItem.y + sittingShiftData[chairItem.itemDirection][1]
+          ).setDepth(chairItem.depth + sittingShiftData[chairItem.itemDirection][2])
+          this.playerContainer.setPosition(
+            chairItem.x + sittingShiftData[chairItem.itemDirection][0],
+            chairItem.y + sittingShiftData[chairItem.itemDirection][1] - 30
+          )
+        }
+
+        this.play(`${this.playerTexture}_sit_${chairItem.itemDirection}`, true)
+        playerSelector.selectedItem = undefined
+        if (chairItem.itemDirection === 'up') {
+          playerSelector.setPosition(this.x, this.y - this.height)
+        } else {
+          playerSelector.setPosition(0, 0)
+        }
+        network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
+      },
+      loop: false,
+    })
+    chairItem.clearDialogBox()
+    chairItem.setDialogBox('Press E to leave')
+    this.chairOnSit = chairItem
+    this.playerBehavior = PlayerBehavior.SITTING
+  }
+
+  /** Eキー / タップで実行する離席 */
+  standUpFromChair(playerSelector: PlayerSelector, cursors: NavKeys, network: Network) {
+    if (this.playerBehavior !== PlayerBehavior.SITTING) return
+    const parts = this.anims.currentAnim.key.split('_')
+    parts[1] = 'idle'
+    this.play(parts.join('_'), true)
+    this.playerBehavior = PlayerBehavior.IDLE
+    this.chairOnSit?.clearDialogBox()
+    playerSelector.setPosition(this.x, this.y)
+    playerSelector.update(this, cursors)
+    network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
+  }
+
   update(
     playerSelector: PlayerSelector,
     cursors: NavKeys,
@@ -59,115 +138,53 @@ export default class MyPlayer extends Player {
     const item = playerSelector.selectedItem
 
     if (Phaser.Input.Keyboard.JustDown(keyR)) {
-      switch (item?.itemType) {
-        case ItemType.COMPUTER:
-          const computer = item as Computer
-          computer.openDialog(this.playerId, network)
-          break
-        case ItemType.WHITEBOARD:
-          const whiteboard = item as Whiteboard
-          whiteboard.openDialog(network)
-          break
-        case ItemType.VENDINGMACHINE:
-          // hacky and hard-coded, but leaving it as is for now
-          const url = 'https://www.buymeacoffee.com/skyoffice'
-          openURL(url)
-          break
-        case ItemType.JUKEBOX:
-          const jukebox = item as Jukebox
-          jukebox.openDialog()
-          break
-        case ItemType.PREDICTION_BOARD:
-          const predBoard = item as PredictionBoard
-          predBoard.openDialog()
-          break
-        case ItemType.MESSAGE_BOARD:
-          const msgBoard = item as MessageBoard
-          msgBoard.openDialog()
-          break
-      }
+      this.performPrimaryInteraction(item, network)
     }
 
     switch (this.playerBehavior) {
       case PlayerBehavior.IDLE:
-        // if press E in front of selected chair
         if (Phaser.Input.Keyboard.JustDown(keyE) && item?.itemType === ItemType.CHAIR) {
-          const chairItem = item as Chair
-          /**
-           * move player to the chair and play sit animation
-           * a delay is called to wait for player movement (from previous velocity) to end
-           * as the player tends to move one more frame before sitting down causing player
-           * not sitting at the center of the chair
-           */
-          this.scene.time.addEvent({
-            delay: 10,
-            callback: () => {
-              // update character velocity and position
-              this.setVelocity(0, 0)
-              if (chairItem.itemDirection) {
-                this.setPosition(
-                  chairItem.x + sittingShiftData[chairItem.itemDirection][0],
-                  chairItem.y + sittingShiftData[chairItem.itemDirection][1]
-                ).setDepth(chairItem.depth + sittingShiftData[chairItem.itemDirection][2])
-                // also update playerNameContainer position
-                this.playerContainer.setPosition(
-                  chairItem.x + sittingShiftData[chairItem.itemDirection][0],
-                  chairItem.y + sittingShiftData[chairItem.itemDirection][1] - 30
-                )
-              }
-
-              this.play(`${this.playerTexture}_sit_${chairItem.itemDirection}`, true)
-              playerSelector.selectedItem = undefined
-              if (chairItem.itemDirection === 'up') {
-                playerSelector.setPosition(this.x, this.y - this.height)
-              } else {
-                playerSelector.setPosition(0, 0)
-              }
-              // send new location and anim to server
-              network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
-            },
-            loop: false,
-          })
-          // set up new dialog as player sits down
-          chairItem.clearDialogBox()
-          chairItem.setDialogBox('Press E to leave')
-          this.chairOnSit = chairItem
-          this.playerBehavior = PlayerBehavior.SITTING
+          this.performSecondaryInteraction(item, playerSelector, network)
           return
         }
 
         const speed = 200
         let vx = 0
         let vy = 0
+        let useVariableSpeed = false
 
-        let joystickLeft = false
-        let joystickRight = false
-        let joystickUp = false
-        let joystickDown = false
+        if (this.joystickMovement?.velocity) {
+          vx = this.joystickMovement.velocity.vx
+          vy = this.joystickMovement.velocity.vy
+          useVariableSpeed = true
+        } else {
+          let joystickLeft = false
+          let joystickRight = false
+          let joystickUp = false
+          let joystickDown = false
 
-        if (this.joystickMovement?.isMoving) {
-          joystickLeft = this.joystickMovement.direction.left
-          joystickRight = this.joystickMovement.direction.right
-          joystickUp = this.joystickMovement.direction.up
-          joystickDown = this.joystickMovement.direction.down
+          if (this.joystickMovement?.isMoving) {
+            joystickLeft = this.joystickMovement.direction.left
+            joystickRight = this.joystickMovement.direction.right
+            joystickUp = this.joystickMovement.direction.up
+            joystickDown = this.joystickMovement.direction.down
+          }
+
+          if (cursors.left?.isDown || cursors.A?.isDown || joystickLeft) vx -= speed
+          if (cursors.right?.isDown || cursors.D?.isDown || joystickRight) vx += speed
+          if (cursors.up?.isDown || cursors.W?.isDown || joystickUp) vy -= speed
+          if (cursors.down?.isDown || cursors.S?.isDown || joystickDown) vy += speed
         }
 
-        if (cursors.left?.isDown || cursors.A?.isDown || joystickLeft) vx -= speed
-        if (cursors.right?.isDown || cursors.D?.isDown || joystickRight) vx += speed
-        if (cursors.up?.isDown || cursors.W?.isDown || joystickUp) {
-          vy -= speed
-          this.setDepth(this.y) //change player.depth if player.y changes
-        }
-        if (cursors.down?.isDown || cursors.S?.isDown || joystickDown) {
-          vy += speed
-          this.setDepth(this.y) //change player.depth if player.y changes
-        }
-        // update character velocity
         this.setVelocity(vx, vy)
-        this.body.velocity.setLength(speed)
+        if (!useVariableSpeed && (vx !== 0 || vy !== 0)) {
+          this.body.velocity.setLength(speed)
+        }
 
-        // update animation according to velocity and send new location and anim to server
-        if (vx !== 0 || vy !== 0) network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
+        if (vx !== 0 || vy !== 0) {
+          this.setDepth(this.y)
+          network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
+        }
         if (vx > 0) {
           this.play(`${this.playerTexture}_run_right`, true)
         } else if (vx < 0) {
@@ -180,31 +197,20 @@ export default class MyPlayer extends Player {
           const parts = this.anims.currentAnim.key.split('_')
           parts[1] = 'idle'
           const newAnim = parts.join('_')
-          // this prevents idle animation keeps getting called
           if (this.anims.currentAnim.key !== newAnim) {
             this.play(parts.join('_'), true)
-            // send new location and anim to server
             network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
           }
         }
         break
 
       case PlayerBehavior.SITTING:
-        // back to idle if player press E while sitting
         if (Phaser.Input.Keyboard.JustDown(keyE)) {
-          const parts = this.anims.currentAnim.key.split('_')
-          parts[1] = 'idle'
-          this.play(parts.join('_'), true)
-          this.playerBehavior = PlayerBehavior.IDLE
-          this.chairOnSit?.clearDialogBox()
-          playerSelector.setPosition(this.x, this.y)
-          playerSelector.update(this, cursors)
-          network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
+          this.standUpFromChair(playerSelector, cursors, network)
         }
         break
     }
 
-    // 名前コンテナの座標をプレイヤーの頭上に完全に固定（ズレを解消）
     this.playerContainer.setPosition(this.x, this.y - 30)
   }
 }

@@ -38,6 +38,8 @@ import { setActiveMeetingRoom, clearActiveMeetingRoom } from '../stores/MeetingR
 import { openExitDialog } from '../stores/UiStore'
 import { NavKeys, Keyboard } from '../../../types/KeyboardState'
 import { phaserEvents, Event } from '../events/EventCenter'
+import CharacterDragControl from '../controls/CharacterDragControl'
+import { isMobileOrTablet } from '../utils/deviceDetect'
 
 const TILE_SIZE = 32
 
@@ -133,6 +135,7 @@ export default class Game extends Phaser.Scene {
   private isDragging = false
   private hasAskedExit = false
   private exitZoneBounds?: Phaser.Geom.Rectangle
+  private characterDragControl?: CharacterDragControl
   // ゲームキャンバス上だけで右クリックメニューを抑止するためのハンドラ（bindしてリスナーの追加/削除で同一参照を使う）
   private preventCanvasContextMenu = (e: MouseEvent) => e.preventDefault()
 
@@ -511,8 +514,13 @@ export default class Game extends Phaser.Scene {
     // これらの描画イベントはリスナー登録前に発火して取りこぼされるため、ここで明示的に再生する。
     this.network.replayExistingState()
 
+    if (isMobileOrTablet()) {
+      this.setupMobileTouchControls()
+    }
+
     this.events.once('destroy', () => {
       this.game.canvas.removeEventListener('contextmenu', this.preventCanvasContextMenu)
+      this.teardownMobileTouchControls()
       this.input.off('pointerdown', this.handleInspectCoordinate, this)
       phaserEvents.off(Event.JUKEBOX_PLAY, this.handleJukeboxPlay, this)
       phaserEvents.off(Event.JUKEBOX_PAUSE, this.handleJukeboxPause, this)
@@ -1439,6 +1447,51 @@ export default class Game extends Phaser.Scene {
   }
 
   // ────────────────────────────────────────────────────────────────────────────
+
+  /** タブレット/スマホ: 自キャラ直接ドラッグ ＋ 近接オブジェクトのタップ操作 */
+  private setupMobileTouchControls() {
+    if (!this.myPlayer) return
+    this.characterDragControl = new CharacterDragControl(this, this.myPlayer)
+    this.characterDragControl.enable()
+    this.input.on('pointerdown', this.handleMobileTapInteract, this)
+  }
+
+  private teardownMobileTouchControls() {
+    this.characterDragControl?.disable()
+    this.characterDragControl = undefined
+    this.input.off('pointerdown', this.handleMobileTapInteract, this)
+  }
+
+  private handleMobileTapInteract(pointer: Phaser.Input.Pointer) {
+    if (!isMobileOrTablet() || !this.myPlayer || !this.network) return
+    if (this.characterDragControl?.isDragging) return
+    if (this.isBuilderMode || this.isPlacingSignboard || this.isPickingMeetingEntrance) return
+
+    const el = document.activeElement as HTMLElement | null
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return
+
+    const wp = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
+
+    if (this.myPlayer.playerBehavior === PlayerBehavior.SITTING) {
+      const bounds = this.myPlayer.getBounds()
+      if (Phaser.Geom.Rectangle.Contains(bounds, wp.x, wp.y)) {
+        this.myPlayer.standUpFromChair(this.playerSelector, this.cursors, this.network)
+      }
+      return
+    }
+
+    const item = (this.playerSelector as PlayerSelector).selectedItem
+    if (!item) return
+
+    const bounds = item.getBounds()
+    if (!Phaser.Geom.Rectangle.Contains(bounds, wp.x, wp.y)) return
+
+    if (item.itemType === ItemType.CHAIR) {
+      this.myPlayer.performSecondaryInteraction(item, this.playerSelector, this.network)
+    } else {
+      this.myPlayer.performPrimaryInteraction(item, this.network)
+    }
+  }
 
   private handleItemSelectorOverlap(playerSelector, selectionItem) {
     const currentItem = playerSelector.selectedItem as Item
