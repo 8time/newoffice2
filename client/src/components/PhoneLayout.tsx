@@ -11,6 +11,9 @@ import { useVisualViewportKeyboard } from '../hooks/useVisualViewportKeyboard'
 import { useAppDispatch } from '../hooks'
 import { setFocused, setShowChat } from '../stores/ChatStore'
 import { closeDm } from '../stores/DMStore'
+import { setSignboardPlacing } from '../stores/SignboardStore'
+import { useAppSelector } from '../hooks'
+import { phaserEvents, Event } from '../events/EventCenter'
 import phaserGame from '../PhaserGame'
 
 export type PhoneTab = 'office' | 'members' | 'chat' | 'attendance'
@@ -25,8 +28,9 @@ const TABS: { id: PhoneTab; label: string }[] = [
 export default function PhoneLayout() {
   const [tab, setTab] = useState<PhoneTab>('office')
   const dispatch = useAppDispatch()
+  const dmOpen = useAppSelector((state) => state.dm.openKey !== null)
 
-  useVisualViewportKeyboard(tab === 'chat')
+  useVisualViewportKeyboard(tab === 'chat' || dmOpen)
   usePhonePhaserScale(tab === 'office')
 
   useLayoutEffect(() => {
@@ -52,6 +56,14 @@ export default function PhoneLayout() {
   // スマホでタブが切り替わった時（メンバーからオフィスに戻った等）はDMを閉じる
   useEffect(() => {
     dispatch(closeDm())
+  }, [tab, dispatch])
+
+  // A placement preview belongs to the map.  Do not leave its Phaser pointer
+  // handler active while the user moves to another phone tab.
+  useEffect(() => {
+    if (tab === 'office') return
+    phaserEvents.emit(Event.SIGNBOARD_PLACE_CANCEL)
+    dispatch(setSignboardPlacing(false))
   }, [tab, dispatch])
 
   /* body 直下に portal し canvas より必ず前面に出す（全画面オーバーレイは使わない） */

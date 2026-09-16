@@ -272,6 +272,21 @@
     font-size: 16px;
   }
 
+  /* MapBuilder is rendered inside #root, whose default mobile layer ignores
+     pointer events.  Its close button must remain a real, reachable control. */
+  body.is-phone .app-backdrop > .map-builder-panel {
+    pointer-events: auto;
+  }
+
+  body.is-phone .map-builder-panel {
+    top: calc(env(safe-area-inset-top, 0px) + var(--phone-header-h) + var(--phone-tabbar-h) + 8px) !important;
+    left: 8px !important;
+    right: 8px !important;
+    width: auto !important;
+    max-height: calc(100dvh - var(--phone-header-h) - var(--phone-tabbar-h) - var(--phone-actionbar-h) - 16px) !important;
+    z-index: 1400 !important;
+  }
+
   /* ── マップ（オフィスタブ） ── */
   body.logged-in:not([data-phone-tab]) #phaser-container,
   body.is-phone.logged-in:not([data-phone-tab]) #phaser-container,

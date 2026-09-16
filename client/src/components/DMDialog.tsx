@@ -6,7 +6,7 @@ import CloseIcon from '@mui/icons-material/Close'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 
 import { useAppDispatch, useAppSelector } from '../hooks'
-import { closeDm } from '../stores/DMStore'
+import { addDmMessage, closeDm } from '../stores/DMStore'
 import { getClientId } from '../util/clientId'
 import phaserGame from '../PhaserGame'
 import Game from '../scenes/Game'
@@ -43,7 +43,9 @@ const Backdrop = styled.div`
     left: 0;
     right: 0;
     width: 100%;
-    height: 100%;
+    /* Android Chrome overlays the virtual keyboard on fixed elements.  Size the
+       dialog to the visual viewport so the composer stays reachable. */
+    height: calc(100% - var(--phone-keyboard-offset, 0px));
     max-height: 100%;
     max-width: 100%;
     z-index: 1350;
@@ -265,7 +267,22 @@ export default function DMDialog() {
     const val = input.trim()
     if (!val) return
     const game = phaserGame.scene.keys.game as Game
-    game?.network?.sendDm(openKey, val)
+    const id = game?.network?.sendDm(openKey, val)
+    // Show an outgoing message immediately.  The server echoes the same id,
+    // and the store deduplicates that echo, so a slow mobile connection cannot
+    // make the conversation look frozen after the first send.
+    if (!id) return
+    dispatch(addDmMessage({
+      myUserKey: myKey,
+      msg: {
+        id,
+        fromUserKey: myKey,
+        toUserKey: openKey,
+        fromName: '',
+        content: val,
+        createdAt: Date.now(),
+      },
+    }))
     setInput('')
     // 送信後も入力欄にフォーカスを維持し、連続送信をスムーズにする
     setTimeout(() => {

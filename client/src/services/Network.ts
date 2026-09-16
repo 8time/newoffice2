@@ -752,8 +752,10 @@ export default class Network {
   }
 
   sendDm(toUserKey: string, content: string) {
+    if (!this.room) return null
     const id = `dm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
-    this.room?.send(Message.SEND_DM, { toUserKey, content, id })
+    this.room.send(Message.SEND_DM, { toUserKey, content, id })
+    return id
   }
 
   requestDmHistory(withUserKey: string) {

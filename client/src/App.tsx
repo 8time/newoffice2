@@ -46,6 +46,7 @@ import StorageMeter, { Usage } from './components/StorageMeter'
 import StorageDialog from './components/StorageDialog'
 import DisconnectLogPanel from './components/DisconnectLogPanel'
 import { phaserEvents, Event } from './events/EventCenter'
+import { setSignboardPlacing } from './stores/SignboardStore'
 
 const PlacingBanner = styled.div`
   position: fixed;
@@ -235,6 +236,13 @@ function App() {
   const [usage, setUsage] = useState<Usage | null>(null)
   const [storageOpen, setStorageOpen] = useState(false)
 
+  const cancelSignboardPlacement = () => {
+    // Clear React state as well as the Phaser preview.  This makes the cancel
+    // button recover the map even if the scene is between visibility changes.
+    dispatch(setSignboardPlacing(false))
+    phaserEvents.emit(Event.SIGNBOARD_PLACE_CANCEL)
+  }
+
   // URLに ?room=<合言葉> が付いていれば、ロビー接続後に自動でその固定ルームへ入る。
   // これによりブックマークしたURLを踏むだけで、いつもの部屋に直行できる。
   useEffect(() => {
@@ -319,7 +327,7 @@ function App() {
           <span>看板を設置する位置をタップ</span>
           <button
             type="button"
-            onClick={() => phaserEvents.emit(Event.SIGNBOARD_PLACE_CANCEL)}
+            onClick={cancelSignboardPlacement}
           >
             配置をキャンセル
           </button>

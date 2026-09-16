@@ -209,7 +209,7 @@ export default function MapBuilder() {
   }
 
   return (
-    <Panel>
+    <Panel className="map-builder-panel">
       <Header>
         <Title>🗺️ マップビルダー</Title>
         <Tooltip title="ビルダーを閉じる">
