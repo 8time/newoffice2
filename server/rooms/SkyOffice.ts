@@ -369,6 +369,10 @@ export class SkyOffice extends Room<OfficeState> {
   private meetingActiveTabs = new Map<string, string>()
   // sessionId → clientId（同じブラウザからの重複接続を検出して1キャラに保つため）
   private clientIdBySession = new Map<string, string>()
+  // 最後に実データを受け取った時刻。中継がWebSocket pingに応答すると
+  // 切断を検知できないため、アプリ心拍が止まった接続をここで落とす
+  private lastSeenBySession = new Map<string, number>()
+  private static readonly STALE_CLIENT_MS = 90_000
   // このルームのチャット履歴を保存するキー（固定ルームは合言葉で識別）
   private chatKey = 'public'
   private chatSaveTimer?: NodeJS.Timeout
@@ -407,6 +411,7 @@ export class SkyOffice extends Room<OfficeState> {
     this.chatKey = roomKey || name || 'public'
 
     this.setState(new OfficeState())
+    this.clock.setInterval(() => this.sweepStaleClients(), 15000)
 
     // チャット履歴を永続化ファイルから復元（日付区切りでさかのぼれるように）
     const savedChat = loadChatHistory()[this.chatKey]
@@ -546,6 +551,7 @@ export class SkyOffice extends Room<OfficeState> {
     this.onMessage(
       Message.UPDATE_PLAYER,
       (client, message: { x: number; y: number; anim: string }) => {
+        this.touchClient(client.sessionId)
         this.dispatcher.dispatch(new PlayerUpdateCommand(), {
           client,
           x: message.x,
@@ -592,9 +598,10 @@ export class SkyOffice extends Room<OfficeState> {
       if (player) player.readyToConnect = true
     })
 
-    // 経路のアイドル切断を防ぐための心拍。受け取るだけでよい（実データの往復が
-    // 発生し、中継が「通信中」と認識する）。状態は変えないので処理は空。
-    this.onMessage(Message.HEARTBEAT, () => {})
+    // 経路のアイドル切断を防ぐ心拍。中継が「通信中」と認識し、サーバー側でも生存確認する
+    this.onMessage(Message.HEARTBEAT, (client) => {
+      this.touchClient(client.sessionId)
+    })
 
     this.onMessage(Message.VIDEO_CONNECTED, (client) => {
       const player = this.state.players.get(client.sessionId)
@@ -1239,16 +1246,63 @@ export class SkyOffice extends Room<OfficeState> {
     return true
   }
 
+  private touchClient(sessionId: string) {
+    this.lastSeenBySession.set(sessionId, Date.now())
+  }
+
+  // 接続のないキャラ（幽霊）を部屋から消す。勤怠の退社もここで付ける。
+  private dropPlayer(sessionId: string) {
+    this.lastSeenBySession.delete(sessionId)
+    this.clientIdBySession.delete(sessionId)
+    if (this.state.players.has(sessionId)) {
+      this.state.players.delete(sessionId)
+    }
+    recordCheckOut(sessionId)
+  }
+
+  // 中継がWebSocket pingに応答すると、閉じたはずの接続が部屋に残り続ける。
+  // 90秒アプリ心拍が無いクライアントを切断し、接続のないplayersも削除する。
+  private sweepStaleClients() {
+    const now = Date.now()
+    this.clients.forEach((client) => {
+      if (!this.lastSeenBySession.has(client.sessionId)) {
+        this.lastSeenBySession.set(client.sessionId, now)
+        return
+      }
+      const last = this.lastSeenBySession.get(client.sessionId) || 0
+      if (now - last > SkyOffice.STALE_CLIENT_MS) {
+        console.log(`[Presence] 無応答のため切断: ${client.sessionId}`)
+        try { client.leave() } catch {}
+      }
+    })
+    const connected = new Set<string>()
+    this.clients.forEach((c) => connected.add(c.sessionId))
+    const orphans: string[] = []
+    this.state.players.forEach((_player, sessionId) => {
+      if (!connected.has(sessionId)) orphans.push(sessionId)
+    })
+    orphans.forEach((sessionId) => {
+      console.log(`[Presence] 接続のないキャラを削除: ${sessionId}`)
+      this.dropPlayer(sessionId)
+    })
+  }
+  }
+
   onJoin(client: Client, options: any) {
+    this.touchClient(client.sessionId)
     // 同じブラウザ(clientId)からの古い接続が残っていたら追い出す。
     // リロードや再接続で古いセッションのキャラ（幽霊）が残り、複数キャラが
     // ついてくるように見える問題を防ぐ（1ブラウザ=1キャラ）。
     const clientId = options?.clientId
     if (clientId) {
+      this.state.players.forEach((player, sessionId) => {
+        if (sessionId !== client.sessionId && player.userKey === clientId) {
+          this.dropPlayer(sessionId)
+        }
+      })
       this.clients.forEach((other) => {
         if (other.sessionId !== client.sessionId && this.clientIdBySession.get(other.sessionId) === clientId) {
-          if (this.state.players.has(other.sessionId)) this.state.players.delete(other.sessionId)
-          this.clientIdBySession.delete(other.sessionId)
+          this.dropPlayer(other.sessionId)
           // 通常の切断(1000)で追い出すと、古いタブは理由が分からないまま
           // 「マップは映るが看板の設置も削除もできない」状態になってしまう。
           // 専用コードで追い出し、古いタブ側で理由を表示できるようにする。
@@ -1270,13 +1324,7 @@ export class SkyOffice extends Room<OfficeState> {
   }
 
   onLeave(client: Client, consented: boolean) {
-    // 退社記録
-    recordCheckOut(client.sessionId)
-    this.clientIdBySession.delete(client.sessionId)
-
-    if (this.state.players.has(client.sessionId)) {
-      this.state.players.delete(client.sessionId)
-    }
+    this.dropPlayer(client.sessionId)
     this.state.computers.forEach((computer) => {
       if (computer.connectedUser.has(client.sessionId)) {
         computer.connectedUser.delete(client.sessionId)

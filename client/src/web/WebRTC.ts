@@ -439,12 +439,23 @@ export default class WebRTC {
   // マイクデバイスの動的切り替え（通話相手への配信トラックも即座に差し替え）
   async switchMicrophone(deviceId: string): Promise<boolean> {
     try {
-      const constraints: MediaStreamConstraints = {
-        audio: buildAudioConstraints(deviceId),
+      let newStream: MediaStream
+      try {
+        newStream = await navigator.mediaDevices.getUserMedia({
+          audio: buildAudioConstraints(deviceId),
+        })
+      } catch (exactErr) {
+        // 差し込み直後や Bluetooth 切替では exact が失敗することがある
+        console.warn('switchMicrophone exact failed, retry with ideal:', exactErr)
+        newStream = await navigator.mediaDevices.getUserMedia({
+          audio: { deviceId: { ideal: deviceId }, ...AUDIO_PROCESSING },
+        })
       }
-      const newStream = await navigator.mediaDevices.getUserMedia(constraints)
       const newAudioTrack = newStream.getAudioTracks()[0]
       if (!newAudioTrack) return false
+      newStream.getTracks().forEach((t) => {
+        if (t !== newAudioTrack) t.stop()
+      })
 
       this.selectedMicId = deviceId
       try { localStorage.setItem('skyoffice_selectedMicId', deviceId) } catch {}
@@ -462,8 +473,13 @@ export default class WebRTC {
         return true
       }
 
-      // 接続中の全ピアのオーディオトラックを差し替え
-      this.replaceTrackForAllPeers('audio', this.isAudioMuted ? null : newAudioTrack)
+      if (this.isSharingScreen && this.screenStream) {
+        this.teardownMixedAudio()
+        const mixed = this.buildMixedAudioTrack(this.screenStream)
+        this.replaceTrackForAllPeers('audio', mixed || (this.isAudioMuted ? null : newAudioTrack))
+      } else {
+        this.replaceTrackForAllPeers('audio', this.isAudioMuted ? null : newAudioTrack)
+      }
 
       this.notifyVideoState()
       return true
@@ -721,12 +737,24 @@ export default class WebRTC {
   // 接続中の全ピア（自分からcallした相手・相手からcallされた相手の両方）の映像トラックを差し替える。
   // 以前はthis.peers（自分からcallした相手）にしか適用しておらず、相手から先に呼ばれた場合は
   // 画面共有が一切届かなかった（片方向のみ成功する不具合）。
+  private findSender(pc: RTCPeerConnection, kind: 'video' | 'audio') {
+    const senders = pc.getSenders()
+    const byTrack = senders.find((s) => s.track?.kind === kind)
+    if (byTrack) return byTrack
+    // ミュート中は replaceTrack(null) で track が空になる。audio は dtmf の有無で送り枠を判別する
+    if (kind === 'audio') {
+      const byDtmf = senders.find((s) => s.dtmf != null)
+      if (byDtmf) return byDtmf
+    }
+    return senders.find((s) => !s.track)
+  }
+
   private replaceTrackForAllPeers(kind: 'video' | 'audio', track: MediaStreamTrack | null) {
     const applyTo = (map: Map<string, { call: Peer.MediaConnection; video: HTMLVideoElement; wrapper: HTMLDivElement }>) => {
       map.forEach(({ call }) => {
-        const sender = (call.peerConnection as RTCPeerConnection)
-          .getSenders()
-          .find((s) => s.track?.kind === kind)
+        const pc = call.peerConnection as RTCPeerConnection | undefined
+        if (!pc) return
+        const sender = this.findSender(pc, kind)
         if (sender) sender.replaceTrack(track)
       })
     }

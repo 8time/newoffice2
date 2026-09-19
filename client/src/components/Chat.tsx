@@ -51,12 +51,15 @@ const Backdrop = styled.div`
   max-width: 100%;
 `
 
-const Wrapper = styled.div`
+const Wrapper = styled.div<{ isDragging?: boolean }>`
   position: relative;
   height: 100%;
   padding: 16px;
   display: flex;
   flex-direction: column;
+  outline: ${({ isDragging }) => (isDragging ? '2px solid #42eacb' : 'none')};
+  outline-offset: -2px;
+  border-radius: 10px;
 `
 
 const FabWrapper = styled.div`
@@ -86,18 +89,17 @@ const ChatHeader = styled.div`
   }
 `
 
-const ChatBox = styled(Box)<{ isDragging?: boolean }>`
+const ChatBox = styled(Box)`
   height: 100%;
   width: 100%;
   overflow-y: auto;
   background: #1a1a2e;
-  border: 2px solid ${({ isDragging }) => (isDragging ? '#42eacb' : '#00000029')};
+  border: 2px solid #00000029;
   padding: 10px 8px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   position: relative;
-  transition: border-color 0.15s;
 
   /* スタンプ画像を「チャットメッセージエリア(このボックス)の横幅の50%」で
      出すためのコンテナクエリの基準にする。このボックスは既に width:100% で
@@ -117,7 +119,7 @@ const DropOverlay = styled.div`
   align-items: center;
   justify-content: center;
   gap: 12px;
-  z-index: 10;
+  z-index: 50;
   pointer-events: none;
   border-radius: 4px;
 
@@ -692,12 +694,20 @@ async function readAndSendFile(original: File, myName: string, dispatch: any) {
   }
 }
 
+function isChatUploadable(file: File) {
+  if (DROPPABLE_TYPES.test(file.type)) return true
+  return /\.(xlsx?|csv|pdf|png|jpe?g|gif|webp|mp4|webm|mp3|wav|m4a)$/i.test(file.name)
+}
+
 function processDroppedFiles(files: FileList, myName: string, dispatch: any) {
-  Array.from(files).forEach((file) => {
-    if (!DROPPABLE_TYPES.test(file.type) &&
-        !file.name.match(/\.(xlsx?|csv|pdf)$/i)) return
-    readAndSendFile(file, myName, dispatch)
-  })
+  const list = Array.from(files)
+  if (list.length === 0) return
+  const accepted = list.filter(isChatUploadable)
+  if (accepted.length === 0) {
+    alert('この形式のファイルはチャットに送れません（画像・動画・音声・PDF・Excel）')
+    return
+  }
+  accepted.forEach((file) => readAndSendFile(file, myName, dispatch))
 }
 
 export default function Chat() {
@@ -762,31 +772,42 @@ export default function Chat() {
 
   // ─── ドラッグ&ドロップ ─────────────────────────────────────────────────────
 
+  const hasFiles = (e: React.DragEvent) => {
+    const types = Array.from(e.dataTransfer?.types || [])
+    return types.includes('Files') || types.includes('application/x-moz-file')
+  }
+
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault()
+    e.stopPropagation()
     dragCounterRef.current += 1
-    if (e.dataTransfer.types.includes('Files')) setIsDragging(true)
+    if (hasFiles(e)) setIsDragging(true)
   }
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault()
+    e.stopPropagation()
     dragCounterRef.current -= 1
-    if (dragCounterRef.current === 0) setIsDragging(false)
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0
+      setIsDragging(false)
+    }
   }
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
+    e.stopPropagation()
     e.dataTransfer.dropEffect = 'copy'
   }
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
+    e.stopPropagation()
     dragCounterRef.current = 0
     setIsDragging(false)
     if (e.dataTransfer.files.length > 0) {
-      processDroppedFiles(e.dataTransfer.files, myName, dispatch)
-      // チャットが閉じていれば開く
       dispatch(setShowChat(true))
+      processDroppedFiles(e.dataTransfer.files, myName, dispatch)
     }
   }
 
@@ -883,7 +904,19 @@ export default function Chat() {
         document.body
       )}
     <Backdrop className="sky-office-chat-backdrop">
-      <Wrapper>
+      <Wrapper
+        isDragging={isDragging}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
+        {isDragging && (
+          <DropOverlay>
+            <span className="drop-icon">📂</span>
+            <span className="drop-text">ここにドロップして送信</span>
+          </DropOverlay>
+        )}
         {showChat ? (
           <>
             <ChatHeader>
@@ -898,20 +931,7 @@ export default function Chat() {
               </IconButton>
             </ChatHeader>
 
-            <ChatBox
-              ref={chatBoxRef}
-              isDragging={isDragging}
-              onDragEnter={handleDragEnter}
-              onDragLeave={handleDragLeave}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-            >
-              {isDragging && (
-                <DropOverlay>
-                  <span className="drop-icon">📂</span>
-                  <span className="drop-text">ここにドロップして送信</span>
-                </DropOverlay>
-              )}
+            <ChatBox ref={chatBoxRef}>
               {chatMessages.map(({ messageType, chatMessage, file }, index) => {
                 // 日付が変わる境目に日付区切りを挿入する
                 const prev = chatMessages[index - 1]
@@ -970,7 +990,7 @@ export default function Chat() {
                 inputRef={inputRef}
                 autoFocus={focused}
                 fullWidth
-                placeholder="エンターキーでチャット"
+                placeholder="メッセージ、またはファイルをドロップ"
                 value={inputValue}
                 onKeyDown={handleKeyDown}
                 onChange={(e) => setInputValue(e.target.value)}

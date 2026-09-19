@@ -146,7 +146,7 @@ const DeviceSelect = styled.select`
   border-radius: 6px;
   border: 1px solid #ccc;
   background: #fff;
-  font-size: 13px;
+  font-size: 16px;
   color: #333;
   outline: none;
   box-sizing: border-box;
@@ -181,6 +181,15 @@ const FieldLabel = styled.p`
   font-size: 14px;
   color: #aab;
 `
+
+function uniqueDevices(list: MediaDeviceInfo[]) {
+  const seen = new Set<string>()
+  return list.filter((d) => {
+    if (!d.deviceId || seen.has(d.deviceId)) return false
+    seen.add(d.deviceId)
+    return true
+  })
+}
 
 export default function SettingsDialog() {
   const dispatch = useAppDispatch()
@@ -309,17 +318,17 @@ export default function SettingsDialog() {
 
     try {
       const devices = await navigator.mediaDevices.enumerateDevices()
-      const vList = devices.filter((d) => d.kind === 'videoinput')
-      const aList = devices.filter((d) => d.kind === 'audioinput')
+      const vList = uniqueDevices(devices.filter((d) => d.kind === 'videoinput'))
+      const aList = uniqueDevices(devices.filter((d) => d.kind === 'audioinput'))
       setCameras(vList)
       setMicrophones(aList)
 
       const curCam = webRTC?.selectedCameraId || (webRTC?.myStream?.getVideoTracks()[0]?.getSettings?.()?.deviceId) || ''
       const curMic = webRTC?.selectedMicId || (webRTC?.myStream?.getAudioTracks()[0]?.getSettings?.()?.deviceId) || ''
-      if (curCam) setSelectedCameraId(curCam)
+      if (curCam && vList.some((d) => d.deviceId === curCam)) setSelectedCameraId(curCam)
       else if (vList.length > 0) setSelectedCameraId(vList[0].deviceId)
 
-      if (curMic) setSelectedMicId(curMic)
+      if (curMic && aList.some((d) => d.deviceId === curMic)) setSelectedMicId(curMic)
       else if (aList.length > 0) setSelectedMicId(aList[0].deviceId)
     } catch (err) {
       console.error('enumerateDevices error:', err)
@@ -351,15 +360,20 @@ export default function SettingsDialog() {
 
   const handleMicChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const deviceId = e.target.value
+    const previous = selectedMicId
     setSelectedMicId(deviceId)
     const game = getGame()
     const webRTC = game?.network?.webRTC
-    if (webRTC && webRTC.myStream) {
-      await webRTC.switchMicrophone(deviceId)
-      if (webRTC.myStream) {
-        setupAudioMeter(webRTC.myStream)
-      }
+    if (!webRTC) return
+    const ok = webRTC.myStream
+      ? await webRTC.switchMicrophone(deviceId)
+      : await webRTC.connectMedia(selectedCameraId, deviceId)
+    if (!ok) {
+      setSelectedMicId(previous)
+      alert('このマイクに切り替えられませんでした。別のマイクを選ぶか、イヤホン／Bluetoothの接続を確認してください。')
+      return
     }
+    if (webRTC.myStream) setupAudioMeter(webRTC.myStream)
   }
 
   const toggleVideo = () => {
@@ -432,6 +446,14 @@ export default function SettingsDialog() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, currentName, currentAvatar])
 
+  React.useEffect(() => {
+    if (!open || !navigator.mediaDevices?.addEventListener) return
+    const onDeviceChange = () => { refreshMediaState() }
+    navigator.mediaDevices.addEventListener('devicechange', onDeviceChange)
+    return () => navigator.mediaDevices.removeEventListener('devicechange', onDeviceChange)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
   const applyRoomPassword = () => {
     const v = pwInput.trim()
     if (!v || !roomKey) return
@@ -475,7 +497,14 @@ export default function SettingsDialog() {
   }
 
   return (
-    <Dialog open={open} onClose={() => dispatch(closeSettingsDialog())} maxWidth="sm" fullWidth>
+    <Dialog
+      open={open}
+      onClose={() => dispatch(closeSettingsDialog())}
+      maxWidth="sm"
+      fullWidth
+      disableEnforceFocus
+      disableAutoFocus
+    >
       <DialogTitle>設定</DialogTitle>
       <DialogContent>
         <FieldLabel>名前</FieldLabel>
@@ -607,6 +636,9 @@ export default function SettingsDialog() {
                 </option>
               ))}
             </DeviceSelect>
+            <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
+              イヤホンマイクから本体（スピーカー側）のマイクへ切り替えるときは、上の一覧から選び直してください。
+            </div>
           </div>
 
           {/* マイク入力音量メーター */}

@@ -69,6 +69,7 @@ export default class Game extends Phaser.Scene {
   private playerSelector!: Phaser.GameObjects.Zone
   private otherPlayers!: Phaser.Physics.Arcade.Group
   private otherPlayerMap = new Map<string, OtherPlayer>()
+  private lastPresenceSync = 0
   computerMap = new Map<string, Computer>()
   private whiteboardMap = new Map<string, Whiteboard>()
   private jukeboxes!: Phaser.Physics.Arcade.StaticGroup
@@ -1630,6 +1631,15 @@ export default class Game extends Phaser.Scene {
     }
   }
 
+  // サーバー上にもういないキャラが画面に残っていたら消す（onRemove を取りこぼした場合の保険）
+  private syncOtherPlayersWithState() {
+    const players = this.network?.room?.state?.players
+    if (!players) return
+    for (const id of [...this.otherPlayerMap.keys()]) {
+      if (!players.has(id)) this.handlePlayerLeftWithProximity(id)
+    }
+  }
+
   private handleMyPlayerReady() {
     this.myPlayer.readyToConnect = true
   }
@@ -1737,6 +1747,10 @@ export default class Game extends Phaser.Scene {
 
   update(t: number, dt: number) {
     if (this.myPlayer && this.network) {
+      if (t - this.lastPresenceSync > 2000) {
+        this.lastPresenceSync = t
+        this.syncOtherPlayersWithState()
+      }
       this.playerSelector.update(this.myPlayer, this.cursors)
       this.myPlayer.update(this.playerSelector, this.cursors, this.keyE, this.keyR, this.network)
 

@@ -194,6 +194,24 @@ export default class Network {
     this.room.state.players.onAdd = (player: IPlayer, key: string) => {
       if (key === this.mySessionId) return
 
+      const syncPlayerMeta = () => {
+        if (player.name) {
+          phaserEvents.emit(Event.PLAYER_JOINED, player, key)
+          store.dispatch(setPlayerNameMap({ id: key, name: player.name }))
+        }
+        if (player.status || player.awayMessage) {
+          store.dispatch(setPlayerStatus({
+            id: key,
+            status: player.status,
+            awayMessage: player.awayMessage,
+          }))
+        }
+        if (player.userKey) {
+          store.dispatch(setPlayerUserKey({ id: key, userKey: player.userKey }))
+          if (player.name) store.dispatch(setDmName({ userKey: player.userKey, name: player.name }))
+        }
+      }
+
       // track changes on every child object inside the players MapSchema
       player.onChange = (changes) => {
         changes.forEach((change) => {
@@ -250,6 +268,9 @@ export default class Network {
           if (player.name) store.dispatch(setDmName({ userKey: player.userKey, name: player.name }))
         }
       }
+
+      // 既に名前が付いている在室者は onChange を待たずに表示する
+      syncPlayerMeta()
     }
 
     // an instance removed from the players MapSchema
