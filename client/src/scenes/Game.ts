@@ -1623,12 +1623,14 @@ export default class Game extends Phaser.Scene {
 
   // function to remove the player who left from the otherPlayer group
   private handlePlayerLeft(id: string) {
-    if (this.otherPlayerMap.has(id)) {
-      const otherPlayer = this.otherPlayerMap.get(id)
-      if (!otherPlayer) return
-      this.otherPlayers.remove(otherPlayer, true, true)
-      this.otherPlayerMap.delete(id)
-    }
+    const otherPlayer = this.otherPlayerMap.get(id)
+    this.otherPlayerMap.delete(id)
+    if (!otherPlayer) return
+    try {
+      otherPlayer.playerContainer?.destroy()
+    } catch {}
+    this.otherPlayers.remove(otherPlayer, true, true)
+    if (otherPlayer.active) otherPlayer.destroy()
   }
 
   // サーバー上にもういないキャラが画面に残っていたら消す（onRemove を取りこぼした場合の保険）
@@ -1638,6 +1640,13 @@ export default class Game extends Phaser.Scene {
     for (const id of [...this.otherPlayerMap.keys()]) {
       if (!players.has(id)) this.handlePlayerLeftWithProximity(id)
     }
+    this.otherPlayers.getChildren().forEach((go) => {
+      const other = go as OtherPlayer
+      const id = other.playerId
+      if (!id || !players.has(id) || !this.otherPlayerMap.has(id)) {
+        this.handlePlayerLeftWithProximity(id)
+      }
+    })
   }
 
   private handleMyPlayerReady() {

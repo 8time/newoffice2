@@ -372,7 +372,7 @@ export class SkyOffice extends Room<OfficeState> {
   // 最後に実データを受け取った時刻。中継がWebSocket pingに応答すると
   // 切断を検知できないため、アプリ心拍が止まった接続をここで落とす
   private lastSeenBySession = new Map<string, number>()
-  private static readonly STALE_CLIENT_MS = 90_000
+  private static readonly STALE_CLIENT_MS = 60_000
   // このルームのチャット履歴を保存するキー（固定ルームは合言葉で識別）
   private chatKey = 'public'
   private chatSaveTimer?: NodeJS.Timeout
@@ -562,6 +562,7 @@ export class SkyOffice extends Room<OfficeState> {
     )
 
     this.onMessage(Message.UPDATE_PLAYER_NAME, (client, message: { name: string }) => {
+      this.touchClient(client.sessionId)
       this.dispatcher.dispatch(new PlayerUpdateNameCommand(), {
         client,
         name: message.name,
@@ -598,10 +599,9 @@ export class SkyOffice extends Room<OfficeState> {
       if (player) player.readyToConnect = true
     })
 
-    // 経路のアイドル切断を防ぐ心拍。中継が「通信中」と認識し、サーバー側でも生存確認する
-    this.onMessage(Message.HEARTBEAT, (client) => {
-      this.touchClient(client.sessionId)
-    })
+    // 経路のアイドル切断を防ぐ心拍。中継が「通信中」と認識するだけ。
+    // ここを生存扱いにすると、閉じたはずのタブが心拍だけ送り続けて幽霊キャラになる。
+    this.onMessage(Message.HEARTBEAT, () => {})
 
     this.onMessage(Message.VIDEO_CONNECTED, (client) => {
       const player = this.state.players.get(client.sessionId)
@@ -1261,7 +1261,7 @@ export class SkyOffice extends Room<OfficeState> {
   }
 
   // 中継がWebSocket pingに応答すると、閉じたはずの接続が部屋に残り続ける。
-  // 90秒アプリ心拍が無いクライアントを切断し、接続のないplayersも削除する。
+  // 60秒キャラ移動が無いクライアントを切断し、接続のないplayersも削除する。
   private sweepStaleClients() {
     const now = Date.now()
     this.clients.forEach((client) => {
@@ -1285,7 +1285,32 @@ export class SkyOffice extends Room<OfficeState> {
       console.log(`[Presence] 接続のないキャラを削除: ${sessionId}`)
       this.dropPlayer(sessionId)
     })
+    this.dropDuplicateNames()
   }
+
+  // 同じ表示名が複数残っていたら、最後に動いた方だけ残す（古い幽霊を消す）
+  private dropDuplicateNames() {
+    const byName = new Map<string, { sessionId: string; last: number }[]>()
+    this.state.players.forEach((player, sessionId) => {
+      const name = (player.name || '').trim()
+      if (!name) return
+      const list = byName.get(name) || []
+      list.push({ sessionId, last: this.lastSeenBySession.get(sessionId) || 0 })
+      byName.set(name, list)
+    })
+    byName.forEach((list, name) => {
+      if (list.length < 2) return
+      list.sort((a, b) => b.last - a.last)
+      list.slice(1).forEach(({ sessionId }) => {
+        console.log(`[Presence] 同名の古い接続を削除: ${name} ${sessionId}`)
+        let client: Client | undefined
+        this.clients.forEach((c) => {
+          if (c.sessionId === sessionId) client = c
+        })
+        this.dropPlayer(sessionId)
+        try { client?.leave() } catch {}
+      })
+    })
   }
 
   onJoin(client: Client, options: any) {
