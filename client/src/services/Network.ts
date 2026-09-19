@@ -1,6 +1,8 @@
 import { Client, Room } from 'colyseus.js'
 import { IComputer, IOfficeState, IPlayer, IWhiteboard, ISignboard, IPlacedItem } from '../../../types/IOfficeState'
 import { Message, KICKED_BY_OTHER_TAB } from '../../../types/Messages'
+import { parseFileChat } from '../../../types/fileChat'
+import { resolveServerUrl } from './serverUrl'
 import { IRoomData, RoomType } from '../../../types/Rooms'
 import { ItemType } from '../../../types/Items'
 import WebRTC from '../web/WebRTC'
@@ -318,7 +320,19 @@ export default class Network {
 
     // new instance added to the chatMessages ArraySchema
     this.room.state.chatMessages.onAdd = (item, index) => {
-      store.dispatch(pushChatMessage(item))
+      const file = parseFileChat(item.content)
+      if (file) {
+        store.dispatch(pushFileMessage({
+          author: item.author,
+          id: item.id,
+          file: {
+            ...file,
+            url: resolveServerUrl(file.url),
+          },
+        }))
+      } else {
+        store.dispatch(pushChatMessage(item))
+      }
       
       // 既読配列の変更を監視
       item.readers.onAdd = () => {

@@ -18,7 +18,7 @@ import phaserGame from '../PhaserGame'
 import Game from '../scenes/Game'
 
 import { useAppDispatch, useAppSelector } from '../hooks'
-import { MessageType, FileAttachment, setFocused, setShowChat, pushFileMessage } from '../stores/ChatStore'
+import { MessageType, FileAttachment, setFocused, setShowChat, pushFileMessage, removeChatMessage } from '../stores/ChatStore'
 import { playChatSound, playStampSound } from '../util/sound'
 import { resolveServerUrl } from '../services/serverUrl'
 import { shrinkImageFile } from '../util/imageShrink'
@@ -439,7 +439,7 @@ function FilePreview({ file, textColor }: { file: FileAttachment; textColor: str
     }
   }, [file])
 
-  const isImage = file.type.startsWith('image/')
+  const isImage = file.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp)$/i.test(file.name)
   const isVideo = file.type.startsWith('video/')
   const isAudio = file.type.startsWith('audio/')
   const isCSV = file.type === 'text/csv' || file.name.endsWith('.csv')
@@ -839,6 +839,7 @@ export default function Chat() {
 
   const handleUnsend = () => {
     if (!unsendTarget) return
+    dispatch(removeChatMessage(unsendTarget.id))
     game.network.removeChatMessage(unsendTarget.id)
     setUnsendTarget(null)
   }

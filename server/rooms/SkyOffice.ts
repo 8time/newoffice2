@@ -5,6 +5,7 @@ import { Room, Client, ServerError } from 'colyseus'
 import { Dispatcher } from '@colyseus/command'
 import { Player, OfficeState, Computer, Whiteboard, Signboard, PlacedItem, ChatMessage } from './schema/OfficeState'
 import { Message, KICKED_BY_OTHER_TAB } from '../../types/Messages'
+import { encodeFileChat } from '../../types/fileChat'
 import { IRoomData } from '../../types/Rooms'
 import { whiteboardRoomIds } from './schema/OfficeState'
 import PlayerUpdateCommand from './commands/PlayerUpdateCommand'
@@ -974,17 +975,22 @@ export class SkyOffice extends Room<OfficeState> {
       })
     })
 
-    // ファイル送信: 送信者以外の全員へ転送（送信者名を付与）
+    // ファイル送信: 通常チャットと同じく state.chatMessages に載せる。
+    // 以前は broadcast だけだったため、相手に届かない・送信取消できない・再入室で消える、となっていた。
     this.onMessage(
       Message.SEND_FILE_MESSAGE,
       (client, message: { file: { name: string; type: string; url: string; size: number }; id?: string }) => {
+        if (!message?.file?.url) return
         const player = this.state.players.get(client.sessionId)
-        const author = player?.name || '名無し'
-        this.broadcast(
-          Message.SEND_FILE_MESSAGE,
-          { author, file: message.file, id: message.id },
-          { except: client }
-        )
+        if (!player) return
+        if (this.state.chatMessages.length >= CHAT_HISTORY_LIMIT) this.state.chatMessages.shift()
+        const m = new ChatMessage()
+        m.id = message.id || `file_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+        m.author = player.name || '名無し'
+        m.authorKey = player.userKey || ''
+        m.content = encodeFileChat(message.file)
+        this.state.chatMessages.push(m)
+        this.scheduleChatSave()
       }
     )
 
